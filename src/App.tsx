@@ -14,6 +14,7 @@ import Applications from "./pages/Applications";
 import ApplicationDetail from "./pages/ApplicationDetail";
 import Profile from "./pages/Profile";
 import Sources from "./pages/Sources";
+import AutoSearch from "./pages/AutoSearch";
 import CvTemplate from "./pages/CvTemplate";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -36,6 +37,7 @@ const App = () => (
               <Route path="/applications/:id" element={<ApplicationDetail />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/sources" element={<Sources />} />
+              <Route path="/auto-search" element={<AutoSearch />} />
               <Route path="/cv" element={<CvTemplate />} />
             </Route>
             <Route path="*" element={<NotFound />} />
