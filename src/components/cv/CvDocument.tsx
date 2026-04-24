@@ -298,6 +298,11 @@ const CenteredLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
 const SidebarLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
   <div className="cv-page" style={{ fontFamily: style.bodyFont, background: style.background, color: style.ink, display: "flex" }}>
     <aside style={{ width: "33%", background: style.accent, color: "#fff", padding: "22mm 14mm", boxSizing: "border-box" }}>
+      {cv.photo_url && (
+        <div style={{ marginBottom: 14 }}>
+          <Avatar url={cv.photo_url} size={96} ring="rgba(255,255,255,0.4)" />
+        </div>
+      )}
       <h1 style={{ fontFamily: style.headingFont, fontSize: 22, fontWeight: 700, margin: 0, lineHeight: 1.2 }}>
         {cv.full_name || "Navn Navnesen"}
       </h1>
