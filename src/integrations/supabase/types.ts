@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      application_cv_tweaks: {
+        Row: {
+          application_id: string
+          created_at: string
+          deemphasize: string[] | null
+          highlight_experiences: string[] | null
+          id: string
+          notes: string | null
+          prioritize_skills: string[] | null
+          rephrase_suggestions: Json | null
+          tailored_cv_markdown: string | null
+          tailored_intro: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          deemphasize?: string[] | null
+          highlight_experiences?: string[] | null
+          id?: string
+          notes?: string | null
+          prioritize_skills?: string[] | null
+          rephrase_suggestions?: Json | null
+          tailored_cv_markdown?: string | null
+          tailored_intro?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          deemphasize?: string[] | null
+          highlight_experiences?: string[] | null
+          id?: string
+          notes?: string | null
+          prioritize_skills?: string[] | null
+          rephrase_suggestions?: Json | null
+          tailored_cv_markdown?: string | null
+          tailored_intro?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_cv_tweaks_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       application_events: {
         Row: {
           application_id: string
@@ -99,9 +152,109 @@ export type Database = {
           },
         ]
       }
+      auto_apply_settings: {
+        Row: {
+          created_at: string
+          daily_limit: number
+          exclude_with_risks: boolean
+          is_enabled: boolean
+          min_score: number
+          only_from_rss: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          daily_limit?: number
+          exclude_with_risks?: boolean
+          is_enabled?: boolean
+          min_score?: number
+          only_from_rss?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          daily_limit?: number
+          exclude_with_risks?: boolean
+          is_enabled?: boolean
+          min_score?: number
+          only_from_rss?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      cv_templates: {
+        Row: {
+          certifications: Json
+          created_at: string
+          education: Json
+          email: string | null
+          experiences: Json
+          full_name: string | null
+          headline: string | null
+          id: string
+          intro: string | null
+          is_active: boolean
+          languages: Json
+          linkedin_url: string | null
+          location: string | null
+          phone: string | null
+          projects: Json
+          skills: Json
+          updated_at: string
+          user_id: string
+          website_url: string | null
+        }
+        Insert: {
+          certifications?: Json
+          created_at?: string
+          education?: Json
+          email?: string | null
+          experiences?: Json
+          full_name?: string | null
+          headline?: string | null
+          id?: string
+          intro?: string | null
+          is_active?: boolean
+          languages?: Json
+          linkedin_url?: string | null
+          location?: string | null
+          phone?: string | null
+          projects?: Json
+          skills?: Json
+          updated_at?: string
+          user_id: string
+          website_url?: string | null
+        }
+        Update: {
+          certifications?: Json
+          created_at?: string
+          education?: Json
+          email?: string | null
+          experiences?: Json
+          full_name?: string | null
+          headline?: string | null
+          id?: string
+          intro?: string | null
+          is_active?: boolean
+          languages?: Json
+          linkedin_url?: string | null
+          location?: string | null
+          phone?: string | null
+          projects?: Json
+          skills?: Json
+          updated_at?: string
+          user_id?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
       jobs: {
         Row: {
           ai_summary: string | null
+          auto_draft_at: string | null
           company: string | null
           created_at: string
           deadline: string | null
@@ -124,6 +277,7 @@ export type Database = {
         }
         Insert: {
           ai_summary?: string | null
+          auto_draft_at?: string | null
           company?: string | null
           created_at?: string
           deadline?: string | null
@@ -146,6 +300,7 @@ export type Database = {
         }
         Update: {
           ai_summary?: string | null
+          auto_draft_at?: string | null
           company?: string | null
           created_at?: string
           deadline?: string | null
@@ -225,6 +380,107 @@ export type Database = {
           weight_enthusiasm?: number
           weight_practical?: number
           weight_professional?: number
+        }
+        Relationships: []
+      }
+      rss_feeds: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          items_found: number
+          last_checked_at: string | null
+          last_error: string | null
+          last_item_guid: string | null
+          name: string
+          updated_at: string
+          url: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          items_found?: number
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_item_guid?: string | null
+          name: string
+          updated_at?: string
+          url: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          items_found?: number
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_item_guid?: string | null
+          name?: string
+          updated_at?: string
+          url?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      rss_seen_items: {
+        Row: {
+          feed_id: string
+          guid: string
+          id: string
+          link: string | null
+          seen_at: string
+        }
+        Insert: {
+          feed_id: string
+          guid: string
+          id?: string
+          link?: string | null
+          seen_at?: string
+        }
+        Update: {
+          feed_id?: string
+          guid?: string
+          id?: string
+          link?: string | null
+          seen_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rss_seen_items_feed_id_fkey"
+            columns: ["feed_id"]
+            isOneToOne: false
+            referencedRelation: "rss_feeds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_filters: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          user_id?: string
         }
         Relationships: []
       }
