@@ -12,3 +12,6 @@ verify_jwt = true
 [functions.poll-rss]
 verify_jwt = false
 
+[functions.import-cv]
+verify_jwt = true
+
