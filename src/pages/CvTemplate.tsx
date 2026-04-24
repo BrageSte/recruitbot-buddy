@@ -8,7 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, Save, Plus, Trash2, GripVertical, Upload, Sparkles, FileText } from "lucide-react";
+import { Loader2, Save, Plus, Trash2, GripVertical, Upload, Sparkles, FileText, Download } from "lucide-react";
+import { CvDocument } from "@/components/cv/CvDocument";
+import { CvStylePicker } from "@/components/cv/CvStylePicker";
+import { SheetViewer } from "@/components/cv/SheetViewer";
+import { exportNodeToPdf } from "@/components/cv/exportPdf";
+import { CvStyleId } from "@/components/cv/cvStyles";
+import { useRef } from "react";
 
 type Experience = {
   title: string; company: string; location?: string;
