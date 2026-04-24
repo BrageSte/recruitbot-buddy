@@ -34,6 +34,22 @@ type UploadedFile = {
   created_at: string;
 };
 
+type AutoApply = {
+  is_enabled: boolean;
+  min_score: number;
+  daily_limit: number;
+  only_from_rss: boolean;
+  exclude_with_risks: boolean;
+};
+
+const defaultAuto: AutoApply = {
+  is_enabled: false,
+  min_score: 80,
+  daily_limit: 5,
+  only_from_rss: false,
+  exclude_with_risks: true,
+};
+
 const Profile = () => {
   const { user } = useAuth();
   const { toast } = useToast();
