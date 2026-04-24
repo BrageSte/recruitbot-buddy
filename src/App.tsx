@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,7 +14,6 @@ import Applications from "./pages/Applications";
 import ApplicationDetail from "./pages/ApplicationDetail";
 import Profile from "./pages/Profile";
 import Sources from "./pages/Sources";
-import AutoSearch from "./pages/AutoSearch";
 import CvTemplate from "./pages/CvTemplate";
 import CalendarPage from "./pages/CalendarPage";
 import NotFound from "./pages/NotFound.tsx";
@@ -38,7 +37,7 @@ const App = () => (
               <Route path="/applications/:id" element={<ApplicationDetail />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/sources" element={<Sources />} />
-              <Route path="/auto-search" element={<AutoSearch />} />
+              <Route path="/auto-search" element={<Navigate to="/sources" replace />} />
               <Route path="/cv" element={<CvTemplate />} />
               <Route path="/calendar" element={<CalendarPage />} />
             </Route>
