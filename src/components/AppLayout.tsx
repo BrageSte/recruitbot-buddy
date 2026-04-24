@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Briefcase, FileText, User, LogOut, Sparkles } from "lucide-react";
+import { LayoutDashboard, Briefcase, FileText, User, LogOut, Sparkles, Rss, FileCog } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,8 @@ const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/jobs", label: "Jobber", icon: Briefcase },
   { to: "/applications", label: "Søknader", icon: FileText },
+  { to: "/sources", label: "Kilder", icon: Rss },
+  { to: "/cv", label: "CV-mal", icon: FileCog },
   { to: "/profile", label: "Profil", icon: User },
 ];
 

@@ -4,20 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Save, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Send, Trash2, Sparkles, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 const STATUSES = [
-  { v: "draft", label: "Utkast" },
-  { v: "sent", label: "Sendt" },
-  { v: "response_received", label: "Svar mottatt" },
-  { v: "interview", label: "Intervju" },
-  { v: "offer", label: "Tilbud" },
-  { v: "rejected", label: "Avslag" },
-  { v: "withdrawn", label: "Trukket" },
+  { v: "draft", label: "Utkast" }, { v: "sent", label: "Sendt" },
+  { v: "response_received", label: "Svar mottatt" }, { v: "interview", label: "Intervju" },
+  { v: "offer", label: "Tilbud" }, { v: "rejected", label: "Avslag" }, { v: "withdrawn", label: "Trukket" },
 ];
 
 const ApplicationDetail = () => {
@@ -25,27 +21,30 @@ const ApplicationDetail = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [app, setApp] = useState<any>(null);
+  const [tweak, setTweak] = useState<any>(null);
   const [text, setText] = useState("");
   const [preview, setPreview] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [tailoring, setTailoring] = useState(false);
 
   useEffect(() => { load(); }, [id]);
 
   const load = async () => {
     if (!id) return;
     setLoading(true);
-    const { data } = await supabase.from("applications").select("*, jobs(*)").eq("id", id).maybeSingle();
-    setApp(data);
-    setText(data?.generated_text ?? "");
+    const [{ data: a }, { data: t }] = await Promise.all([
+      supabase.from("applications").select("*, jobs(*)").eq("id", id).maybeSingle(),
+      supabase.from("application_cv_tweaks").select("*").eq("application_id", id).maybeSingle(),
+    ]);
+    setApp(a); setTweak(t); setText(a?.generated_text ?? "");
     setLoading(false);
   };
 
   const save = async () => {
     setSaving(true);
     await supabase.from("applications").update({ generated_text: text }).eq("id", app.id);
-    setSaving(false);
-    toast({ title: "Lagret" });
+    setSaving(false); toast({ title: "Lagret" });
   };
 
   const setStatus = async (status: string) => {
@@ -54,12 +53,20 @@ const ApplicationDetail = () => {
     await supabase.from("applications").update(upd).eq("id", app.id);
     if (status === "sent") {
       await supabase.from("jobs").update({ status: "applied" as any }).eq("id", app.job_id);
-      await supabase.from("application_events").insert({
-        user_id: app.user_id, application_id: app.id, event_type: "sent",
-        description: "Søknad sendt",
-      });
+      await supabase.from("application_events").insert({ user_id: app.user_id, application_id: app.id, event_type: "sent", description: "Søknad sendt" });
     }
     load();
+  };
+
+  const tailorCv = async () => {
+    setTailoring(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("tailor-cv", { body: { applicationId: app.id } });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast({ title: "CV tilpasset" }); load();
+    } catch (e: any) { toast({ title: "Feilet", description: e.message, variant: "destructive" }); }
+    finally { setTailoring(false); }
   };
 
   const remove = async () => {
@@ -90,49 +97,112 @@ const ApplicationDetail = () => {
         </div>
       </header>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Søknadstekst</CardTitle>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setPreview(!preview)}>
-              {preview ? "Rediger" : "Forhåndsvis"}
-            </Button>
-            <Button size="sm" onClick={save} disabled={saving}>
-              <Save className="w-4 h-4 mr-2" /> Lagre
-            </Button>
-            {app.status === "draft" && (
-              <Button size="sm" variant="default" onClick={() => setStatus("sent")}>
-                <Send className="w-4 h-4 mr-2" /> Marker som sendt
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {preview ? (
-            <div className="prose-app max-w-none border border-border rounded-md p-6 bg-card min-h-[400px]">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-            </div>
-          ) : (
-            <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={20} className="font-mono text-sm" />
-          )}
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="letter">
+        <TabsList>
+          <TabsTrigger value="letter"><FileText className="w-3.5 h-3.5 mr-1.5" /> Søknadsbrev</TabsTrigger>
+          <TabsTrigger value="cv"><Sparkles className="w-3.5 h-3.5 mr-1.5" /> Tilpasset CV {tweak && "✓"}</TabsTrigger>
+        </TabsList>
 
-      {app.cv_notes && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">CV-tilpasningsnotater</CardTitle></CardHeader>
-          <CardContent>
-            <div className="prose-app max-w-none">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{app.cv_notes}</ReactMarkdown>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        <TabsContent value="letter" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-base">Søknadstekst</CardTitle>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPreview(!preview)}>{preview ? "Rediger" : "Forhåndsvis"}</Button>
+                <Button size="sm" onClick={save} disabled={saving}><Save className="w-4 h-4 mr-2" /> Lagre</Button>
+                {app.status === "draft" && <Button size="sm" onClick={() => setStatus("sent")}><Send className="w-4 h-4 mr-2" /> Marker som sendt</Button>}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {preview ? (
+                <div className="prose-app max-w-none border border-border rounded-md p-6 bg-card min-h-[400px]">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                </div>
+              ) : (
+                <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={20} className="font-mono text-sm" />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="cv" className="space-y-4 mt-4">
+          {!tweak ? (
+            <Card><CardContent className="p-8 text-center space-y-4">
+              <p className="text-sm text-muted-foreground">Ingen CV-tilpasning ennå. AI bruker CV-malen din og foreslår endringer skreddersydd til denne stillingen.</p>
+              <Button onClick={tailorCv} disabled={tailoring}>
+                {tailoring ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> AI tilpasser…</> : <><Sparkles className="w-4 h-4 mr-2" /> Tilpass CV</>}
+              </Button>
+            </CardContent></Card>
+          ) : (
+            <>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-base">AI-anbefalinger</CardTitle>
+                  <Button variant="outline" size="sm" onClick={tailorCv} disabled={tailoring}>
+                    {tailoring ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />} Generer på nytt
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {tweak.tailored_intro && (
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Tilpasset intro</div>
+                      <div className="p-3 bg-accent/40 rounded-md text-sm">{tweak.tailored_intro}</div>
+                    </div>
+                  )}
+                  {tweak.highlight_experiences?.length > 0 && (
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Fremhev disse</div>
+                      <div className="flex flex-wrap gap-1.5">{tweak.highlight_experiences.map((e: string, i: number) => <span key={i} className="px-2 py-0.5 bg-success/15 text-success rounded text-xs">{e}</span>)}</div>
+                    </div>
+                  )}
+                  {tweak.deemphasize?.length > 0 && (
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Ton ned</div>
+                      <div className="flex flex-wrap gap-1.5">{tweak.deemphasize.map((e: string, i: number) => <span key={i} className="px-2 py-0.5 bg-muted text-muted-foreground rounded text-xs">{e}</span>)}</div>
+                    </div>
+                  )}
+                  {tweak.prioritize_skills?.length > 0 && (
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Prioriter ferdigheter</div>
+                      <div className="flex flex-wrap gap-1.5">{tweak.prioritize_skills.map((e: string, i: number) => <span key={i} className="px-2 py-0.5 bg-primary/15 text-primary rounded text-xs">{e}</span>)}</div>
+                    </div>
+                  )}
+                  {tweak.rephrase_suggestions?.length > 0 && (
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Omformuleringer</div>
+                      <div className="space-y-2">
+                        {tweak.rephrase_suggestions.map((r: any, i: number) => (
+                          <div key={i} className="border border-border rounded-md p-3 text-sm">
+                            <div className="text-xs text-muted-foreground mb-1.5">{r.context}</div>
+                            <div className="line-through text-muted-foreground text-xs mb-1">{r.before}</div>
+                            <div>{r.after}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {tweak.notes && <div className="text-xs text-muted-foreground italic">{tweak.notes}</div>}
+                </CardContent>
+              </Card>
+              {tweak.tailored_cv_markdown && (
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Komplett tilpasset CV</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="prose-app max-w-none border border-border rounded-md p-6 bg-card">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{tweak.tailored_cv_markdown}</ReactMarkdown>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <Card>
         <CardHeader><CardTitle className="text-base">Notater</CardTitle></CardHeader>
         <CardContent>
-          <Textarea rows={4} defaultValue={app.notes ?? ""} onBlur={(e) => supabase.from("applications").update({ notes: e.target.value }).eq("id", app.id)} placeholder="Notater om svar, oppfølging…" />
+          <Textarea rows={4} defaultValue={app.notes ?? ""} onBlur={(e) => supabase.from("applications").update({ notes: e.target.value }).eq("id", app.id)} />
         </CardContent>
       </Card>
     </div>
