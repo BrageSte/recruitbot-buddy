@@ -94,6 +94,7 @@ const CvTemplate = () => {
     setSaving(true);
     const payload = {
       user_id: user.id, is_active: true,
+      cv_style: cv.cv_style ?? "skandinavisk",
       full_name: cv.full_name, headline: cv.headline, email: cv.email,
       phone: cv.phone, location: cv.location, linkedin_url: cv.linkedin_url, website_url: cv.website_url,
       intro: cv.intro,
