@@ -314,14 +314,53 @@ const CvTemplate = () => {
       {/* Header info */}
       <Card>
         <CardHeader><CardTitle className="text-base">Kontakt</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4">
-          <Field label="Fullt navn" value={cv.full_name ?? ""} onChange={(v) => setCv({ ...cv, full_name: v })} />
-          <Field label="Tittel/headline" value={cv.headline ?? ""} onChange={(v) => setCv({ ...cv, headline: v })} placeholder="f.eks. Senior systemutvikler" />
-          <Field label="Epost" value={cv.email ?? ""} onChange={(v) => setCv({ ...cv, email: v })} />
-          <Field label="Telefon" value={cv.phone ?? ""} onChange={(v) => setCv({ ...cv, phone: v })} />
-          <Field label="Sted" value={cv.location ?? ""} onChange={(v) => setCv({ ...cv, location: v })} />
-          <Field label="LinkedIn" value={cv.linkedin_url ?? ""} onChange={(v) => setCv({ ...cv, linkedin_url: v })} />
-          <Field label="Nettsted" value={cv.website_url ?? ""} onChange={(v) => setCv({ ...cv, website_url: v })} />
+        <CardContent className="space-y-5">
+          <div className="flex items-center gap-4">
+            <div className="w-20 h-20 rounded-full bg-muted overflow-hidden flex items-center justify-center border">
+              {cv.photo_url ? (
+                <img src={cv.photo_url} alt="Profilbilde" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs text-muted-foreground">Ingen</span>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm">Profilbilde</Label>
+              <div className="flex flex-wrap gap-2">
+                <label className={uploadingPhoto ? "pointer-events-none opacity-60" : "cursor-pointer"}>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    disabled={uploadingPhoto}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) uploadPhoto(f);
+                      e.target.value = "";
+                    }}
+                  />
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-input bg-background hover:bg-accent text-sm">
+                    {uploadingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                    {cv.photo_url ? "Bytt bilde" : "Last opp bilde"}
+                  </span>
+                </label>
+                {cv.photo_url && (
+                  <Button variant="ghost" size="sm" onClick={removePhoto}>
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Fjern
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">JPG, PNG eller WebP. Maks 5 MB. Vises øverst på CV.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Fullt navn" value={cv.full_name ?? ""} onChange={(v) => setCv({ ...cv, full_name: v })} />
+            <Field label="Tittel/headline" value={cv.headline ?? ""} onChange={(v) => setCv({ ...cv, headline: v })} placeholder="f.eks. Senior systemutvikler" />
+            <Field label="Epost" value={cv.email ?? ""} onChange={(v) => setCv({ ...cv, email: v })} />
+            <Field label="Telefon" value={cv.phone ?? ""} onChange={(v) => setCv({ ...cv, phone: v })} />
+            <Field label="Sted" value={cv.location ?? ""} onChange={(v) => setCv({ ...cv, location: v })} />
+            <Field label="LinkedIn" value={cv.linkedin_url ?? ""} onChange={(v) => setCv({ ...cv, linkedin_url: v })} />
+            <Field label="Nettsted" value={cv.website_url ?? ""} onChange={(v) => setCv({ ...cv, website_url: v })} />
+          </div>
         </CardContent>
       </Card>
 
