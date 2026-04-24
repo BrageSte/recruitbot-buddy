@@ -12,6 +12,7 @@ export type CvData = {
   location?: string | null;
   linkedin_url?: string | null;
   website_url?: string | null;
+  photo_url?: string | null;
   intro?: string | null;
   experiences?: Array<{
     title: string;
