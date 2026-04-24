@@ -185,6 +185,60 @@ export type Database = {
         }
         Relationships: []
       }
+      auto_searches: {
+        Row: {
+          blocked_hint: string | null
+          created_at: string
+          extra_params: Json
+          id: string
+          is_active: boolean
+          items_found: number
+          last_checked_at: string | null
+          last_error: string | null
+          last_status: Database["public"]["Enums"]["auto_search_status"]
+          location: string | null
+          name: string
+          query: string
+          source: Database["public"]["Enums"]["auto_search_source"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          blocked_hint?: string | null
+          created_at?: string
+          extra_params?: Json
+          id?: string
+          is_active?: boolean
+          items_found?: number
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_status?: Database["public"]["Enums"]["auto_search_status"]
+          location?: string | null
+          name: string
+          query?: string
+          source: Database["public"]["Enums"]["auto_search_source"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          blocked_hint?: string | null
+          created_at?: string
+          extra_params?: Json
+          id?: string
+          is_active?: boolean
+          items_found?: number
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_status?: Database["public"]["Enums"]["auto_search_status"]
+          location?: string | null
+          name?: string
+          query?: string
+          source?: Database["public"]["Enums"]["auto_search_source"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       cv_templates: {
         Row: {
           certifications: Json
@@ -564,6 +618,8 @@ export type Database = {
         | "offer"
         | "rejected"
         | "withdrawn"
+      auto_search_source: "finn" | "arbeidsplassen" | "linkedin"
+      auto_search_status: "ok" | "blocked" | "error" | "pending"
       file_kind: "cv" | "previous_application" | "other"
       job_source: "manual" | "url" | "rss" | "linkedin" | "file"
       job_status:
@@ -711,6 +767,8 @@ export const Constants = {
         "rejected",
         "withdrawn",
       ],
+      auto_search_source: ["finn", "arbeidsplassen", "linkedin"],
+      auto_search_status: ["ok", "blocked", "error", "pending"],
       file_kind: ["cv", "previous_application", "other"],
       job_source: ["manual", "url", "rss", "linkedin", "file"],
       job_status: [
