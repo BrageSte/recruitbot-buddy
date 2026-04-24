@@ -37,6 +37,7 @@ type CV = {
   location: string | null;
   linkedin_url: string | null;
   website_url: string | null;
+  photo_url: string | null;
   intro: string;
   experiences: Experience[];
   education: Education[];
@@ -49,7 +50,7 @@ type CV = {
 const empty: CV = {
   cv_style: "skandinavisk",
   full_name: "", headline: "", email: "", phone: "", location: "",
-  linkedin_url: "", website_url: "", intro: "",
+  linkedin_url: "", website_url: "", photo_url: null, intro: "",
   experiences: [], education: [], skills: [], languages: [], projects: [], certifications: [],
 };
 
