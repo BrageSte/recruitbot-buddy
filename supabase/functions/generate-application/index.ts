@@ -84,11 +84,39 @@ serve(async (req) => {
     if (!call) return json({ error: "AI returnerte ikke struktur" }, 500);
     const parsed = JSON.parse(call.function.arguments);
 
+    // Pick a CV style for this job (uses the same Lovable AI gateway).
+    let chosenStyle: string | null = cv?.cv_style ?? "skandinavisk";
+    try {
+      const STYLES = ["skandinavisk", "korporat", "akademisk", "startup", "bold"];
+      const styleResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: [
+            { role: "system", content: `Velg én CV-stil for denne stillingen. Stiler: skandinavisk (offentlig/bærekraft/helse), korporat (finans/jus/konsulent), akademisk (forskning/utdanning), startup (scaleup/produkt/tech), bold (design/media/kreativt).` },
+            { role: "user", content: `Tittel: ${job.title}\nSelskap: ${job.company ?? ""}\n\n${(job.description ?? "").slice(0, 3000)}` },
+          ],
+          tools: [{ type: "function", function: { name: "pick_style", parameters: { type: "object", properties: { style: { type: "string", enum: STYLES } }, required: ["style"] } } }],
+          tool_choice: { type: "function", function: { name: "pick_style" } },
+        }),
+      });
+      if (styleResp.ok) {
+        const sd = await styleResp.json();
+        const c = sd.choices?.[0]?.message?.tool_calls?.[0];
+        if (c) {
+          const parsedStyle = JSON.parse(c.function.arguments);
+          if (STYLES.includes(parsedStyle.style)) chosenStyle = parsedStyle.style;
+        }
+      }
+    } catch (e) { console.error("style pick failed", e); }
+
     const { data: app, error: insErr } = await supabase.from("applications").insert({
       user_id: user.id,
       job_id: job.id,
       generated_text: parsed.application_text,
       cv_notes: parsed.cv_notes,
+      cv_style: chosenStyle as any,
       status: "draft" as const,
     }).select().maybeSingle();
     if (insErr) return json({ error: insErr.message }, 500);
@@ -97,7 +125,7 @@ serve(async (req) => {
       await supabase.from("jobs").update({ status: "considering" as any }).eq("id", job.id);
     }
 
-    return json({ applicationId: app!.id });
+    return json({ applicationId: app!.id, cv_style: chosenStyle });
   } catch (e) {
     console.error("generate-application error", e);
     return json({ error: (e as Error).message }, 500);

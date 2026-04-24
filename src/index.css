@@ -161,3 +161,23 @@
 .prose-app ol { @apply list-decimal pl-5 my-2 space-y-1; }
 .prose-app code { @apply bg-muted px-1 py-0.5 rounded text-xs; }
 .prose-app a { @apply text-primary underline; }
+
+/* CV document — A4 page rendered on screen + ready for PDF export */
+.cv-page {
+  width: 210mm;
+  min-height: 297mm;
+  background: #fff;
+  color: #1a1a1a;
+  margin: 0 auto;
+  box-shadow: 0 10px 40px -15px rgb(0 0 0 / 0.18);
+  position: relative;
+  overflow: hidden;
+}
+.cv-scale-wrap {
+  /* Scale the A4 page down to fit narrow viewports without losing fidelity */
+  transform-origin: top center;
+}
+@media print {
+  .cv-page { box-shadow: none; margin: 0; }
+}
+
