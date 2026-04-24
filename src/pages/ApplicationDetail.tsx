@@ -29,11 +29,14 @@ const ApplicationDetail = () => {
   const navigate = useNavigate();
   const [app, setApp] = useState<any>(null);
   const [tweak, setTweak] = useState<any>(null);
+  const [cvTpl, setCvTpl] = useState<any>(null);
   const [text, setText] = useState("");
-  const [preview, setPreview] = useState(false);
+  const [preview, setPreview] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tailoring, setTailoring] = useState(false);
+  const letterRef = useRef<HTMLDivElement>(null);
+  const cvRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { load(); }, [id]);
 
@@ -45,8 +48,27 @@ const ApplicationDetail = () => {
       supabase.from("application_cv_tweaks").select("*").eq("application_id", id).maybeSingle(),
     ]);
     setApp(a); setTweak(t); setText(a?.generated_text ?? "");
+    if (a?.user_id) {
+      const { data: c } = await supabase.from("cv_templates").select("*").eq("user_id", a.user_id).eq("is_active", true).maybeSingle();
+      setCvTpl(c);
+    }
     setLoading(false);
   };
+
+  const styleId: CvStyleId = (app?.cv_style ?? cvTpl?.cv_style ?? "skandinavisk") as CvStyleId;
+  const setStyle = async (id: CvStyleId) => {
+    setApp({ ...app, cv_style: id });
+    await supabase.from("applications").update({ cv_style: id }).eq("id", app.id);
+  };
+  const exportLetterPdf = async () => {
+    if (!letterRef.current) return;
+    await exportNodeToPdf(letterRef.current, `Soknad-${app?.jobs?.company || "selskap"}.pdf`);
+  };
+  const exportCvPdf = async () => {
+    if (!cvRef.current) return;
+    await exportNodeToPdf(cvRef.current, `CV-${cvTpl?.full_name || "uten-navn"}.pdf`);
+  };
+
 
   const save = async () => {
     setSaving(true);
