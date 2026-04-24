@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Loader2, Sparkles, ExternalLink, Filter, Bookmark, Trash2, X } from "lucide-react";
+import { Plus, Loader2, Sparkles, ExternalLink, Filter, Bookmark, Trash2, X, Send, ChevronDown, Layers } from "lucide-react";
 import { format } from "date-fns";
 
 type Job = any;
@@ -30,6 +31,12 @@ const SOURCES = [
   { v: "manual", label: "Manuell" }, { v: "url", label: "URL" },
   { v: "rss", label: "RSS" }, { v: "linkedin", label: "LinkedIn" }, { v: "file", label: "Fil" },
 ];
+
+const INTEREST_META: Record<string, { label: string; cls: string }> = {
+  uninterested: { label: "Uinteressant", cls: "bg-muted text-muted-foreground" },
+  interested: { label: "Aktuell", cls: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
+  very_interested: { label: "Veldig interessert", cls: "bg-primary/15 text-primary" },
+};
 
 const Jobs = () => {
   const { user } = useAuth();
