@@ -442,6 +442,7 @@ export type Database = {
           deadline: string | null
           description: string | null
           id: string
+          interest_level: Database["public"]["Enums"]["job_interest_level"]
           location: string | null
           match_score: number | null
           notes: string | null
@@ -465,6 +466,7 @@ export type Database = {
           deadline?: string | null
           description?: string | null
           id?: string
+          interest_level?: Database["public"]["Enums"]["job_interest_level"]
           location?: string | null
           match_score?: number | null
           notes?: string | null
@@ -488,6 +490,7 @@ export type Database = {
           deadline?: string | null
           description?: string | null
           id?: string
+          interest_level?: Database["public"]["Enums"]["job_interest_level"]
           location?: string | null
           match_score?: number | null
           notes?: string | null
@@ -753,6 +756,11 @@ export type Database = {
       file_kind: "cv" | "previous_application" | "other"
       goal_kind: "target_date" | "weekly_apps" | "milestone" | "custom"
       goal_status: "active" | "completed" | "missed" | "archived"
+      job_interest_level:
+        | "none"
+        | "uninterested"
+        | "interested"
+        | "very_interested"
       job_source: "manual" | "url" | "rss" | "linkedin" | "file"
       job_status:
         | "discovered"
@@ -906,6 +914,12 @@ export const Constants = {
       file_kind: ["cv", "previous_application", "other"],
       goal_kind: ["target_date", "weekly_apps", "milestone", "custom"],
       goal_status: ["active", "completed", "missed", "archived"],
+      job_interest_level: [
+        "none",
+        "uninterested",
+        "interested",
+        "very_interested",
+      ],
       job_source: ["manual", "url", "rss", "linkedin", "file"],
       job_status: [
         "discovered",
