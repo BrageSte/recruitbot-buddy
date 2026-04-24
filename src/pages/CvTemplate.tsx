@@ -37,6 +37,7 @@ type CV = {
   location: string | null;
   linkedin_url: string | null;
   website_url: string | null;
+  photo_url: string | null;
   intro: string;
   experiences: Experience[];
   education: Education[];
@@ -49,7 +50,7 @@ type CV = {
 const empty: CV = {
   cv_style: "skandinavisk",
   full_name: "", headline: "", email: "", phone: "", location: "",
-  linkedin_url: "", website_url: "", intro: "",
+  linkedin_url: "", website_url: "", photo_url: null, intro: "",
   experiences: [], education: [], skills: [], languages: [], projects: [], certifications: [],
 };
 
@@ -97,6 +98,7 @@ const CvTemplate = () => {
       cv_style: cv.cv_style ?? "skandinavisk",
       full_name: cv.full_name, headline: cv.headline, email: cv.email,
       phone: cv.phone, location: cv.location, linkedin_url: cv.linkedin_url, website_url: cv.website_url,
+      photo_url: cv.photo_url,
       intro: cv.intro,
       experiences: cv.experiences as any, education: cv.education as any,
       skills: cv.skills as any, languages: cv.languages as any,
@@ -183,6 +185,36 @@ const CvTemplate = () => {
     if (!previewRef.current) return;
     await exportNodeToPdf(previewRef.current, `CV-${(cv.full_name || "uten-navn").replace(/\s+/g, "-")}.pdf`);
   };
+
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const uploadPhoto = async (file: File) => {
+    if (!user) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Ugyldig fil", description: "Velg en bildefil (JPG, PNG, WebP).", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "For stor fil", description: "Maks 5 MB.", variant: "destructive" });
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${user.id}/profile-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("cv-photos").upload(path, file, {
+        cacheControl: "3600", upsert: true, contentType: file.type,
+      });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("cv-photos").getPublicUrl(path);
+      setCv((prev) => ({ ...prev, photo_url: pub.publicUrl }));
+      toast({ title: "Bilde lastet opp", description: "Husk å lagre CV-en." });
+    } catch (e: any) {
+      toast({ title: "Opplasting feilet", description: e?.message ?? "Ukjent feil", variant: "destructive" });
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+  const removePhoto = () => setCv((prev) => ({ ...prev, photo_url: null }));
 
   if (loading) return <div className="p-8 flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Laster…</div>;
 
@@ -282,14 +314,53 @@ const CvTemplate = () => {
       {/* Header info */}
       <Card>
         <CardHeader><CardTitle className="text-base">Kontakt</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4">
-          <Field label="Fullt navn" value={cv.full_name ?? ""} onChange={(v) => setCv({ ...cv, full_name: v })} />
-          <Field label="Tittel/headline" value={cv.headline ?? ""} onChange={(v) => setCv({ ...cv, headline: v })} placeholder="f.eks. Senior systemutvikler" />
-          <Field label="Epost" value={cv.email ?? ""} onChange={(v) => setCv({ ...cv, email: v })} />
-          <Field label="Telefon" value={cv.phone ?? ""} onChange={(v) => setCv({ ...cv, phone: v })} />
-          <Field label="Sted" value={cv.location ?? ""} onChange={(v) => setCv({ ...cv, location: v })} />
-          <Field label="LinkedIn" value={cv.linkedin_url ?? ""} onChange={(v) => setCv({ ...cv, linkedin_url: v })} />
-          <Field label="Nettsted" value={cv.website_url ?? ""} onChange={(v) => setCv({ ...cv, website_url: v })} />
+        <CardContent className="space-y-5">
+          <div className="flex items-center gap-4">
+            <div className="w-20 h-20 rounded-full bg-muted overflow-hidden flex items-center justify-center border">
+              {cv.photo_url ? (
+                <img src={cv.photo_url} alt="Profilbilde" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs text-muted-foreground">Ingen</span>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm">Profilbilde</Label>
+              <div className="flex flex-wrap gap-2">
+                <label className={uploadingPhoto ? "pointer-events-none opacity-60" : "cursor-pointer"}>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    disabled={uploadingPhoto}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) uploadPhoto(f);
+                      e.target.value = "";
+                    }}
+                  />
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-input bg-background hover:bg-accent text-sm">
+                    {uploadingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                    {cv.photo_url ? "Bytt bilde" : "Last opp bilde"}
+                  </span>
+                </label>
+                {cv.photo_url && (
+                  <Button variant="ghost" size="sm" onClick={removePhoto}>
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Fjern
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">JPG, PNG eller WebP. Maks 5 MB. Vises øverst på CV.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Fullt navn" value={cv.full_name ?? ""} onChange={(v) => setCv({ ...cv, full_name: v })} />
+            <Field label="Tittel/headline" value={cv.headline ?? ""} onChange={(v) => setCv({ ...cv, headline: v })} placeholder="f.eks. Senior systemutvikler" />
+            <Field label="Epost" value={cv.email ?? ""} onChange={(v) => setCv({ ...cv, email: v })} />
+            <Field label="Telefon" value={cv.phone ?? ""} onChange={(v) => setCv({ ...cv, phone: v })} />
+            <Field label="Sted" value={cv.location ?? ""} onChange={(v) => setCv({ ...cv, location: v })} />
+            <Field label="LinkedIn" value={cv.linkedin_url ?? ""} onChange={(v) => setCv({ ...cv, linkedin_url: v })} />
+            <Field label="Nettsted" value={cv.website_url ?? ""} onChange={(v) => setCv({ ...cv, website_url: v })} />
+          </div>
         </CardContent>
       </Card>
 

@@ -12,6 +12,7 @@ export type CvData = {
   location?: string | null;
   linkedin_url?: string | null;
   website_url?: string | null;
+  photo_url?: string | null;
   intro?: string | null;
   experiences?: Array<{
     title: string;
@@ -53,6 +54,25 @@ export const CvDocument = ({ cv, styleId }: Props) => {
 
 const fmtRange = (start?: string, end?: string, current?: boolean) =>
   `${start ?? ""}${(start || end || current) ? " – " : ""}${current ? "nå" : end ?? ""}`;
+
+const Avatar = ({
+  url, size, ring, shape = "circle",
+}: { url?: string | null; size: number; ring?: string; shape?: "circle" | "square" }) => {
+  if (!url) return null;
+  return (
+    <img
+      src={url}
+      alt=""
+      crossOrigin="anonymous"
+      style={{
+        width: size, height: size, objectFit: "cover", flexShrink: 0,
+        borderRadius: shape === "circle" ? "50%" : 6,
+        border: ring ? `2px solid ${ring}` : undefined,
+        background: "#eee",
+      }}
+    />
+  );
+};
 
 const ContactLine = ({ cv, color, sep = "·" }: { cv: CvData; color: string; sep?: string }) => {
   const parts = [cv.email, cv.phone, cv.location, cv.linkedin_url, cv.website_url].filter(Boolean);
@@ -152,12 +172,15 @@ const MinimalLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => {
   };
   return (
     <div className="cv-page" style={baseStyle}>
-      <header style={{ borderBottom: `2px solid ${style.accent}`, paddingBottom: 14, marginBottom: 6 }}>
-        <h1 style={{ fontFamily: style.headingFont, fontSize: 30, fontWeight: 600, margin: 0, letterSpacing: -0.5, color: style.ink }}>
-          {cv.full_name || "Navn Navnesen"}
-        </h1>
-        {cv.headline && <div style={{ fontSize: 13, color: style.accent, marginTop: 4, fontWeight: 500 }}>{cv.headline}</div>}
-        <div style={{ marginTop: 10 }}><ContactLine cv={cv} color={style.muted} /></div>
+      <header style={{ borderBottom: `2px solid ${style.accent}`, paddingBottom: 14, marginBottom: 6, display: "flex", gap: 18, alignItems: "center" }}>
+        {cv.photo_url && <Avatar url={cv.photo_url} size={78} ring={style.accent} />}
+        <div style={{ flex: 1 }}>
+          <h1 style={{ fontFamily: style.headingFont, fontSize: 30, fontWeight: 600, margin: 0, letterSpacing: -0.5, color: style.ink }}>
+            {cv.full_name || "Navn Navnesen"}
+          </h1>
+          {cv.headline && <div style={{ fontSize: 13, color: style.accent, marginTop: 4, fontWeight: 500 }}>{cv.headline}</div>}
+          <div style={{ marginTop: 10 }}><ContactLine cv={cv} color={style.muted} /></div>
+        </div>
       </header>
 
       {cv.intro && <p style={{ fontSize: 11, lineHeight: 1.6, marginTop: 14, color: style.ink }}>{cv.intro}</p>}
@@ -186,13 +209,16 @@ const MinimalLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => {
 
 const HeaderBandLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
   <div className="cv-page" style={{ fontFamily: style.bodyFont, background: style.background, color: style.ink }}>
-    <div style={{ background: style.accent, color: "#fff", padding: "22mm 22mm 16mm" }}>
-      <h1 style={{ fontFamily: style.headingFont, fontSize: 30, fontWeight: 700, margin: 0, letterSpacing: 0.3 }}>
-        {cv.full_name || "Navn Navnesen"}
-      </h1>
-      {cv.headline && <div style={{ fontSize: 13, marginTop: 4, opacity: 0.95 }}>{cv.headline}</div>}
-      <div style={{ marginTop: 12, color: "rgba(255,255,255,0.85)" }}>
-        <ContactLine cv={cv} color="rgba(255,255,255,0.85)" sep="|" />
+    <div style={{ background: style.accent, color: "#fff", padding: "22mm 22mm 16mm", display: "flex", gap: 20, alignItems: "center" }}>
+      {cv.photo_url && <Avatar url={cv.photo_url} size={88} ring="rgba(255,255,255,0.5)" shape="square" />}
+      <div style={{ flex: 1 }}>
+        <h1 style={{ fontFamily: style.headingFont, fontSize: 30, fontWeight: 700, margin: 0, letterSpacing: 0.3 }}>
+          {cv.full_name || "Navn Navnesen"}
+        </h1>
+        {cv.headline && <div style={{ fontSize: 13, marginTop: 4, opacity: 0.95 }}>{cv.headline}</div>}
+        <div style={{ marginTop: 12, color: "rgba(255,255,255,0.85)" }}>
+          <ContactLine cv={cv} color="rgba(255,255,255,0.85)" sep="|" />
+        </div>
       </div>
     </div>
     <div style={{ padding: "16mm 22mm 22mm" }}>
@@ -227,6 +253,11 @@ const HeaderBandLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
 const CenteredLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
   <div className="cv-page" style={{ fontFamily: style.bodyFont, background: style.background, color: style.ink, padding: "22mm" }}>
     <header style={{ textAlign: "center", borderBottom: `1px solid ${style.accent}`, paddingBottom: 12 }}>
+      {cv.photo_url && (
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+          <Avatar url={cv.photo_url} size={84} ring={style.accent} />
+        </div>
+      )}
       <h1 style={{ fontFamily: style.headingFont, fontSize: 28, fontWeight: 700, margin: 0, color: style.accent }}>
         {cv.full_name || "Navn Navnesen"}
       </h1>
@@ -267,6 +298,11 @@ const CenteredLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
 const SidebarLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
   <div className="cv-page" style={{ fontFamily: style.bodyFont, background: style.background, color: style.ink, display: "flex" }}>
     <aside style={{ width: "33%", background: style.accent, color: "#fff", padding: "22mm 14mm", boxSizing: "border-box" }}>
+      {cv.photo_url && (
+        <div style={{ marginBottom: 14 }}>
+          <Avatar url={cv.photo_url} size={96} ring="rgba(255,255,255,0.4)" />
+        </div>
+      )}
       <h1 style={{ fontFamily: style.headingFont, fontSize: 22, fontWeight: 700, margin: 0, lineHeight: 1.2 }}>
         {cv.full_name || "Navn Navnesen"}
       </h1>
@@ -334,12 +370,15 @@ const SidebarLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
 const SplitLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
   <div className="cv-page" style={{ fontFamily: style.bodyFont, background: style.background, color: style.ink }}>
     <header style={{ display: "flex", alignItems: "stretch" }}>
-      <div style={{ background: style.accent, color: "#fff", padding: "20mm 16mm", flex: "0 0 45%", boxSizing: "border-box" }}>
-        <div style={{ fontSize: 10, letterSpacing: 3, textTransform: "uppercase", opacity: 0.85 }}>Curriculum Vitae</div>
-        <h1 style={{ fontFamily: style.headingFont, fontSize: 38, fontWeight: 800, margin: "10px 0 0", lineHeight: 1.05, letterSpacing: -1 }}>
-          {cv.full_name || "Navn Navnesen"}
-        </h1>
-        {cv.headline && <div style={{ fontSize: 13, marginTop: 8, opacity: 0.95 }}>{cv.headline}</div>}
+      <div style={{ background: style.accent, color: "#fff", padding: "20mm 16mm", flex: "0 0 45%", boxSizing: "border-box", display: "flex", gap: 14, alignItems: "center" }}>
+        {cv.photo_url && <Avatar url={cv.photo_url} size={92} ring="rgba(255,255,255,0.4)" shape="square" />}
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, letterSpacing: 3, textTransform: "uppercase", opacity: 0.85 }}>Curriculum Vitae</div>
+          <h1 style={{ fontFamily: style.headingFont, fontSize: 32, fontWeight: 800, margin: "8px 0 0", lineHeight: 1.05, letterSpacing: -1 }}>
+            {cv.full_name || "Navn Navnesen"}
+          </h1>
+          {cv.headline && <div style={{ fontSize: 12.5, marginTop: 6, opacity: 0.95 }}>{cv.headline}</div>}
+        </div>
       </div>
       <div style={{ background: style.accentSoft, padding: "20mm 16mm", flex: 1, boxSizing: "border-box" }}>
         <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: style.accent, fontWeight: 600 }}>Kontakt</div>
