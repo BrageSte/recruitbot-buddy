@@ -51,6 +51,9 @@ const CvTemplate = () => {
   const [cv, setCv] = useState<CV>(empty);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
 
   useEffect(() => { load(); }, [user]);
 
