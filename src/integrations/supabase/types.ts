@@ -109,6 +109,7 @@ export type Database = {
         Row: {
           created_at: string
           cv_notes: string | null
+          cv_style: Database["public"]["Enums"]["cv_style"] | null
           generated_text: string | null
           id: string
           job_id: string
@@ -121,6 +122,7 @@ export type Database = {
         Insert: {
           created_at?: string
           cv_notes?: string | null
+          cv_style?: Database["public"]["Enums"]["cv_style"] | null
           generated_text?: string | null
           id?: string
           job_id: string
@@ -133,6 +135,7 @@ export type Database = {
         Update: {
           created_at?: string
           cv_notes?: string | null
+          cv_style?: Database["public"]["Enums"]["cv_style"] | null
           generated_text?: string | null
           id?: string
           job_id?: string
@@ -303,6 +306,7 @@ export type Database = {
         Row: {
           certifications: Json
           created_at: string
+          cv_style: Database["public"]["Enums"]["cv_style"]
           education: Json
           email: string | null
           experiences: Json
@@ -324,6 +328,7 @@ export type Database = {
         Insert: {
           certifications?: Json
           created_at?: string
+          cv_style?: Database["public"]["Enums"]["cv_style"]
           education?: Json
           email?: string | null
           experiences?: Json
@@ -345,6 +350,7 @@ export type Database = {
         Update: {
           certifications?: Json
           created_at?: string
+          cv_style?: Database["public"]["Enums"]["cv_style"]
           education?: Json
           email?: string | null
           experiences?: Json
@@ -740,6 +746,7 @@ export type Database = {
       auto_search_source: "finn" | "arbeidsplassen" | "linkedin"
       auto_search_status: "ok" | "blocked" | "error" | "pending"
       calendar_event_kind: "interview" | "follow_up" | "note" | "custom"
+      cv_style: "skandinavisk" | "korporat" | "akademisk" | "startup" | "bold"
       file_kind: "cv" | "previous_application" | "other"
       goal_kind: "target_date" | "weekly_apps" | "milestone" | "custom"
       goal_status: "active" | "completed" | "missed" | "archived"
@@ -892,6 +899,7 @@ export const Constants = {
       auto_search_source: ["finn", "arbeidsplassen", "linkedin"],
       auto_search_status: ["ok", "blocked", "error", "pending"],
       calendar_event_kind: ["interview", "follow_up", "note", "custom"],
+      cv_style: ["skandinavisk", "korporat", "akademisk", "startup", "bold"],
       file_kind: ["cv", "previous_application", "other"],
       goal_kind: ["target_date", "weekly_apps", "milestone", "custom"],
       goal_status: ["active", "completed", "missed", "archived"],
