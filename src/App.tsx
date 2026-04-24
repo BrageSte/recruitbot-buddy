@@ -13,6 +13,8 @@ import JobDetail from "./pages/JobDetail";
 import Applications from "./pages/Applications";
 import ApplicationDetail from "./pages/ApplicationDetail";
 import Profile from "./pages/Profile";
+import Sources from "./pages/Sources";
+import CvTemplate from "./pages/CvTemplate";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -33,6 +35,8 @@ const App = () => (
               <Route path="/applications" element={<Applications />} />
               <Route path="/applications/:id" element={<ApplicationDetail />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/sources" element={<Sources />} />
+              <Route path="/cv" element={<CvTemplate />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

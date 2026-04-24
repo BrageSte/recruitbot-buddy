@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Upload, FileText, Trash2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Save, Upload, FileText, Trash2, Zap } from "lucide-react";
 
 type Profile = {
   display_name: string | null;
@@ -33,11 +34,28 @@ type UploadedFile = {
   created_at: string;
 };
 
+type AutoApply = {
+  is_enabled: boolean;
+  min_score: number;
+  daily_limit: number;
+  only_from_rss: boolean;
+  exclude_with_risks: boolean;
+};
+
+const defaultAuto: AutoApply = {
+  is_enabled: false,
+  min_score: 80,
+  daily_limit: 5,
+  only_from_rss: false,
+  exclude_with_risks: true,
+};
+
 const Profile = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [auto, setAuto] = useState<AutoApply>(defaultAuto);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -46,19 +64,27 @@ const Profile = () => {
   const loadAll = async () => {
     if (!user) return;
     setLoading(true);
-    const [{ data: prof }, { data: fls }] = await Promise.all([
+    const [{ data: prof }, { data: fls }, { data: au }] = await Promise.all([
       supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
       supabase.from("uploaded_files").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("auto_apply_settings").select("*").eq("user_id", user.id).maybeSingle(),
     ]);
     if (prof) setProfile(prof as any);
     if (fls) setFiles(fls as any);
+    if (au) setAuto({
+      is_enabled: au.is_enabled,
+      min_score: au.min_score,
+      daily_limit: au.daily_limit,
+      only_from_rss: au.only_from_rss,
+      exclude_with_risks: au.exclude_with_risks,
+    });
     setLoading(false);
   };
 
   const save = async () => {
     if (!user || !profile) return;
     setSaving(true);
-    const { error } = await supabase.from("profiles").update({
+    const profPromise = supabase.from("profiles").update({
       display_name: profile.display_name,
       master_profile: profile.master_profile,
       style_guide: profile.style_guide,
@@ -72,7 +98,15 @@ const Profile = () => {
       rules_red: profile.rules_red,
       weekly_goal: profile.weekly_goal,
     }).eq("user_id", user.id);
+
+    const autoPromise = supabase.from("auto_apply_settings").upsert(
+      { user_id: user.id, ...auto },
+      { onConflict: "user_id" }
+    );
+
+    const [{ error: e1 }, { error: e2 }] = await Promise.all([profPromise, autoPromise]);
     setSaving(false);
+    const error = e1 || e2;
     if (error) toast({ title: "Kunne ikke lagre", description: error.message, variant: "destructive" });
     else toast({ title: "Lagret" });
   };
@@ -248,6 +282,52 @@ const Profile = () => {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Zap className="w-4 h-4 text-primary" /> Auto-utkast
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">Når en RSS-jobb scorer høyt, genereres et søknadsutkast automatisk. Du sender selv.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-3 border border-border rounded-md bg-card">
+            <div>
+              <div className="text-sm font-medium">Aktivér auto-utkast</div>
+              <div className="text-xs text-muted-foreground">Skrur av/på generering ved nye jobber.</div>
+            </div>
+            <Switch checked={auto.is_enabled} onCheckedChange={(v) => setAuto({ ...auto, is_enabled: v })} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Minimum score</Label>
+              <Input type="number" min={0} max={100} value={auto.min_score} onChange={(e) => setAuto({ ...auto, min_score: parseInt(e.target.value) || 0 })} />
+              <p className="text-xs text-muted-foreground">Kun jobber ≥ denne scoren får utkast.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Daglig grense</Label>
+              <Input type="number" min={0} value={auto.daily_limit} onChange={(e) => setAuto({ ...auto, daily_limit: parseInt(e.target.value) || 0 })} />
+              <p className="text-xs text-muted-foreground">Maks antall auto-utkast per dag.</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-3 border border-border rounded-md bg-card">
+              <div>
+                <div className="text-sm font-medium">Kun fra RSS</div>
+                <div className="text-xs text-muted-foreground">Hopp over manuelt lagrede jobber.</div>
+              </div>
+              <Switch checked={auto.only_from_rss} onCheckedChange={(v) => setAuto({ ...auto, only_from_rss: v })} />
+            </div>
+            <div className="flex items-center justify-between p-3 border border-border rounded-md bg-card">
+              <div>
+                <div className="text-sm font-medium">Ekskluder ved risiko-flagg</div>
+                <div className="text-xs text-muted-foreground">Hopp over jobber AI flagger som problematiske.</div>
+              </div>
+              <Switch checked={auto.exclude_with_risks} onCheckedChange={(v) => setAuto({ ...auto, exclude_with_risks: v })} />
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
