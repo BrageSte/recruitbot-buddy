@@ -239,6 +239,66 @@ export type Database = {
         }
         Relationships: []
       }
+      calendar_events: {
+        Row: {
+          application_id: string | null
+          created_at: string
+          description: string | null
+          event_date: string
+          event_time: string | null
+          id: string
+          job_id: string | null
+          kind: Database["public"]["Enums"]["calendar_event_kind"]
+          location: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          application_id?: string | null
+          created_at?: string
+          description?: string | null
+          event_date: string
+          event_time?: string | null
+          id?: string
+          job_id?: string | null
+          kind?: Database["public"]["Enums"]["calendar_event_kind"]
+          location?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          application_id?: string | null
+          created_at?: string
+          description?: string | null
+          event_date?: string
+          event_time?: string | null
+          id?: string
+          job_id?: string | null
+          kind?: Database["public"]["Enums"]["calendar_event_kind"]
+          location?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cv_templates: {
         Row: {
           certifications: Json
@@ -304,6 +364,65 @@ export type Database = {
           website_url?: string | null
         }
         Relationships: []
+      }
+      goals: {
+        Row: {
+          ai_generated: boolean
+          created_at: string
+          description: string | null
+          id: string
+          kind: Database["public"]["Enums"]["goal_kind"]
+          parent_goal_id: string | null
+          progress_count: number
+          sort_order: number
+          status: Database["public"]["Enums"]["goal_status"]
+          target_count: number | null
+          target_date: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_generated?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["goal_kind"]
+          parent_goal_id?: string | null
+          progress_count?: number
+          sort_order?: number
+          status?: Database["public"]["Enums"]["goal_status"]
+          target_count?: number | null
+          target_date?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_generated?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["goal_kind"]
+          parent_goal_id?: string | null
+          progress_count?: number
+          sort_order?: number
+          status?: Database["public"]["Enums"]["goal_status"]
+          target_count?: number | null
+          target_date?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goals_parent_goal_id_fkey"
+            columns: ["parent_goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       jobs: {
         Row: {
@@ -620,7 +739,10 @@ export type Database = {
         | "withdrawn"
       auto_search_source: "finn" | "arbeidsplassen" | "linkedin"
       auto_search_status: "ok" | "blocked" | "error" | "pending"
+      calendar_event_kind: "interview" | "follow_up" | "note" | "custom"
       file_kind: "cv" | "previous_application" | "other"
+      goal_kind: "target_date" | "weekly_apps" | "milestone" | "custom"
+      goal_status: "active" | "completed" | "missed" | "archived"
       job_source: "manual" | "url" | "rss" | "linkedin" | "file"
       job_status:
         | "discovered"
@@ -769,7 +891,10 @@ export const Constants = {
       ],
       auto_search_source: ["finn", "arbeidsplassen", "linkedin"],
       auto_search_status: ["ok", "blocked", "error", "pending"],
+      calendar_event_kind: ["interview", "follow_up", "note", "custom"],
       file_kind: ["cv", "previous_application", "other"],
+      goal_kind: ["target_date", "weekly_apps", "milestone", "custom"],
+      goal_status: ["active", "completed", "missed", "archived"],
       job_source: ["manual", "url", "rss", "linkedin", "file"],
       job_status: [
         "discovered",
