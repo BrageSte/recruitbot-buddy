@@ -217,6 +217,13 @@ serve(async (req) => {
         continue;
       }
 
+      // Load profile once per search to score consistently
+      const { data: profile } = await admin
+        .from("profiles")
+        .select("*")
+        .eq("user_id", s.user_id)
+        .maybeSingle();
+
       let newCount = 0;
       for (const hit of result.hits) {
         const { data: existing } = await admin
@@ -227,17 +234,34 @@ serve(async (req) => {
           .maybeSingle();
         if (existing) continue;
 
-        const { error: insErr } = await admin.from("jobs").insert({
+        // Fetch the actual job page and let the AI extract description, deadline, scores etc.
+        const baseText = `${hit.title}\n${hit.company ?? ""}\n${hit.location ?? ""}\n${hit.description ?? ""}`;
+        const fullText = await fetchJobText(hit.url, baseText);
+        const parsed = await aiParse(fullText, hit.url, profile);
+
+        const insertRow: Record<string, unknown> = {
           user_id: s.user_id,
-          title: hit.title,
-          company: hit.company ?? null,
-          location: hit.location ?? null,
+          title: parsed?.title || hit.title,
+          company: parsed?.company || hit.company || null,
+          location: parsed?.location || hit.location || null,
           source: s.source === "linkedin" ? "linkedin" : ("rss" as const),
           source_url: hit.url,
-          description: hit.description ?? null,
+          description: parsed?.description ?? hit.description ?? null,
           status: "discovered" as const,
-          ai_summary: `Funnet via auto-søk: ${s.name}`,
-        });
+          ai_summary: parsed?.ai_summary ?? `Funnet via auto-søk: ${s.name}`,
+        };
+
+        if (parsed) {
+          insertRow.deadline = parsed.deadline && /^\d{4}-\d{2}-\d{2}$/.test(parsed.deadline) ? parsed.deadline : null;
+          insertRow.match_score = weightedScore(parsed, profile);
+          insertRow.score_professional = parsed.score_professional;
+          insertRow.score_culture = parsed.score_culture;
+          insertRow.score_practical = parsed.score_practical;
+          insertRow.score_enthusiasm = parsed.score_enthusiasm;
+          insertRow.risk_flags = parsed.risk_flags ?? [];
+        }
+
+        const { error: insErr } = await admin.from("jobs").insert(insertRow);
         if (!insErr) newCount++;
       }
 
