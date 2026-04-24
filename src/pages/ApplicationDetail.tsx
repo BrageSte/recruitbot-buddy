@@ -134,24 +134,57 @@ const ApplicationDetail = () => {
 
         <TabsContent value="letter" className="space-y-4 mt-4">
           <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">CV-stil (matcher søknadsbrevet)</CardTitle>
+              <p className="text-xs text-muted-foreground">AI valgte stilen automatisk – endre om du vil.</p>
+            </CardHeader>
+            <CardContent>
+              <CvStylePicker value={styleId} onChange={setStyle} size="sm" />
+            </CardContent>
+          </Card>
+
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-base">Søknadstekst</CardTitle>
+              <CardTitle className="text-base">Søknadsbrev</CardTitle>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => setPreview(!preview)}>{preview ? "Rediger" : "Forhåndsvis"}</Button>
+                <Button variant="outline" size="sm" onClick={exportLetterPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
                 <Button size="sm" onClick={save} disabled={saving}><Save className="w-4 h-4 mr-2" /> Lagre</Button>
                 {app.status === "draft" && <Button size="sm" onClick={() => setStatus("sent")}><Send className="w-4 h-4 mr-2" /> Marker som sendt</Button>}
               </div>
             </CardHeader>
             <CardContent>
               {preview ? (
-                <div className="prose-app max-w-none border border-border rounded-md p-6 bg-card min-h-[400px]">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-                </div>
+                <SheetViewer>
+                  <div ref={letterRef}>
+                    <LetterDocument
+                      cv={cvTpl ?? {}}
+                      text={text}
+                      jobTitle={app.jobs?.title}
+                      company={app.jobs?.company}
+                      styleId={styleId}
+                    />
+                  </div>
+                </SheetViewer>
               ) : (
                 <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={20} className="font-mono text-sm" />
               )}
             </CardContent>
           </Card>
+
+          {cvTpl && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <CardTitle className="text-base">CV (samme stil)</CardTitle>
+                <Button variant="outline" size="sm" onClick={exportCvPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
+              </CardHeader>
+              <CardContent>
+                <SheetViewer>
+                  <div ref={cvRef}><CvDocument cv={cvTpl} styleId={styleId} /></div>
+                </SheetViewer>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="cv" className="space-y-4 mt-4">
