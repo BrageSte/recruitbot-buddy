@@ -209,13 +209,16 @@ const MinimalLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => {
 
 const HeaderBandLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
   <div className="cv-page" style={{ fontFamily: style.bodyFont, background: style.background, color: style.ink }}>
-    <div style={{ background: style.accent, color: "#fff", padding: "22mm 22mm 16mm" }}>
-      <h1 style={{ fontFamily: style.headingFont, fontSize: 30, fontWeight: 700, margin: 0, letterSpacing: 0.3 }}>
-        {cv.full_name || "Navn Navnesen"}
-      </h1>
-      {cv.headline && <div style={{ fontSize: 13, marginTop: 4, opacity: 0.95 }}>{cv.headline}</div>}
-      <div style={{ marginTop: 12, color: "rgba(255,255,255,0.85)" }}>
-        <ContactLine cv={cv} color="rgba(255,255,255,0.85)" sep="|" />
+    <div style={{ background: style.accent, color: "#fff", padding: "22mm 22mm 16mm", display: "flex", gap: 20, alignItems: "center" }}>
+      {cv.photo_url && <Avatar url={cv.photo_url} size={88} ring="rgba(255,255,255,0.5)" shape="square" />}
+      <div style={{ flex: 1 }}>
+        <h1 style={{ fontFamily: style.headingFont, fontSize: 30, fontWeight: 700, margin: 0, letterSpacing: 0.3 }}>
+          {cv.full_name || "Navn Navnesen"}
+        </h1>
+        {cv.headline && <div style={{ fontSize: 13, marginTop: 4, opacity: 0.95 }}>{cv.headline}</div>}
+        <div style={{ marginTop: 12, color: "rgba(255,255,255,0.85)" }}>
+          <ContactLine cv={cv} color="rgba(255,255,255,0.85)" sep="|" />
+        </div>
       </div>
     </div>
     <div style={{ padding: "16mm 22mm 22mm" }}>
