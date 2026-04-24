@@ -186,6 +186,36 @@ const CvTemplate = () => {
     await exportNodeToPdf(previewRef.current, `CV-${(cv.full_name || "uten-navn").replace(/\s+/g, "-")}.pdf`);
   };
 
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const uploadPhoto = async (file: File) => {
+    if (!user) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Ugyldig fil", description: "Velg en bildefil (JPG, PNG, WebP).", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "For stor fil", description: "Maks 5 MB.", variant: "destructive" });
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${user.id}/profile-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("cv-photos").upload(path, file, {
+        cacheControl: "3600", upsert: true, contentType: file.type,
+      });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("cv-photos").getPublicUrl(path);
+      setCv((prev) => ({ ...prev, photo_url: pub.publicUrl }));
+      toast({ title: "Bilde lastet opp", description: "Husk å lagre CV-en." });
+    } catch (e: any) {
+      toast({ title: "Opplasting feilet", description: e?.message ?? "Ukjent feil", variant: "destructive" });
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+  const removePhoto = () => setCv((prev) => ({ ...prev, photo_url: null }));
+
   if (loading) return <div className="p-8 flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Laster…</div>;
 
   return (
