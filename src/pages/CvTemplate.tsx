@@ -101,6 +101,74 @@ const CvTemplate = () => {
     else { toast({ title: "Lagret" }); load(); }
   };
 
+  const applyImported = (imported: any) => {
+    // Merge — overwrite fields the AI populated, keep existing for empty results
+    setCv((prev) => ({
+      ...prev,
+      full_name: imported.full_name ?? prev.full_name,
+      headline: imported.headline ?? prev.headline,
+      email: imported.email ?? prev.email,
+      phone: imported.phone ?? prev.phone,
+      location: imported.location ?? prev.location,
+      linkedin_url: imported.linkedin_url ?? prev.linkedin_url,
+      website_url: imported.website_url ?? prev.website_url,
+      intro: imported.intro || prev.intro,
+      experiences: imported.experiences?.length ? imported.experiences : prev.experiences,
+      education: imported.education?.length ? imported.education : prev.education,
+      skills: imported.skills?.length ? imported.skills : prev.skills,
+      languages: imported.languages?.length ? imported.languages : prev.languages,
+      projects: imported.projects?.length ? imported.projects : prev.projects,
+      certifications: imported.certifications?.length ? imported.certifications : prev.certifications,
+    }));
+  };
+
+  const importFromText = async () => {
+    if (!pasteText.trim()) return;
+    setImporting(true);
+    const { data, error } = await supabase.functions.invoke("import-cv", {
+      body: { text: pasteText },
+    });
+    setImporting(false);
+    if (error || !data?.cv) {
+      toast({ title: "Import feilet", description: error?.message ?? "Ukjent feil", variant: "destructive" });
+      return;
+    }
+    applyImported(data.cv);
+    setPasteOpen(false);
+    setPasteText("");
+    toast({ title: "CV importert", description: "Sjekk feltene og lagre når du er fornøyd." });
+  };
+
+  const importFromPdf = async (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "For stor fil", description: "Maks 10 MB", variant: "destructive" });
+      return;
+    }
+    setImporting(true);
+    try {
+      const buf = await file.arrayBuffer();
+      // Convert to base64 in chunks to avoid call-stack overflow
+      const bytes = new Uint8Array(buf);
+      let binary = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)));
+      }
+      const b64 = btoa(binary);
+      const { data, error } = await supabase.functions.invoke("import-cv", {
+        body: { pdf_base64: b64, mime_type: file.type || "application/pdf" },
+      });
+      if (error || !data?.cv) {
+        toast({ title: "Import feilet", description: error?.message ?? "Ukjent feil", variant: "destructive" });
+        return;
+      }
+      applyImported(data.cv);
+      toast({ title: "CV importert fra PDF", description: "Sjekk feltene og lagre når du er fornøyd." });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   if (loading) return <div className="p-8 flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Laster…</div>;
 
   return (
