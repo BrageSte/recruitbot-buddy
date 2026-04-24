@@ -194,7 +194,7 @@ function parseRss(xml: string): RssItem[] {
     }
     const guid = pick(m, "guid") ?? pick(m, "id") ?? link;
     const description = pick(m, "description") ?? pick(m, "summary") ?? pick(m, "content") ?? "";
-    const pubDate = pick(m, "pubDate") ?? pick(m, "published") ?? pick(m, "updated");
+    const pubDate = pick(m, "pubDate") ?? pick(m, "published") ?? pick(m, "updated") ?? undefined;
     if (title) items.push({ title: stripHtml(title), link: link.trim(), guid: guid.trim(), description, pubDate });
   }
   return items;
