@@ -254,8 +254,13 @@ const Jobs = () => {
                         {j.location && <span className="text-xs text-muted-foreground">· {j.location}</span>}
                       </div>
                       {j.ai_summary && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{j.ai_summary}</p>}
-                      <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground flex-wrap">
                         <span className="px-1.5 py-0.5 bg-muted rounded">{STATUSES.find((s) => s.v === j.status)?.label}</span>
+                        {j.interest_level && j.interest_level !== "none" && INTEREST_META[j.interest_level] && (
+                          <span className={`px-1.5 py-0.5 rounded ${INTEREST_META[j.interest_level].cls}`}>
+                            {INTEREST_META[j.interest_level].label}
+                          </span>
+                        )}
                         <span className="px-1.5 py-0.5 bg-accent text-accent-foreground rounded">{SOURCES.find((s) => s.v === j.source)?.label}</span>
                         {j.deadline && <span>Frist {format(new Date(j.deadline), "dd.MM")}</span>}
                         {j.risk_flags?.length > 0 && <span className="text-warning">⚠ {j.risk_flags.length}</span>}
@@ -267,10 +272,42 @@ const Jobs = () => {
                         )}
                       </div>
                     </div>
-                    <select value={j.status} onChange={(e) => { e.preventDefault(); updateStatus(j.id, e.target.value); }} onClick={(e) => e.preventDefault()}
-                      className="text-xs border border-input rounded-md px-2 py-1 bg-background">
-                      {STATUSES.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
-                    </select>
+                    <div
+                      className="flex items-center gap-1 shrink-0"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    >
+                      {j.status !== "applied" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => updateStatus(j.id, "applied")}
+                        >
+                          <Send className="w-3.5 h-3.5 mr-1" /> Søkt
+                        </Button>
+                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="ghost" className="h-8 text-xs px-2">
+                            {STATUSES.find((s) => s.v === j.status)?.label}
+                            <ChevronDown className="w-3 h-3 ml-1" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuLabel className="text-xs">Endre status</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {STATUSES.map((s) => (
+                            <DropdownMenuItem
+                              key={s.v}
+                              onClick={() => updateStatus(j.id, s.v)}
+                              className={j.status === s.v ? "bg-accent" : ""}
+                            >
+                              {s.label}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
