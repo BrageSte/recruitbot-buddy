@@ -253,6 +253,11 @@ const HeaderBandLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
 const CenteredLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
   <div className="cv-page" style={{ fontFamily: style.bodyFont, background: style.background, color: style.ink, padding: "22mm" }}>
     <header style={{ textAlign: "center", borderBottom: `1px solid ${style.accent}`, paddingBottom: 12 }}>
+      {cv.photo_url && (
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+          <Avatar url={cv.photo_url} size={84} ring={style.accent} />
+        </div>
+      )}
       <h1 style={{ fontFamily: style.headingFont, fontSize: 28, fontWeight: 700, margin: 0, color: style.accent }}>
         {cv.full_name || "Navn Navnesen"}
       </h1>
