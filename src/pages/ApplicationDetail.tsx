@@ -157,8 +157,8 @@ const ApplicationDetail = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
-                <div>
+              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4">
+                <div className="min-w-0">
                   {preview ? (
                     <SheetViewer>
                       <div ref={letterRef}>
@@ -182,7 +182,6 @@ const ApplicationDetail = () => {
                         setSelection(sel);
                       }}
                       onBlur={(e) => {
-                        // Keep selection text but only if non-trivial
                         const el = e.currentTarget;
                         const sel = el.value.substring(el.selectionStart, el.selectionEnd);
                         if (sel.length < 3) setSelection("");
@@ -192,7 +191,7 @@ const ApplicationDetail = () => {
                     />
                   )}
                 </div>
-                <div className="lg:sticky lg:top-4 lg:self-start">
+                <div className="min-w-0 xl:sticky xl:top-4 xl:self-start">
                   <ApplicationChatEditor
                     applicationId={app.id}
                     text={text}
