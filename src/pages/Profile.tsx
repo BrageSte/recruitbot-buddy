@@ -55,6 +55,7 @@ const Profile = () => {
   const { toast } = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [auto, setAuto] = useState<AutoApply>(defaultAuto);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -63,19 +64,27 @@ const Profile = () => {
   const loadAll = async () => {
     if (!user) return;
     setLoading(true);
-    const [{ data: prof }, { data: fls }] = await Promise.all([
+    const [{ data: prof }, { data: fls }, { data: au }] = await Promise.all([
       supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
       supabase.from("uploaded_files").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("auto_apply_settings").select("*").eq("user_id", user.id).maybeSingle(),
     ]);
     if (prof) setProfile(prof as any);
     if (fls) setFiles(fls as any);
+    if (au) setAuto({
+      is_enabled: au.is_enabled,
+      min_score: au.min_score,
+      daily_limit: au.daily_limit,
+      only_from_rss: au.only_from_rss,
+      exclude_with_risks: au.exclude_with_risks,
+    });
     setLoading(false);
   };
 
   const save = async () => {
     if (!user || !profile) return;
     setSaving(true);
-    const { error } = await supabase.from("profiles").update({
+    const profPromise = supabase.from("profiles").update({
       display_name: profile.display_name,
       master_profile: profile.master_profile,
       style_guide: profile.style_guide,
@@ -89,7 +98,15 @@ const Profile = () => {
       rules_red: profile.rules_red,
       weekly_goal: profile.weekly_goal,
     }).eq("user_id", user.id);
+
+    const autoPromise = supabase.from("auto_apply_settings").upsert(
+      { user_id: user.id, ...auto },
+      { onConflict: "user_id" }
+    );
+
+    const [{ error: e1 }, { error: e2 }] = await Promise.all([profPromise, autoPromise]);
     setSaving(false);
+    const error = e1 || e2;
     if (error) toast({ title: "Kunne ikke lagre", description: error.message, variant: "destructive" });
     else toast({ title: "Lagret" });
   };
