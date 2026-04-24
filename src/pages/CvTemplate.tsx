@@ -184,6 +184,64 @@ const CvTemplate = () => {
         </Button>
       </header>
 
+      {/* Import CV */}
+      <Card className="border-primary/30 bg-primary/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-primary" /> Importer eksisterende CV
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Last opp en PDF eller lim inn tekst. AI fyller ut malen automatisk — du justerer etterpå.
+          </p>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <label className={importing ? "pointer-events-none opacity-60" : "cursor-pointer"}>
+            <input
+              type="file"
+              className="hidden"
+              accept=".pdf,application/pdf"
+              disabled={importing}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) importFromPdf(f);
+                e.target.value = "";
+              }}
+            />
+            <span className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-input bg-background hover:bg-accent text-sm">
+              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              Last opp PDF
+            </span>
+          </label>
+          <Button variant="outline" onClick={() => setPasteOpen(true)} disabled={importing}>
+            <FileText className="w-4 h-4 mr-2" /> Lim inn tekst
+          </Button>
+          {importing && <span className="text-xs text-muted-foreground self-center">AI leser CV'en…</span>}
+        </CardContent>
+      </Card>
+
+      <Dialog open={pasteOpen} onOpenChange={setPasteOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Lim inn CV-tekst</DialogTitle>
+            <DialogDescription>Kopier hele CV-teksten din inn her. AI strukturerer den til malen.</DialogDescription>
+          </DialogHeader>
+          <Textarea
+            rows={14}
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            placeholder="Lim inn CV-teksten her…"
+            className="font-mono text-sm"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPasteOpen(false)}>Avbryt</Button>
+            <Button onClick={importFromText} disabled={importing || !pasteText.trim()}>
+              {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+              Importer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Header info */}
       <Card>
         <CardHeader><CardTitle className="text-base">Kontakt</CardTitle></CardHeader>
