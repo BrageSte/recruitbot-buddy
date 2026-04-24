@@ -370,12 +370,15 @@ const SidebarLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
 const SplitLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
   <div className="cv-page" style={{ fontFamily: style.bodyFont, background: style.background, color: style.ink }}>
     <header style={{ display: "flex", alignItems: "stretch" }}>
-      <div style={{ background: style.accent, color: "#fff", padding: "20mm 16mm", flex: "0 0 45%", boxSizing: "border-box" }}>
-        <div style={{ fontSize: 10, letterSpacing: 3, textTransform: "uppercase", opacity: 0.85 }}>Curriculum Vitae</div>
-        <h1 style={{ fontFamily: style.headingFont, fontSize: 38, fontWeight: 800, margin: "10px 0 0", lineHeight: 1.05, letterSpacing: -1 }}>
-          {cv.full_name || "Navn Navnesen"}
-        </h1>
-        {cv.headline && <div style={{ fontSize: 13, marginTop: 8, opacity: 0.95 }}>{cv.headline}</div>}
+      <div style={{ background: style.accent, color: "#fff", padding: "20mm 16mm", flex: "0 0 45%", boxSizing: "border-box", display: "flex", gap: 14, alignItems: "center" }}>
+        {cv.photo_url && <Avatar url={cv.photo_url} size={92} ring="rgba(255,255,255,0.4)" shape="square" />}
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, letterSpacing: 3, textTransform: "uppercase", opacity: 0.85 }}>Curriculum Vitae</div>
+          <h1 style={{ fontFamily: style.headingFont, fontSize: 32, fontWeight: 800, margin: "8px 0 0", lineHeight: 1.05, letterSpacing: -1 }}>
+            {cv.full_name || "Navn Navnesen"}
+          </h1>
+          {cv.headline && <div style={{ fontSize: 12.5, marginTop: 6, opacity: 0.95 }}>{cv.headline}</div>}
+        </div>
       </div>
       <div style={{ background: style.accentSoft, padding: "20mm 16mm", flex: 1, boxSizing: "border-box" }}>
         <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: style.accent, fontWeight: 600 }}>Kontakt</div>
