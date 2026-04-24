@@ -39,10 +39,21 @@ serve(async (req) => {
 
   for (const feed of feeds) {
     try {
-      const resp = await fetch(feed.url, { headers: { "User-Agent": "JobHunterAI/1.0" } });
+      const isFinnHtml = /finn\.no\/job\/(search|fulltime\/search)/i.test(feed.url);
+      const ua = isFinnHtml
+        ? "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        : "JobHunterAI/1.0";
+      const resp = await fetch(feed.url, {
+        redirect: "follow",
+        headers: {
+          "User-Agent": ua,
+          Accept: isFinnHtml ? "text/html,application/xhtml+xml" : "application/rss+xml,application/xml,text/xml,*/*",
+          "Accept-Language": "nb-NO,nb;q=0.9,en;q=0.8",
+        },
+      });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const xml = await resp.text();
-      const items = parseRss(xml);
+      const body = await resp.text();
+      const items = isFinnHtml ? parseFinnSearchHtml(body) : parseRss(body);
 
       // Get already-seen GUIDs
       const guids = items.map((i) => i.guid).filter(Boolean);
