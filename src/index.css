@@ -175,7 +175,7 @@
 }
 .cv-scale-wrap {
   /* Scale the A4 page down to fit narrow viewports without losing fidelity */
-  transform-origin: top center;
+  transform-origin: top left;
 }
 @media print {
   .cv-page { box-shadow: none; margin: 0; }
