@@ -16,6 +16,7 @@ import Profile from "./pages/Profile";
 import Sources from "./pages/Sources";
 import AutoSearch from "./pages/AutoSearch";
 import CvTemplate from "./pages/CvTemplate";
+import CalendarPage from "./pages/CalendarPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
               <Route path="/sources" element={<Sources />} />
               <Route path="/auto-search" element={<AutoSearch />} />
               <Route path="/cv" element={<CvTemplate />} />
+              <Route path="/calendar" element={<CalendarPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
