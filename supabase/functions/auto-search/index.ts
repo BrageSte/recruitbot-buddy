@@ -51,6 +51,8 @@ async function searchArbeidsplassen(query: string, location: string | null): Pro
     const data = await resp.json();
     const hitsRaw = (data?.hits?.hits ?? []) as any[];
     const wantedLoc = location?.trim().toLowerCase() ?? "";
+    // Treat country-level filters as "no filter"
+    const skipFilter = !wantedLoc || ["norge", "norway", "no", "hele norge"].includes(wantedLoc);
 
     const hits: Hit[] = [];
     for (const h of hitsRaw) {
@@ -61,9 +63,8 @@ async function searchArbeidsplassen(query: string, location: string | null): Pro
       const county = locArr[0]?.county ?? null;
       const locStr = [city, county].filter(Boolean).join(", ") || null;
 
-      // Optional location filter (loose match against city/county/municipal)
-      if (wantedLoc) {
-        const hay = locArr.map((l) => `${l.city ?? ""} ${l.county ?? ""} ${l.municipal ?? ""}`).join(" ").toLowerCase();
+      if (!skipFilter) {
+        const hay = locArr.map((l) => `${l.city ?? ""} ${l.county ?? ""} ${l.municipal ?? ""} ${l.country ?? ""}`).join(" ").toLowerCase();
         if (!hay.includes(wantedLoc)) continue;
       }
 
