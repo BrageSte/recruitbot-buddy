@@ -260,7 +260,7 @@ const CalendarPage = () => {
   const totalWeeks = Math.ceil(totalDays / 7);
   const today = new Date();
   const overallProgress = mainGoal?.target_date
-    ? Math.min(100, Math.max(0, ((Date.now() - new Date(mainGoal.created_at ?? today).getTime()) / (parseISO(mainGoal.target_date).getTime() - new Date(mainGoal.created_at ?? today).getTime())) * 100))
+    ? Math.min(100, Math.max(0, ((Date.now() - addDays(parseISO(mainGoal.target_date), -totalDays).getTime()) / (parseISO(mainGoal.target_date).getTime() - addDays(parseISO(mainGoal.target_date), -totalDays).getTime())) * 100))
     : 0;
 
   // Map for calendar grid
