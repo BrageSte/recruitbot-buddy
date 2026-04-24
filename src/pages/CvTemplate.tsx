@@ -178,20 +178,48 @@ const CvTemplate = () => {
     }
   };
 
+  const previewRef = useRef<HTMLDivElement>(null);
+  const exportPdf = async () => {
+    if (!previewRef.current) return;
+    await exportNodeToPdf(previewRef.current, `CV-${(cv.full_name || "uten-navn").replace(/\s+/g, "-")}.pdf`);
+  };
+
   if (loading) return <div className="p-8 flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Laster…</div>;
 
   return (
-    <div className="max-w-4xl mx-auto p-6 lg:p-10 space-y-6">
+    <div className="max-w-6xl mx-auto p-6 lg:p-10 space-y-6">
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-semibold">CV-mal</h1>
-          <p className="text-muted-foreground text-sm mt-1">Strukturert CV som AI bruker som faktagrunnlag for hver søknad.</p>
+          <p className="text-muted-foreground text-sm mt-1">Strukturert CV som AI bruker som faktagrunnlag for hver søknad. Velg stil, AI overstyrer per jobb.</p>
         </div>
-        <Button onClick={save} disabled={saving}>
-          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Lagre
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={exportPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
+          <Button onClick={save} disabled={saving}>
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Lagre
+          </Button>
+        </div>
       </header>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">CV-stil</CardTitle>
+          <p className="text-xs text-muted-foreground">Standardstil for CV og matchende søknadsbrev. AI velger automatisk per jobb basert på bransje.</p>
+        </CardHeader>
+        <CardContent>
+          <CvStylePicker value={cv.cv_style} onChange={(id) => setCv({ ...cv, cv_style: id })} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Forhåndsvisning</CardTitle></CardHeader>
+        <CardContent>
+          <SheetViewer>
+            <div ref={previewRef}><CvDocument cv={cv as any} styleId={cv.cv_style} /></div>
+          </SheetViewer>
+        </CardContent>
+      </Card>
 
       {/* Import CV */}
       <Card className="border-primary/30 bg-primary/5">
