@@ -172,12 +172,15 @@ const MinimalLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => {
   };
   return (
     <div className="cv-page" style={baseStyle}>
-      <header style={{ borderBottom: `2px solid ${style.accent}`, paddingBottom: 14, marginBottom: 6 }}>
-        <h1 style={{ fontFamily: style.headingFont, fontSize: 30, fontWeight: 600, margin: 0, letterSpacing: -0.5, color: style.ink }}>
-          {cv.full_name || "Navn Navnesen"}
-        </h1>
-        {cv.headline && <div style={{ fontSize: 13, color: style.accent, marginTop: 4, fontWeight: 500 }}>{cv.headline}</div>}
-        <div style={{ marginTop: 10 }}><ContactLine cv={cv} color={style.muted} /></div>
+      <header style={{ borderBottom: `2px solid ${style.accent}`, paddingBottom: 14, marginBottom: 6, display: "flex", gap: 18, alignItems: "center" }}>
+        {cv.photo_url && <Avatar url={cv.photo_url} size={78} ring={style.accent} />}
+        <div style={{ flex: 1 }}>
+          <h1 style={{ fontFamily: style.headingFont, fontSize: 30, fontWeight: 600, margin: 0, letterSpacing: -0.5, color: style.ink }}>
+            {cv.full_name || "Navn Navnesen"}
+          </h1>
+          {cv.headline && <div style={{ fontSize: 13, color: style.accent, marginTop: 4, fontWeight: 500 }}>{cv.headline}</div>}
+          <div style={{ marginTop: 10 }}><ContactLine cv={cv} color={style.muted} /></div>
+        </div>
       </header>
 
       {cv.intro && <p style={{ fontSize: 11, lineHeight: 1.6, marginTop: 14, color: style.ink }}>{cv.intro}</p>}
