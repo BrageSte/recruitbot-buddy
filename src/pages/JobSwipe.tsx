@@ -33,6 +33,8 @@ const DECISION_META: Record<Decision, { label: string; tag: string; tone: string
 };
 
 const SWIPE_THRESHOLD = 110;
+const EXIT_X_DISTANCE = 1600;
+const EXIT_Y_DISTANCE = 1400;
 
 const JobSwipe = () => {
   const { user } = useAuth();
@@ -176,10 +178,10 @@ const JobSwipe = () => {
                   className="absolute inset-0 cursor-grab active:cursor-grabbing"
                   initial={{ scale: 1, opacity: 1 }}
                   exit={{
-                    x: exitDir === "uninterested" ? -600 : exitDir === "interested" ? 600 : 0,
-                    y: exitDir === "very_interested" ? -700 : 0,
+                    x: exitDir === "uninterested" ? -EXIT_X_DISTANCE : exitDir === "interested" ? EXIT_X_DISTANCE : 0,
+                    y: exitDir === "very_interested" ? -EXIT_Y_DISTANCE : 0,
                     opacity: 0,
-                    transition: { duration: 0.25 },
+                    transition: { duration: 0.28, ease: "easeOut" },
                   }}
                 >
                   {/* Decision overlays */}
