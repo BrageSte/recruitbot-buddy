@@ -120,7 +120,10 @@ const Jobs = () => {
           <h1 className="text-3xl font-semibold">Jobber</h1>
           <p className="text-muted-foreground text-sm mt-1">{filtered.length} av {jobs.length} jobber</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" asChild>
+            <Link to="/jobs/swipe"><Layers className="w-4 h-4 mr-2" /> Sveip-modus</Link>
+          </Button>
           <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
             <Filter className="w-4 h-4 mr-2" /> Filter {activeFilterCount > 0 && <span className="ml-1.5 px-1.5 py-0 rounded bg-primary text-primary-foreground text-xs">{activeFilterCount}</span>}
           </Button>
