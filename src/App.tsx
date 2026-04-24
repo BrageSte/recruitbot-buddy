@@ -9,6 +9,7 @@ import { AppLayout } from "@/components/AppLayout";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
+import JobSwipe from "./pages/JobSwipe";
 import JobDetail from "./pages/JobDetail";
 import Applications from "./pages/Applications";
 import ApplicationDetail from "./pages/ApplicationDetail";
@@ -32,6 +33,7 @@ const App = () => (
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/jobs" element={<Jobs />} />
+              <Route path="/jobs/swipe" element={<JobSwipe />} />
               <Route path="/jobs/:id" element={<JobDetail />} />
               <Route path="/applications" element={<Applications />} />
               <Route path="/applications/:id" element={<ApplicationDetail />} />
