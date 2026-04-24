@@ -5,3 +5,10 @@ verify_jwt = true
 
 [functions.generate-application]
 verify_jwt = true
+
+[functions.tailor-cv]
+verify_jwt = true
+
+[functions.poll-rss]
+verify_jwt = false
+

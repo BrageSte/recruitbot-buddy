@@ -1,3 +1,5 @@
+// Generates a tailored cover letter using master profile + style + CV template + job.
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -6,7 +8,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SYS = `Du er en søknadsskriver. Skriv på norsk, ærlig, konkret, uten floskler. Bruk brukerens master-profil og stil-guide. Tilpass mot stillingen. Svar i markdown. Inkluder en kort hilsen, 3-5 avsnitt med konkrete koblinger mellom brukerens erfaring og stillingens behov, og en avslutning. Ikke finn på erfaringer. Hvis noe er uklart, hold det generelt.`;
+const SYS = `Du er en søknadsskriver. Skriv på norsk, ærlig, konkret, uten floskler. Bruk brukerens master-profil, stil-guide og CV-mal. Tilpass mot stillingen. Svar i markdown. Inkluder en kort hilsen, 3-5 avsnitt med konkrete koblinger mellom kandidatens faktiske erfaring (fra CV-mal) og stillingens behov, og en avslutning. Ikke finn på erfaringer. Hvis noe er uklart, hold det generelt.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -28,22 +30,22 @@ serve(async (req) => {
     const { jobId } = await req.json();
     if (!jobId) return json({ error: "jobId påkrevd" }, 400);
 
-    const [{ data: job }, { data: profile }] = await Promise.all([
+    const [{ data: job }, { data: profile }, { data: cv }] = await Promise.all([
       supabase.from("jobs").select("*").eq("id", jobId).maybeSingle(),
       supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
+      supabase.from("cv_templates").select("*").eq("user_id", user.id).eq("is_active", true).maybeSingle(),
     ]);
     if (!job) return json({ error: "Jobb ikke funnet" }, 404);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY mangler" }, 500);
 
-    const userContext = `MASTER-PROFIL:\n${profile?.master_profile ?? "(tom)"}\n\nSTIL-GUIDE:\n${profile?.style_guide ?? "(tom)"}\n\nSTILLING:\nTittel: ${job.title}\nSelskap: ${job.company ?? ""}\nLokasjon: ${job.location ?? ""}\n\nBeskrivelse:\n${job.description ?? ""}\n\nAI-oppsummering: ${job.ai_summary ?? ""}\n\nDelscores:\n- Fag: ${job.score_professional}\n- Kultur: ${job.score_culture}\n- Praktisk: ${job.score_practical}\n- Entusiasme: ${job.score_enthusiasm}`;
+    const userContext = `MASTER-PROFIL:\n${profile?.master_profile ?? "(tom)"}\n\nSTIL-GUIDE:\n${profile?.style_guide ?? "(tom)"}\n\nCV-MAL (faktisk erfaring):\n${cv ? JSON.stringify(cv, null, 2) : "(ingen mal — bruk kun master-profil)"}\n\nSTILLING:\nTittel: ${job.title}\nSelskap: ${job.company ?? ""}\nLokasjon: ${job.location ?? ""}\n\nBeskrivelse:\n${job.description ?? ""}\n\nAI-oppsummering: ${job.ai_summary ?? ""}\n\nDelscores:\n- Fag: ${job.score_professional}\n- Kultur: ${job.score_culture}\n- Praktisk: ${job.score_practical}\n- Entusiasme: ${job.score_enthusiasm}`;
 
     const tool = {
       type: "function",
       function: {
         name: "write_application",
-        description: "Returnerer ferdig søknadstekst og CV-tilpasningsnotater.",
         parameters: {
           type: "object",
           properties: {
@@ -51,7 +53,6 @@ serve(async (req) => {
             cv_notes: { type: "string", description: "Markdown-notater om hva som bør vektlegges/justeres i CV-en for denne søknaden." },
           },
           required: ["application_text", "cv_notes"],
-          additionalProperties: false,
         },
       },
     };
@@ -92,7 +93,6 @@ serve(async (req) => {
     }).select().maybeSingle();
     if (insErr) return json({ error: insErr.message }, 500);
 
-    // Move job forward in pipeline if still discovered
     if (job.status === "discovered") {
       await supabase.from("jobs").update({ status: "considering" as any }).eq("id", job.id);
     }
