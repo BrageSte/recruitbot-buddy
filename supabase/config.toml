@@ -1,1 +1,7 @@
 project_id = "ndhzxaamwoviqqwwfioe"
+
+[functions.parse-job]
+verify_jwt = true
+
+[functions.generate-application]
+verify_jwt = true
