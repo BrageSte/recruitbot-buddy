@@ -39,10 +39,21 @@ serve(async (req) => {
 
   for (const feed of feeds) {
     try {
-      const resp = await fetch(feed.url, { headers: { "User-Agent": "JobHunterAI/1.0" } });
+      const isFinnHtml = /finn\.no\/job\/(search|fulltime\/search)/i.test(feed.url);
+      const ua = isFinnHtml
+        ? "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        : "JobHunterAI/1.0";
+      const resp = await fetch(feed.url, {
+        redirect: "follow",
+        headers: {
+          "User-Agent": ua,
+          Accept: isFinnHtml ? "text/html,application/xhtml+xml" : "application/rss+xml,application/xml,text/xml,*/*",
+          "Accept-Language": "nb-NO,nb;q=0.9,en;q=0.8",
+        },
+      });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const xml = await resp.text();
-      const items = parseRss(xml);
+      const body = await resp.text();
+      const items = isFinnHtml ? parseFinnSearchHtml(body) : parseRss(body);
 
       // Get already-seen GUIDs
       const guids = items.map((i) => i.guid).filter(Boolean);
@@ -185,6 +196,42 @@ function parseRss(xml: string): RssItem[] {
     const description = pick(m, "description") ?? pick(m, "summary") ?? pick(m, "content") ?? "";
     const pubDate = pick(m, "pubDate") ?? pick(m, "published") ?? pick(m, "updated");
     if (title) items.push({ title: stripHtml(title), link: link.trim(), guid: guid.trim(), description, pubDate });
+  }
+  return items;
+}
+
+// Parse Finn.no job search HTML (when user pastes a finn.no/job/search URL as a "feed").
+// Finn now uses /job/ad/<numeric-id> for individual ads.
+function parseFinnSearchHtml(html: string): RssItem[] {
+  const items: RssItem[] = [];
+  const seen = new Set<string>();
+  const articleRe = /<article\b[^>]*>([\s\S]*?)<\/article>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = articleRe.exec(html)) !== null) {
+    const block = m[1];
+    const linkMatch = block.match(/href="(https:\/\/www\.finn\.no\/job\/ad\/(\d+))"/);
+    if (!linkMatch) continue;
+    const link = linkMatch[1];
+    const id = linkMatch[2];
+    if (seen.has(id)) continue;
+    seen.add(id);
+
+    const anchorMatch = block.match(/<a[^>]+class="[^"]*job-card-link[^"]*"[^>]*>([\s\S]*?)<\/a>/);
+    let title = anchorMatch
+      ? anchorMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+      : "";
+    if (!title) title = "Stilling";
+
+    const companyMatch = block.match(/<strong>([^<]{1,150})<\/strong>/);
+    const company = companyMatch?.[1]?.trim();
+    const description = company ? `<p><strong>${company}</strong></p>` : "";
+
+    items.push({
+      title: title.slice(0, 240),
+      link,
+      guid: `finn-${id}`,
+      description,
+    });
   }
   return items;
 }

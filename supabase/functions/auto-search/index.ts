@@ -21,14 +21,14 @@ type SearchResult =
   | { ok: true; hits: Hit[] }
   | { ok: false; status: "blocked" | "error"; error: string; hint?: string };
 
-const UA = "Mozilla/5.0 (compatible; JobHunterAI/1.0; +https://lovable.app)";
+const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 function blockedHint(source: Source, query: string, location: string | null): string {
   const q = query.trim();
   const loc = location?.trim() ?? "";
   switch (source) {
     case "finn":
-      return `Finn.no blokkerer automatisk skraping. Manuell oppskrift:\n1) Gå til finn.no/job, søk etter "${q}"${loc ? ` i ${loc}` : ""}.\n2) Klikk "Lagre søk".\n3) Under "Mine sider → Lagrede søk", kopier RSS-lenken.\n4) Lim inn på Kilder-siden i denne appen.`;
+      return `Finn.no blokkerte automatisk skraping. Manuell oppskrift:\n1) Gå til finn.no/job, søk etter "${q}"${loc ? ` i ${loc}` : ""}.\n2) Klikk "Lagre søk".\n3) Under "Mine sider → Lagrede søk", kopier RSS-lenken.\n4) Lim inn på Kilder-siden i denne appen.`;
     case "linkedin":
       return `LinkedIn krever innlogging og blokkerer scraping. Anbefalt: opprett et "Job alert" på LinkedIn, eller lim inn enkeltjobber via "Ny jobb → URL".`;
     case "arbeidsplassen":
@@ -36,58 +36,116 @@ function blockedHint(source: Source, query: string, location: string | null): st
   }
 }
 
+// New NAV endpoint (Elasticsearch-style). Old /public-feed/api/v1/ads now requires bearer token.
 async function searchArbeidsplassen(query: string, location: string | null): Promise<SearchResult> {
   try {
-    const params = new URLSearchParams({ q: query, size: "20" });
-    if (location) params.append("counties", location.toUpperCase());
-    const url = `https://arbeidsplassen.nav.no/public-feed/api/v1/ads?${params}`;
-    const resp = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
+    const params = new URLSearchParams({ q: query, size: "25" });
+    const url = `https://arbeidsplassen.nav.no/stillinger/api/search?${params}`;
+    const resp = await fetch(url, {
+      headers: { "User-Agent": UA, Accept: "application/json" },
+    });
     if (resp.status === 403 || resp.status === 429) {
       return { ok: false, status: "blocked", error: `HTTP ${resp.status}`, hint: blockedHint("arbeidsplassen", query, location) };
     }
     if (!resp.ok) return { ok: false, status: "error", error: `HTTP ${resp.status}` };
     const data = await resp.json();
-    const items = (data?.content ?? data?._embedded?.ads ?? []) as any[];
-    const hits: Hit[] = items.slice(0, 20).map((it) => ({
-      external_id: String(it.uuid ?? it.id ?? it.reference ?? crypto.randomUUID()),
-      url: it.source_url ?? it._links?.self?.href ?? `https://arbeidsplassen.nav.no/stillinger/stilling/${it.uuid ?? ""}`,
-      title: it.title ?? "Uten tittel",
-      company: it.employer?.name ?? it.business_name ?? null,
-      location: it.locations?.[0]?.city ?? it.locations?.[0]?.county ?? null,
-      description: it.description ?? null,
-    }));
+    const hitsRaw = (data?.hits?.hits ?? []) as any[];
+    const wantedLoc = location?.trim().toLowerCase() ?? "";
+    // Treat country-level filters as "no filter"
+    const skipFilter = !wantedLoc || ["norge", "norway", "no", "hele norge"].includes(wantedLoc);
+
+    const hits: Hit[] = [];
+    for (const h of hitsRaw) {
+      const src = h._source ?? {};
+      const uuid = src.uuid ?? h._id ?? crypto.randomUUID();
+      const locArr = (src.locationList ?? []) as any[];
+      const city = locArr[0]?.city ?? locArr[0]?.municipal ?? null;
+      const county = locArr[0]?.county ?? null;
+      const locStr = [city, county].filter(Boolean).join(", ") || null;
+
+      if (!skipFilter) {
+        const hay = locArr.map((l) => `${l.city ?? ""} ${l.county ?? ""} ${l.municipal ?? ""} ${l.country ?? ""}`).join(" ").toLowerCase();
+        if (!hay.includes(wantedLoc)) continue;
+      }
+
+      hits.push({
+        external_id: `nav-${uuid}`,
+        url: `https://arbeidsplassen.nav.no/stillinger/stilling/${uuid}`,
+        title: src.title ?? "Uten tittel",
+        company: src.employer?.name ?? src.businessName ?? null,
+        location: locStr,
+        description: null,
+      });
+      if (hits.length >= 20) break;
+    }
     return { ok: true, hits };
   } catch (e) {
     return { ok: false, status: "error", error: (e as Error).message };
   }
 }
 
+// Finn now uses /job/ad/<numeric-id>. Search redirects from /job/fulltime/search.html -> /job/search
 async function searchFinnHtml(query: string, location: string | null): Promise<SearchResult> {
   try {
-    const q = encodeURIComponent(query.trim());
-    const loc = location ? encodeURIComponent(location.trim()) : "";
-    const url = `https://www.finn.no/job/fulltime/search.html?q=${q}${loc ? `&location=${loc}` : ""}`;
-    const resp = await fetch(url, { headers: { "User-Agent": UA, Accept: "text/html" } });
+    const params = new URLSearchParams({ q: query.trim() });
+    if (location) params.set("location", location.trim());
+    const url = `https://www.finn.no/job/search?${params}`;
+    const resp = await fetch(url, {
+      redirect: "follow",
+      headers: {
+        "User-Agent": UA,
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "nb-NO,nb;q=0.9,en;q=0.8",
+      },
+    });
     if (resp.status === 403 || resp.status === 429 || resp.status === 503) {
       return { ok: false, status: "blocked", error: `HTTP ${resp.status}`, hint: blockedHint("finn", query, location) };
     }
     if (!resp.ok) return { ok: false, status: "error", error: `HTTP ${resp.status}` };
     const html = await resp.text();
-    const linkRe = /<a[^>]+href="(https?:\/\/www\.finn\.no\/job\/[^"]+\/ad\.html\?finnkode=\d+)"[^>]*>([\s\S]*?)<\/a>/g;
-    const seen = new Set<string>();
+
+    // Extract each <article>...</article> block and pull id + title + company
+    const articleRe = /<article\b[^>]*>([\s\S]*?)<\/article>/gi;
     const hits: Hit[] = [];
+    const seen = new Set<string>();
     let m: RegExpExecArray | null;
-    while ((m = linkRe.exec(html)) !== null && hits.length < 20) {
-      const href = m[1];
-      const code = href.match(/finnkode=(\d+)/)?.[1];
-      if (!code || seen.has(code)) continue;
-      seen.add(code);
-      const text = m[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
-      if (!text) continue;
-      hits.push({ external_id: `finn-${code}`, url: href, title: text });
+    while ((m = articleRe.exec(html)) !== null && hits.length < 20) {
+      const block = m[1];
+      const linkMatch = block.match(/href="(https:\/\/www\.finn\.no\/job\/ad\/(\d+))"/);
+      if (!linkMatch) continue;
+      const href = linkMatch[1];
+      const id = linkMatch[2];
+      if (seen.has(id)) continue;
+      seen.add(id);
+
+      // Title is inside the anchor (usually a <span> + visible text)
+      const anchorMatch = block.match(/<a[^>]+class="[^"]*job-card-link[^"]*"[^>]*>([\s\S]*?)<\/a>/);
+      let title = "";
+      if (anchorMatch) {
+        title = anchorMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      }
+      if (!title) {
+        // Fallback: any text after the anchor opening
+        const fb = block.match(/job-card-link[^>]*>(?:<[^>]+>)*([^<]{3,200})/);
+        title = fb?.[1]?.trim() ?? "Uten tittel";
+      }
+
+      // Company is in a <strong> inside text-caption div
+      const companyMatch = block.match(/<strong>([^<]{1,150})<\/strong>/);
+      const company = companyMatch?.[1]?.trim() ?? null;
+
+      hits.push({
+        external_id: `finn-${id}`,
+        url: href,
+        title: title.slice(0, 240),
+        company,
+        location: null,
+        description: null,
+      });
     }
+
     if (hits.length === 0) {
-      return { ok: false, status: "blocked", error: "Ingen treff i HTML – sannsynligvis blokkert", hint: blockedHint("finn", query, location) };
+      return { ok: false, status: "blocked", error: "Ingen treff i HTML – sannsynligvis blokkert eller endret format", hint: blockedHint("finn", query, location) };
     }
     return { ok: true, hits };
   } catch (e) {
@@ -114,13 +172,11 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    // Service-role client so cron (no JWT) can run all users' active searches.
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Optional auth: if a user JWT is provided, scope to that user.
     let scopedUserId: string | null = null;
     const authHeader = req.headers.get("Authorization");
     if (authHeader && !authHeader.includes(Deno.env.get("SUPABASE_ANON_KEY") ?? "___")) {
@@ -156,7 +212,7 @@ serve(async (req) => {
         updates.last_error = result.error;
         updates.blocked_hint = result.hint ?? null;
         await admin.from("auto_searches").update(updates).eq("id", s.id);
-        results.push({ id: s.id, name: s.name, status: result.status });
+        results.push({ id: s.id, name: s.name, status: result.status, error: result.error });
         continue;
       }
 
