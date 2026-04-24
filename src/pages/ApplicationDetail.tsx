@@ -6,9 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Save, Send, Trash2, Sparkles, FileText } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Send, Trash2, Sparkles, FileText, Download } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { LetterDocument } from "@/components/cv/LetterDocument";
+import { CvDocument } from "@/components/cv/CvDocument";
+import { CvStylePicker } from "@/components/cv/CvStylePicker";
+import { SheetViewer } from "@/components/cv/SheetViewer";
+import { exportNodeToPdf } from "@/components/cv/exportPdf";
+import { CvStyleId } from "@/components/cv/cvStyles";
+import { useRef } from "react";
 
 const STATUSES = [
   { v: "draft", label: "Utkast" }, { v: "sent", label: "Sendt" },
