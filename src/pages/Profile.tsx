@@ -284,6 +284,52 @@ const Profile = () => {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Zap className="w-4 h-4 text-primary" /> Auto-utkast
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">Når en RSS-jobb scorer høyt, genereres et søknadsutkast automatisk. Du sender selv.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-3 border border-border rounded-md bg-card">
+            <div>
+              <div className="text-sm font-medium">Aktivér auto-utkast</div>
+              <div className="text-xs text-muted-foreground">Skrur av/på generering ved nye jobber.</div>
+            </div>
+            <Switch checked={auto.is_enabled} onCheckedChange={(v) => setAuto({ ...auto, is_enabled: v })} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Minimum score</Label>
+              <Input type="number" min={0} max={100} value={auto.min_score} onChange={(e) => setAuto({ ...auto, min_score: parseInt(e.target.value) || 0 })} />
+              <p className="text-xs text-muted-foreground">Kun jobber ≥ denne scoren får utkast.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Daglig grense</Label>
+              <Input type="number" min={0} value={auto.daily_limit} onChange={(e) => setAuto({ ...auto, daily_limit: parseInt(e.target.value) || 0 })} />
+              <p className="text-xs text-muted-foreground">Maks antall auto-utkast per dag.</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-3 border border-border rounded-md bg-card">
+              <div>
+                <div className="text-sm font-medium">Kun fra RSS</div>
+                <div className="text-xs text-muted-foreground">Hopp over manuelt lagrede jobber.</div>
+              </div>
+              <Switch checked={auto.only_from_rss} onCheckedChange={(v) => setAuto({ ...auto, only_from_rss: v })} />
+            </div>
+            <div className="flex items-center justify-between p-3 border border-border rounded-md bg-card">
+              <div>
+                <div className="text-sm font-medium">Ekskluder ved risiko-flagg</div>
+                <div className="text-xs text-muted-foreground">Hopp over jobber AI flagger som problematiske.</div>
+              </div>
+              <Switch checked={auto.exclude_with_risks} onCheckedChange={(v) => setAuto({ ...auto, exclude_with_risks: v })} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
