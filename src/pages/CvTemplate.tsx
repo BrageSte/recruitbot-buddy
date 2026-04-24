@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Plus, Trash2, GripVertical } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Loader2, Save, Plus, Trash2, GripVertical, Upload, Sparkles, FileText } from "lucide-react";
 
 type Experience = {
   title: string; company: string; location?: string;
@@ -50,6 +51,9 @@ const CvTemplate = () => {
   const [cv, setCv] = useState<CV>(empty);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
 
   useEffect(() => { load(); }, [user]);
 
@@ -97,6 +101,74 @@ const CvTemplate = () => {
     else { toast({ title: "Lagret" }); load(); }
   };
 
+  const applyImported = (imported: any) => {
+    // Merge — overwrite fields the AI populated, keep existing for empty results
+    setCv((prev) => ({
+      ...prev,
+      full_name: imported.full_name ?? prev.full_name,
+      headline: imported.headline ?? prev.headline,
+      email: imported.email ?? prev.email,
+      phone: imported.phone ?? prev.phone,
+      location: imported.location ?? prev.location,
+      linkedin_url: imported.linkedin_url ?? prev.linkedin_url,
+      website_url: imported.website_url ?? prev.website_url,
+      intro: imported.intro || prev.intro,
+      experiences: imported.experiences?.length ? imported.experiences : prev.experiences,
+      education: imported.education?.length ? imported.education : prev.education,
+      skills: imported.skills?.length ? imported.skills : prev.skills,
+      languages: imported.languages?.length ? imported.languages : prev.languages,
+      projects: imported.projects?.length ? imported.projects : prev.projects,
+      certifications: imported.certifications?.length ? imported.certifications : prev.certifications,
+    }));
+  };
+
+  const importFromText = async () => {
+    if (!pasteText.trim()) return;
+    setImporting(true);
+    const { data, error } = await supabase.functions.invoke("import-cv", {
+      body: { text: pasteText },
+    });
+    setImporting(false);
+    if (error || !data?.cv) {
+      toast({ title: "Import feilet", description: error?.message ?? "Ukjent feil", variant: "destructive" });
+      return;
+    }
+    applyImported(data.cv);
+    setPasteOpen(false);
+    setPasteText("");
+    toast({ title: "CV importert", description: "Sjekk feltene og lagre når du er fornøyd." });
+  };
+
+  const importFromPdf = async (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "For stor fil", description: "Maks 10 MB", variant: "destructive" });
+      return;
+    }
+    setImporting(true);
+    try {
+      const buf = await file.arrayBuffer();
+      // Convert to base64 in chunks to avoid call-stack overflow
+      const bytes = new Uint8Array(buf);
+      let binary = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)));
+      }
+      const b64 = btoa(binary);
+      const { data, error } = await supabase.functions.invoke("import-cv", {
+        body: { pdf_base64: b64, mime_type: file.type || "application/pdf" },
+      });
+      if (error || !data?.cv) {
+        toast({ title: "Import feilet", description: error?.message ?? "Ukjent feil", variant: "destructive" });
+        return;
+      }
+      applyImported(data.cv);
+      toast({ title: "CV importert fra PDF", description: "Sjekk feltene og lagre når du er fornøyd." });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   if (loading) return <div className="p-8 flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Laster…</div>;
 
   return (
@@ -111,6 +183,64 @@ const CvTemplate = () => {
           Lagre
         </Button>
       </header>
+
+      {/* Import CV */}
+      <Card className="border-primary/30 bg-primary/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-primary" /> Importer eksisterende CV
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Last opp en PDF eller lim inn tekst. AI fyller ut malen automatisk — du justerer etterpå.
+          </p>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <label className={importing ? "pointer-events-none opacity-60" : "cursor-pointer"}>
+            <input
+              type="file"
+              className="hidden"
+              accept=".pdf,application/pdf"
+              disabled={importing}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) importFromPdf(f);
+                e.target.value = "";
+              }}
+            />
+            <span className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-input bg-background hover:bg-accent text-sm">
+              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              Last opp PDF
+            </span>
+          </label>
+          <Button variant="outline" onClick={() => setPasteOpen(true)} disabled={importing}>
+            <FileText className="w-4 h-4 mr-2" /> Lim inn tekst
+          </Button>
+          {importing && <span className="text-xs text-muted-foreground self-center">AI leser CV'en…</span>}
+        </CardContent>
+      </Card>
+
+      <Dialog open={pasteOpen} onOpenChange={setPasteOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Lim inn CV-tekst</DialogTitle>
+            <DialogDescription>Kopier hele CV-teksten din inn her. AI strukturerer den til malen.</DialogDescription>
+          </DialogHeader>
+          <Textarea
+            rows={14}
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            placeholder="Lim inn CV-teksten her…"
+            className="font-mono text-sm"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPasteOpen(false)}>Avbryt</Button>
+            <Button onClick={importFromText} disabled={importing || !pasteText.trim()}>
+              {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+              Importer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Header info */}
       <Card>
