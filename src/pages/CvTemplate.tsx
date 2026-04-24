@@ -29,6 +29,7 @@ type Cert = { name: string; issuer: string; date?: string; url?: string };
 
 type CV = {
   id?: string;
+  cv_style?: CvStyleId;
   full_name: string | null;
   headline: string | null;
   email: string | null;
@@ -46,6 +47,7 @@ type CV = {
 };
 
 const empty: CV = {
+  cv_style: "skandinavisk",
   full_name: "", headline: "", email: "", phone: "", location: "",
   linkedin_url: "", website_url: "", intro: "",
   experiences: [], education: [], skills: [], languages: [], projects: [], certifications: [],
