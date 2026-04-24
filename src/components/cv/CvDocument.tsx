@@ -55,6 +55,25 @@ export const CvDocument = ({ cv, styleId }: Props) => {
 const fmtRange = (start?: string, end?: string, current?: boolean) =>
   `${start ?? ""}${(start || end || current) ? " – " : ""}${current ? "nå" : end ?? ""}`;
 
+const Avatar = ({
+  url, size, ring, shape = "circle",
+}: { url?: string | null; size: number; ring?: string; shape?: "circle" | "square" }) => {
+  if (!url) return null;
+  return (
+    <img
+      src={url}
+      alt=""
+      crossOrigin="anonymous"
+      style={{
+        width: size, height: size, objectFit: "cover", flexShrink: 0,
+        borderRadius: shape === "circle" ? "50%" : 6,
+        border: ring ? `2px solid ${ring}` : undefined,
+        background: "#eee",
+      }}
+    />
+  );
+};
+
 const ContactLine = ({ cv, color, sep = "·" }: { cv: CvData; color: string; sep?: string }) => {
   const parts = [cv.email, cv.phone, cv.location, cv.linkedin_url, cv.website_url].filter(Boolean);
   return (
