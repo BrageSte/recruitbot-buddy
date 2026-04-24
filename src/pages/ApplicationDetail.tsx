@@ -15,6 +15,7 @@ import { CvStylePicker } from "@/components/cv/CvStylePicker";
 import { SheetViewer } from "@/components/cv/SheetViewer";
 import { exportNodeToPdf } from "@/components/cv/exportPdf";
 import { CvStyleId } from "@/components/cv/cvStyles";
+import { ApplicationChatEditor } from "@/components/cv/ApplicationChatEditor";
 import { useRef } from "react";
 
 const STATUSES = [
@@ -35,7 +36,9 @@ const ApplicationDetail = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tailoring, setTailoring] = useState(false);
+  const [selection, setSelection] = useState("");
   const letterRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
   const cvRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { load(); }, [id]);
@@ -108,7 +111,7 @@ const ApplicationDetail = () => {
   if (!app) return <div className="p-8">Søknad ikke funnet.</div>;
 
   return (
-    <div className="max-w-4xl mx-auto p-6 lg:p-10 space-y-6">
+    <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-10 space-y-6">
       <Link to="/applications" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="w-4 h-4" /> Tilbake
       </Link>
@@ -154,21 +157,54 @@ const ApplicationDetail = () => {
               </div>
             </CardHeader>
             <CardContent>
-              {preview ? (
-                <SheetViewer>
-                  <div ref={letterRef}>
-                    <LetterDocument
-                      cv={cvTpl ?? {}}
-                      text={text}
-                      jobTitle={app.jobs?.title}
-                      company={app.jobs?.company}
-                      styleId={styleId}
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+                <div>
+                  {preview ? (
+                    <SheetViewer>
+                      <div ref={letterRef}>
+                        <LetterDocument
+                          cv={cvTpl ?? {}}
+                          text={text}
+                          jobTitle={app.jobs?.title}
+                          company={app.jobs?.company}
+                          styleId={styleId}
+                        />
+                      </div>
+                    </SheetViewer>
+                  ) : (
+                    <Textarea
+                      ref={editorRef}
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      onSelect={(e) => {
+                        const el = e.currentTarget;
+                        const sel = el.value.substring(el.selectionStart, el.selectionEnd);
+                        setSelection(sel);
+                      }}
+                      onBlur={(e) => {
+                        // Keep selection text but only if non-trivial
+                        const el = e.currentTarget;
+                        const sel = el.value.substring(el.selectionStart, el.selectionEnd);
+                        if (sel.length < 3) setSelection("");
+                      }}
+                      rows={20}
+                      className="font-mono text-sm"
                     />
-                  </div>
-                </SheetViewer>
-              ) : (
-                <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={20} className="font-mono text-sm" />
-              )}
+                  )}
+                </div>
+                <div className="lg:sticky lg:top-4 lg:self-start">
+                  <ApplicationChatEditor
+                    applicationId={app.id}
+                    text={text}
+                    onTextChange={setText}
+                    selection={selection}
+                    onClearSelection={() => setSelection("")}
+                    jobTitle={app.jobs?.title}
+                    company={app.jobs?.company}
+                    jobDescription={app.jobs?.description}
+                  />
+                </div>
+              </div>
             </CardContent>
           </Card>
 
