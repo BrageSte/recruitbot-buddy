@@ -201,6 +201,7 @@ const Dashboard = () => {
 
     jobs.forEach((j) => {
       if (!j.deadline) return;
+      if (["archived", "rejected"].includes(j.status)) return;
       const d = parseISO(j.deadline);
       if (isBefore(d, today) && !isSameDay(d, today)) return;
       items.push({
@@ -277,6 +278,7 @@ const Dashboard = () => {
 
     jobs.forEach((j) => {
       if (!j.deadline || drafted.has(j.id)) return;
+      if (["archived", "rejected"].includes(j.status)) return;
       const d = parseISO(j.deadline);
       const days = differenceInDays(d, today);
       if (days < 0 || days > 7) return;
