@@ -38,6 +38,22 @@ const INTEREST_META: Record<string, { label: string; cls: string }> = {
   very_interested: { label: "Veldig interessert", cls: "bg-primary/15 text-primary" },
 };
 
+type SortKey = "created_desc" | "created_asc" | "score_desc" | "score_asc" | "deadline_asc" | "status" | "title_asc";
+
+const SORT_OPTIONS: { v: SortKey; label: string }[] = [
+  { v: "created_desc", label: "Nyeste først" },
+  { v: "created_asc", label: "Eldste først" },
+  { v: "score_desc", label: "Høyest score" },
+  { v: "score_asc", label: "Lavest score" },
+  { v: "deadline_asc", label: "Nærmeste frist" },
+  { v: "status", label: "Status" },
+  { v: "title_asc", label: "Tittel A–Å" },
+];
+
+const STATUS_ORDER: Record<string, number> = {
+  discovered: 0, considering: 1, applied: 2, interview: 3, offer: 4, rejected: 5, archived: 6,
+};
+
 const Jobs = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -51,6 +67,8 @@ const Jobs = () => {
   const [adding, setAdding] = useState(false);
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
+  const [sortBy, setSortBy] = useState<SortKey>("created_desc");
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => { load(); }, [user]);
 
