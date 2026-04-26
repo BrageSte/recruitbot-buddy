@@ -62,11 +62,12 @@ export const useNotifications = () => {
 
   const markAllRead = async () => {
     if (!user) return;
+    // Mark unread as read AND clear them from the bell so the list doesn't pile up
     await supabase
       .from("notifications")
-      .update({ read_at: new Date().toISOString() })
-      .eq("user_id", user.id)
-      .is("read_at", null);
+      .delete()
+      .eq("user_id", user.id);
+    setItems([]);
   };
 
   const remove = async (id: string) => {

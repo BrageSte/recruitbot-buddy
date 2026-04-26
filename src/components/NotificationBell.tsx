@@ -28,7 +28,7 @@ export const NotificationBell = () => {
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between p-3 border-b border-border">
           <div className="text-sm font-semibold">Varsler</div>
-          {unreadCount > 0 && (
+          {items.length > 0 && (
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={markAllRead}>
               <CheckCheck className="w-3.5 h-3.5 mr-1" /> Marker alle som lest
             </Button>
@@ -71,7 +71,7 @@ export const NotificationBell = () => {
                         )}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline gap-2">
-                            <p className={cn("text-sm leading-snug truncate", !n.read_at && "font-semibold")}>
+                            <p className={cn("text-sm leading-snug break-words", !n.read_at && "font-semibold")}>
                               {n.title}
                             </p>
                             {score != null && (
@@ -80,7 +80,7 @@ export const NotificationBell = () => {
                               </span>
                             )}
                           </div>
-                          {n.body && <p className="text-xs text-muted-foreground truncate">{n.body}</p>}
+                          {n.body && <p className="text-xs text-muted-foreground break-words mt-0.5">{n.body}</p>}
                           <p className="text-[10px] text-muted-foreground mt-1">
                             {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: nb })}
                           </p>
