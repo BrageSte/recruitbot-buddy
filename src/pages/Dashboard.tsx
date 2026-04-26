@@ -362,11 +362,19 @@ const Dashboard = () => {
               : "Alt under kontroll – tid for å se på nye muligheter."}
           </p>
         </div>
-        <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-          <Link to="/calendar">
-            Full kalender <ArrowRight className="w-3.5 h-3.5 ml-1" />
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild size="sm" className="gap-1.5">
+            <Link to="/jobs/swipe">
+              <Layers className="w-3.5 h-3.5" />
+              Sveip jobber
+            </Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
+            <Link to="/calendar">
+              Full kalender <ArrowRight className="w-3.5 h-3.5 ml-1" />
+            </Link>
+          </Button>
+        </div>
       </header>
 
       {/* High-match alert banner */}
