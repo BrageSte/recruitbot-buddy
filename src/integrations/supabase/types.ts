@@ -508,6 +508,45 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          application_id: string | null
+          body: string | null
+          created_at: string
+          id: string
+          job_id: string | null
+          kind: Database["public"]["Enums"]["notification_kind"]
+          metadata: Json
+          read_at: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          application_id?: string | null
+          body?: string | null
+          created_at?: string
+          id?: string
+          job_id?: string | null
+          kind: Database["public"]["Enums"]["notification_kind"]
+          metadata?: Json
+          read_at?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          application_id?: string | null
+          body?: string | null
+          created_at?: string
+          id?: string
+          job_id?: string | null
+          kind?: Database["public"]["Enums"]["notification_kind"]
+          metadata?: Json
+          read_at?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -516,6 +555,9 @@ export type Database = {
           id: string
           linkedin_url: string | null
           master_profile: string | null
+          notify_email: boolean
+          notify_high_match_min_score: number
+          notify_push: boolean
           rules_green: string | null
           rules_red: string | null
           rules_yellow: string | null
@@ -535,6 +577,9 @@ export type Database = {
           id?: string
           linkedin_url?: string | null
           master_profile?: string | null
+          notify_email?: boolean
+          notify_high_match_min_score?: number
+          notify_push?: boolean
           rules_green?: string | null
           rules_red?: string | null
           rules_yellow?: string | null
@@ -554,6 +599,9 @@ export type Database = {
           id?: string
           linkedin_url?: string | null
           master_profile?: string | null
+          notify_email?: boolean
+          notify_high_match_min_score?: number
+          notify_push?: boolean
           rules_green?: string | null
           rules_red?: string | null
           rules_yellow?: string | null
@@ -770,6 +818,11 @@ export type Database = {
         | "offer"
         | "rejected"
         | "archived"
+      notification_kind:
+        | "high_match_job"
+        | "deadline_soon"
+        | "interview_reminder"
+        | "system"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -929,6 +982,12 @@ export const Constants = {
         "offer",
         "rejected",
         "archived",
+      ],
+      notification_kind: [
+        "high_match_job",
+        "deadline_soon",
+        "interview_reminder",
+        "system",
       ],
     },
   },
