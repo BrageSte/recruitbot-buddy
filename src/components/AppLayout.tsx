@@ -25,14 +25,17 @@ interface SidebarContentProps {
 
 const SidebarContent = ({ email, onSignOut, onNavigate }: SidebarContentProps) => (
   <div className="flex flex-col h-full">
-    <div className="p-5 flex items-center gap-2.5">
-      <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center shadow-elevated">
-        <Sparkles className="w-4 h-4 text-primary-foreground" />
+    <div className="p-5 flex items-center justify-between gap-2.5">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center shadow-elevated shrink-0">
+          <Sparkles className="w-4 h-4 text-primary-foreground" />
+        </div>
+        <div className="min-w-0">
+          <div className="font-semibold text-sm leading-tight">JobHunter</div>
+          <div className="text-[11px] text-muted-foreground leading-tight">AI</div>
+        </div>
       </div>
-      <div>
-        <div className="font-semibold text-sm leading-tight">JobHunter</div>
-        <div className="text-[11px] text-muted-foreground leading-tight">AI</div>
-      </div>
+      <NotificationBell />
     </div>
 
     <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
