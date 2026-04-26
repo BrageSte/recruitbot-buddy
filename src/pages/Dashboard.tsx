@@ -391,9 +391,9 @@ const Dashboard = () => {
       {/* KPI strip — én sammenhengende rad */}
       <Card>
         <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-border">
-          <KpiCell label="Sendt totalt" value={totalSent} sub={`${sentThisWeek} denne uken`} />
-          <KpiCell label="Aktive" value={active} href="/applications" />
-          <KpiCell label="Intervjuer" value={interviews} />
+          <KpiCell label="Sendt totalt" value={totalSent} sub={`${sentThisWeek} denne uken`} href="/applications?tab=sent" />
+          <KpiCell label="Aktive" value={active} href="/applications?tab=active" />
+          <KpiCell label="Intervjuer" value={interviews} href="/applications?tab=responded" />
           <KpiCell label="Nye matcher" value={newMatchCount} sub="≥ 70 score" href="/jobs" />
         </div>
       </Card>
