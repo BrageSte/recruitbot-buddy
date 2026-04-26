@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Loader2, Sparkles, ExternalLink, Filter, Bookmark, Trash2, X, Send, ChevronDown, Layers, ArrowUpDown, Archive, ArchiveRestore } from "lucide-react";
+import { Plus, Loader2, Sparkles, ExternalLink, Filter, Bookmark, Trash2, X, Send, ChevronDown, Layers, ArrowUpDown, Archive, ArchiveRestore, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 
 type Job = any;
@@ -133,6 +133,29 @@ const Jobs = () => {
   }, [jobs, config, sortBy, showArchived]);
 
   const archivedCount = useMemo(() => jobs.filter((j) => j.status === "archived").length, [jobs]);
+  const unscoredCount = useMemo(
+    () => jobs.filter((j) => j.match_score == null && j.source_url && ["auto_search", "rss", "url", "linkedin"].includes(j.source)).length,
+    [jobs]
+  );
+  const [enriching, setEnriching] = useState(false);
+
+  const enrichMissing = async () => {
+    setEnriching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("enrich-jobs", { body: {} });
+      if (error) throw error;
+      const d: any = data;
+      toast({
+        title: "Berikelse fullført",
+        description: `${d.enriched ?? 0} jobber oppdatert${d.skipped ? `, ${d.skipped} hoppet over` : ""}${d.remaining ? `. ${d.remaining} gjenstår.` : "."}`,
+      });
+      load();
+    } catch (e: any) {
+      toast({ title: "Feilet", description: e.message, variant: "destructive" });
+    } finally {
+      setEnriching(false);
+    }
+  };
 
   const addJob = async () => {
     if (!url && !text.trim()) { toast({ title: "Lim inn URL eller tekst", variant: "destructive" }); return; }
@@ -207,6 +230,12 @@ const Jobs = () => {
               ) : (
                 <><ArchiveRestore className="w-4 h-4 mr-2" /> Vis arkiverte ({archivedCount})</>
               )}
+            </Button>
+          )}
+          {unscoredCount > 0 && (
+            <Button variant="outline" onClick={enrichMissing} disabled={enriching}>
+              {enriching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Hent manglende info ({unscoredCount})
             </Button>
           )}
           <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
