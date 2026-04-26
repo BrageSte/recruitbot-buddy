@@ -29,7 +29,8 @@ const STATUSES = [
 ];
 const SOURCES = [
   { v: "manual", label: "Manuell" }, { v: "url", label: "URL" },
-  { v: "rss", label: "RSS" }, { v: "linkedin", label: "LinkedIn" }, { v: "file", label: "Fil" },
+  { v: "rss", label: "RSS" }, { v: "auto_search", label: "Auto-søk" },
+  { v: "linkedin", label: "LinkedIn" }, { v: "file", label: "Fil" },
 ];
 
 const INTEREST_META: Record<string, { label: string; cls: string }> = {

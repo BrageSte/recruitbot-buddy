@@ -1,0 +1,1 @@
+UPDATE public.jobs SET source = 'auto_search' WHERE source = 'rss' AND source_url LIKE '%arbeidsplassen.nav.no%';

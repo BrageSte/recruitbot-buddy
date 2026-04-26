@@ -809,7 +809,7 @@ export type Database = {
         | "uninterested"
         | "interested"
         | "very_interested"
-      job_source: "manual" | "url" | "rss" | "linkedin" | "file"
+      job_source: "manual" | "url" | "rss" | "linkedin" | "file" | "auto_search"
       job_status:
         | "discovered"
         | "considering"
@@ -973,7 +973,7 @@ export const Constants = {
         "interested",
         "very_interested",
       ],
-      job_source: ["manual", "url", "rss", "linkedin", "file"],
+      job_source: ["manual", "url", "rss", "linkedin", "file", "auto_search"],
       job_status: [
         "discovered",
         "considering",

@@ -245,11 +245,12 @@ serve(async (req) => {
           title: parsed?.title || hit.title,
           company: parsed?.company || hit.company || null,
           location: parsed?.location || hit.location || null,
-          source: s.source === "linkedin" ? "linkedin" : ("rss" as const),
+          source: s.source === "linkedin" ? ("linkedin" as const) : ("auto_search" as const),
           source_url: hit.url,
           description: parsed?.description ?? hit.description ?? null,
           status: "discovered" as const,
           ai_summary: parsed?.ai_summary ?? `Funnet via auto-søk: ${s.name}`,
+          notes: `Fra auto-søk: ${s.name} (${s.source})`,
         };
 
         let totalScore: number | null = null;
