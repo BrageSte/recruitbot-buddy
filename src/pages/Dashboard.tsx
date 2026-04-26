@@ -366,6 +366,48 @@ const Dashboard = () => {
         </Button>
       </header>
 
+      {/* High-match alert banner */}
+      {highMatchNotifs.length > 0 && (
+        <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-transparent">
+          <CardContent className="p-4 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4 text-primary" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                <h2 className="text-sm font-semibold">
+                  {highMatchNotifs.length === 1
+                    ? "1 ny topp-match"
+                    : `${highMatchNotifs.length} nye topp-matcher`}{" "}
+                  <span className="text-muted-foreground font-normal">
+                    (≥ {profile?.notify_high_match_min_score ?? 90})
+                  </span>
+                </h2>
+                <Link to="/jobs" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                  Se alle <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
+              <ul className="mt-2 space-y-1">
+                {highMatchNotifs.slice(0, 3).map((n) => (
+                  <li key={n.id}>
+                    <Link
+                      to={n.job_id ? `/jobs/${n.job_id}` : "/jobs"}
+                      className="text-sm hover:text-primary transition-colors inline-flex items-baseline gap-2 max-w-full"
+                    >
+                      <span className="text-[11px] font-semibold text-primary tabular-nums shrink-0">
+                        {n.metadata?.score ?? "?"}
+                      </span>
+                      <span className="truncate">{n.title.replace(/^Ny match \d+\/100:\s*/, "")}</span>
+                      {n.body && <span className="text-xs text-muted-foreground truncate hidden sm:inline">· {n.body}</span>}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Hovedmål — flat, minimal */}
       {mainGoal && (
         <Card>
