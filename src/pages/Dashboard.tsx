@@ -465,6 +465,32 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* COLUMN 1: Jobs to apply */}
         <div className="space-y-6">
+          {/* Swipe CTA card */}
+          <Link
+            to="/jobs/swipe"
+            className="group block rounded-lg border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-4 hover:border-primary/50 hover:shadow-elevated transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0 group-hover:bg-primary/25 transition-colors">
+                <Layers className="w-5 h-5 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold">Bla gjennom jobber</div>
+                <div className="text-xs text-muted-foreground">
+                  {(() => {
+                    const queueCount = jobs.filter(
+                      (j) => !drafted.has(j.id) && ["discovered", "considering"].includes(j.status)
+                    ).length;
+                    return queueCount > 0
+                      ? `${queueCount} ${queueCount === 1 ? "jobb" : "jobber"} venter på vurdering`
+                      : "Sveip deg gjennom nye annonser";
+                  })()}
+                </div>
+              </div>
+              <ArrowRight className="w-4 h-4 text-primary shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </Link>
+
           <Card>
             <SectionHeader icon={Flame} title="Må søke nå" hint="Topp 5 basert på match og frist" />
             <CardContent className="pt-0 space-y-0.5">
