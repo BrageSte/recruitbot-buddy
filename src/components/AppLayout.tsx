@@ -95,23 +95,26 @@ export const AppLayout = () => {
           </div>
           <div className="font-semibold text-sm">JobHunter AI</div>
         </div>
-        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Åpne meny">
-              <Menu className="w-5 h-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="p-0 w-64 bg-sidebar border-sidebar-border">
-            <SidebarContent
-              email={user?.email}
-              onSignOut={() => {
-                setMobileOpen(false);
-                handleSignOut();
-              }}
-              onNavigate={() => setMobileOpen(false)}
-            />
-          </SheetContent>
-        </Sheet>
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Åpne meny">
+                <Menu className="w-5 h-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 w-64 bg-sidebar border-sidebar-border">
+              <SidebarContent
+                email={user?.email}
+                onSignOut={() => {
+                  setMobileOpen(false);
+                  handleSignOut();
+                }}
+                onNavigate={() => setMobileOpen(false)}
+              />
+            </SheetContent>
+          </Sheet>
+        </div>
       </header>
 
       <main className="flex-1 min-w-0 overflow-x-hidden">
