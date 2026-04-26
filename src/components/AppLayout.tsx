@@ -3,6 +3,7 @@ import { LayoutDashboard, Briefcase, FileText, User, LogOut, Sparkles, Radar, Fi
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { NotificationBell } from "@/components/NotificationBell";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
