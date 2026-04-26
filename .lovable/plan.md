@@ -1,61 +1,42 @@
-# Cleaner & mer minimalistisk Dashboard
+## Diagnose
 
-Dashbordet har i dag mye visuell støy: fargede gradient-bannere, fargekodede border-bokser i «Haster», mange små ikoner, og fem ulike sectioner stablet over hverandre (mål-banner, 4 KPI-kort, 3-kolonne grid, og «aktive søknader»-strip nederst). Resultatet er rotete og lite Linear/Notion-aktig.
+Jeg sjekket databasen direkte:
+- **27 av 38** auto-søk-jobber har `description = ''`, ingen `match_score` og fallback-summary `"Funnet via auto-søk: …"`.
+- Samtidig batch: 24.04 fikk **9 av 36 scoret** – altså ~75 % feilet i én runde. Siste lille batch (2 jobber) fikk begge scoret.
+- NAV-stillingsidene returnerer 130 KB HTML / 63 KB tekst – så `fetchJobText` har innhold nok. Problemet er ikke scraping.
+- I koden returnerer `aiParse()` `null` ved **enhver** ikke-OK respons (typisk 429), og da lagres jobben helt tom – ingen beskrivelse, ingen score, ingen risk_flags.
 
-## Mål
+**Rot­årsak:** Når en auto-søk-runde finner mange nye jobber (f.eks. 36), fyrer vi 36 AI-kall sekvensielt uten noen retry. Lovable AI Gateway rate-limiter per minutt, så de fleste kallene treffer 429 og jobbene havner i databasen som tomme skall.
 
-- Mindre visuell støy: færre farger, færre ikoner, færre rammer.
-- Tydeligere hierarki: én ting i fokus øverst, resten roligere under.
-- Mer hvitrom og luftigere typografi.
-- Fortsatt all funksjonell info – bare presentert mer kontrollert.
+Samme svakhet finnes i `poll-rss` (deler `enrich.ts`), men der er volumet typisk lavere per runde.
 
-## Endringer i `src/pages/Dashboard.tsx`
+## Løsning
 
-### 1. Header — roligere
-- Behold hilsen + dynamisk undertittel.
-- Flytt «Full kalender»-knapp til en mer diskret tekst-link (`variant="ghost"` med liten pil), eller fjern – kalender finnes i sidemeny.
-- Fjern emoji 👋 (mer minimalistisk; valgfritt – beholder hvis brukeren vil).
+### 1. `supabase/functions/auto-search/enrich.ts` – robust AI-parse
+- Legg til **retry med exponential backoff** for 429 og 5xx (3 forsøk: vent 2s, 5s, 12s).
+- Logg statuskoden + en bit av responsbodyen ved feil, slik at vi kan se hva som skjer i Edge Function-logger.
+- Returner et diskriminert resultat `{ ok: true, parsed } | { ok: false, reason: 'rate_limited' | 'no_credits' | 'error' }` istedenfor `null`, så caller vet om det var midlertidig.
 
-### 2. Hovedmål-banner — flatere
-- Fjern gradient (`bg-gradient-to-br from-primary/10 …`) og fargede border.
-- Bruk vanlig `Card` med tynn border, liten farget prikk eller diskret `Target`-ikon i muted farge i stedet for `Badge`.
-- Behold tittel + dato + ukentlig progress, men progress-baren blir tynnere (h-1) og uten gradient (bare `bg-primary`).
+### 2. `supabase/functions/auto-search/index.ts` – ikke lagre tomme jobber
+- Hvis `aiParse` feilet med `rate_limited` eller `error`, **hopp over** jobben (ikke lagre noe) – cron neste time vil prøve på nytt fordi den fremdeles er "ny".
+- Legg inn en liten **throttle mellom AI-kall** (300 ms) for å unngå å spike rate-limit.
+- Hvis vi får `no_credits` (402): break ut av løkken og oppdater `auto_searches.last_error` med en tydelig melding.
+- Tilsvarende endring i `poll-rss/index.ts` for konsistens.
 
-### 3. KPI-strip — slankere
-- Behold 4 KPI-er, men gjør dem til én sammenhengende rad uten individuelle kort:
-  - Én flat `Card` med 4 kolonner adskilt av tynne vertikale `border-r` linjer.
-  - Mindre ikoner (eller fjern ikoner helt – bare label + tall).
-  - Mindre padding.
-- Resultat: føles som ett "stat-row", ikke fire bokser.
+### 3. Ny edge-funksjon `enrich-jobs` – fikser de 27 som allerede er tomme
+- Velger jobber med `source IN ('auto_search','rss')`, `length(description) < 200`, `match_score IS NULL`, eldste først, maks 10 per kall.
+- Henter `source_url`, kjører `fetchJobText` + `aiParse` (med ny retry-logikk), og oppdaterer raden in-place med beskrivelse, scores, deadline, ai_summary, risk_flags.
+- Inserter `high_match_job`-notification hvis `match_score >= notify_high_match_min_score`.
+- Schedulert via `pg_cron` hvert 30. minutt så backloggen drenes uten manuell handling.
 
-### 4. Tre-kolonne grid — luftigere og mer balansert
-- Behold strukturen (Jobber | Agenda | Haster), men:
-  - Reduser ikon-bruk i CardTitles: behold ett lite ikon i muted farge, fjern fargede aksenter (rose/primary/orange).
-  - Bytt CardTitle-størrelse fra `text-base` til `text-sm font-semibold uppercase tracking-wide text-muted-foreground` (Notion-stil seksjons-headers).
-  - Ensartet spacing mellom rader.
+### 4. UI-knapp "Hent manglende info" på Jobber-siden
+- Liten knapp ved siden av "Vis arkiverte" som teller hvor mange jobber som mangler scoring (`match_score IS NULL`) og lar brukeren trigge `enrich-jobs` manuelt med toast-tilbakemelding ("Beriket 8 jobber, 19 gjenstår").
+- Bruker `supabase.functions.invoke('enrich-jobs')` og `refetch()` etterpå.
 
-### 5. «Haster»-kolonne — fjern fargestøy
-Dette er den største kilden til rot i dag. Hver urgent-item har sin egen fargede border + bakgrunn (orange, purple, amber, rose).
-- Erstatt med en nøytral list-stil: hvit/transparent bakgrunn, ingen border, kun en liten 2px farget vertikal stripe til venstre som indikerer kategori.
-- Eller enda enklere: kategori vises som liten muted label (samme som agenda-grupper), ingen farge i selve raden.
-- Behold ikonet, men i muted farge – ikke fargekodet.
-
-### 6. Aktive søknader-strip — integrér eller fjern
-- Strippen nederst dupliserer info som finnes i KPI-er ("Aktive: N").
-- **Forslag**: fjern strippen. Gjør KPI-en "Aktive" klikkbar (lenker til `/applications`) i stedet.
-
-### 7. Generelt
-- Reduser global gap fra `space-y-6` til `space-y-8` (mer luft).
-- Reduser `gap-5` i grid til `gap-6`.
-- Ensartet `text-sm` overalt; tall i `tabular-nums`.
-- Fjern duplikate ChevronRight-piler – la hover-state være nok signal.
-
-## Filer som endres
-
-- `src/pages/Dashboard.tsx` — alle endringer over.
-
-Ingen nye dependencies, ingen DB-endringer, ingen ruteendringer.
+### 5. Migrasjon
+- Legg cron-job for `enrich-jobs` hvert 30. minutt (samme mønster som de eksisterende `poll-rss`/`auto-search`-cronene).
 
 ## Resultat
-
-Mer Linear/Notion-aktig: ett rolig hovedinntrykk, klare seksjoner, lite farge (kun der det betyr noe – f.eks. en frist nær), mye luft. All funksjonalitet beholdt.
+- Nye auto-søk-jobber blir **enten** ferdig beriket og scoret, **eller** ikke lagret i det hele tatt (prøves igjen neste runde).
+- De 27 eksisterende tomme jobbene blir gradvis fylt ut av `enrich-jobs`-cronen, eller umiddelbart med ett klikk fra UI.
+- Bedre logging gjør det enklere å se i Edge Function-loggene hvis AI-gatewayen begynner å feile igjen.
