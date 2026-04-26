@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Upload, FileText, Trash2, Zap } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Save, Upload, FileText, Trash2, Zap, Plus, Sparkles } from "lucide-react";
 
 type Profile = {
   display_name: string | null;
@@ -34,6 +36,15 @@ type UploadedFile = {
   created_at: string;
 };
 
+type InterestSignal = {
+  id: string;
+  label: string;
+  category: string;
+  weight: number;
+  source: string;
+  confidence: number;
+};
+
 type AutoApply = {
   is_enabled: boolean;
   min_score: number;
@@ -55,22 +66,28 @@ const Profile = () => {
   const { toast } = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [signals, setSignals] = useState<InterestSignal[]>([]);
   const [auto, setAuto] = useState<AutoApply>(defaultAuto);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [signalLabel, setSignalLabel] = useState("");
+  const [signalCategory, setSignalCategory] = useState("task");
+  const [signalWeight, setSignalWeight] = useState(70);
 
   useEffect(() => { loadAll(); }, [user]);
 
   const loadAll = async () => {
     if (!user) return;
     setLoading(true);
-    const [{ data: prof }, { data: fls }, { data: au }] = await Promise.all([
+    const [{ data: prof }, { data: fls }, { data: au }, { data: sig }] = await Promise.all([
       supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
       supabase.from("uploaded_files").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("auto_apply_settings").select("*").eq("user_id", user.id).maybeSingle(),
+      supabase.from("profile_interest_signals").select("*").eq("user_id", user.id).order("weight", { ascending: false }),
     ]);
     if (prof) setProfile(prof as any);
     if (fls) setFiles(fls as any);
+    if (sig) setSignals(sig as any);
     if (au) setAuto({
       is_enabled: au.is_enabled,
       min_score: au.min_score,
@@ -133,6 +150,35 @@ const Profile = () => {
     await supabase.storage.from("user-files").remove([f.storage_path]);
     await supabase.from("uploaded_files").delete().eq("id", f.id);
     loadAll();
+  };
+
+  const addSignal = async () => {
+    if (!user || !signalLabel.trim()) return;
+    const { error } = await supabase.from("profile_interest_signals").insert({
+      user_id: user.id,
+      label: signalLabel.trim(),
+      category: signalCategory as any,
+      weight: signalWeight,
+      source: "manual" as any,
+      confidence: 1,
+    });
+    if (error) {
+      toast({ title: "Kunne ikke legge til signal", description: error.message, variant: "destructive" });
+    } else {
+      setSignalLabel("");
+      setSignalWeight(70);
+      loadAll();
+    }
+  };
+
+  const updateSignalWeight = async (signal: InterestSignal, weight: number) => {
+    setSignals((items) => items.map((s) => (s.id === signal.id ? { ...s, weight } : s)));
+    await supabase.from("profile_interest_signals").update({ weight }).eq("id", signal.id);
+  };
+
+  const deleteSignal = async (id: string) => {
+    await supabase.from("profile_interest_signals").delete().eq("id", id);
+    setSignals((items) => items.filter((s) => s.id !== id));
   };
 
   const totalWeight = (profile?.weight_professional ?? 0) + (profile?.weight_culture ?? 0) + (profile?.weight_practical ?? 0) + (profile?.weight_enthusiasm ?? 0);
@@ -241,6 +287,83 @@ const Profile = () => {
               <Input type="number" min={0} value={profile.weekly_goal} onChange={(e) => setProfile({ ...profile, weekly_goal: parseInt(e.target.value) || 0 })} />
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-primary" />
+            Interesseprofil
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">Strukturerte signaler matchmotoren bruker sammen med CV, profil og sveip.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_120px_auto] gap-3 items-end">
+            <div className="space-y-2">
+              <Label>Nytt signal</Label>
+              <Input value={signalLabel} onChange={(e) => setSignalLabel(e.target.value)} placeholder="f.eks. produktutvikling, kundekontakt, hjemmekontor" />
+            </div>
+            <div className="space-y-2">
+              <Label>Kategori</Label>
+              <Select value={signalCategory} onValueChange={setSignalCategory}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="role">Rolle</SelectItem>
+                  <SelectItem value="industry">Bransje</SelectItem>
+                  <SelectItem value="task">Oppgave</SelectItem>
+                  <SelectItem value="skill">Ferdighet</SelectItem>
+                  <SelectItem value="value">Verdi</SelectItem>
+                  <SelectItem value="work_style">Arbeidsform</SelectItem>
+                  <SelectItem value="location">Sted</SelectItem>
+                  <SelectItem value="dealbreaker">Dealbreaker</SelectItem>
+                  <SelectItem value="other">Annet</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Vekt</Label>
+              <Input type="number" min={-100} max={100} value={signalWeight} onChange={(e) => setSignalWeight(parseInt(e.target.value) || 0)} />
+            </div>
+            <Button onClick={addSignal} disabled={!signalLabel.trim()}>
+              <Plus className="w-4 h-4 mr-2" />
+              Legg til
+            </Button>
+          </div>
+
+          {signals.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Ingen strukturerte interesser ennå. Start med arbeidsoppgaver du liker og tydelige dealbreakers.</p>
+          ) : (
+            <div className="space-y-2">
+              {signals.map((signal) => (
+                <div key={signal.id} className="flex items-center gap-3 border border-border rounded-md p-3 bg-card">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium">{signal.label}</span>
+                      <Badge variant={signal.category === "dealbreaker" || signal.weight < 0 ? "destructive" : "secondary"}>
+                        {signal.category}
+                      </Badge>
+                      {signal.source !== "manual" && <Badge variant="outline">{signal.source}</Badge>}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Positiv vekt løfter matcher. Negativ vekt trekker ned.
+                    </div>
+                  </div>
+                  <Input
+                    className="w-24"
+                    type="number"
+                    min={-100}
+                    max={100}
+                    value={signal.weight}
+                    onChange={(e) => updateSignalWeight(signal, parseInt(e.target.value) || 0)}
+                  />
+                  <Button variant="ghost" size="icon" onClick={() => deleteSignal(signal.id)}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

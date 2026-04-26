@@ -24,3 +24,14 @@ verify_jwt = false
 [functions.generate-plan]
 verify_jwt = true
 
+[functions.ingest-arbeidsplassen-feed]
+verify_jwt = false
+
+[functions.ingest-finn]
+verify_jwt = false
+
+[functions.match-user-jobs]
+verify_jwt = true
+
+[functions.suggest-source-feeds]
+verify_jwt = true

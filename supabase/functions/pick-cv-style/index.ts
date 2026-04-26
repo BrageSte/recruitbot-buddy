@@ -21,7 +21,7 @@ serve(async (req) => {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     let resolvedJobId = jobId as string | undefined;
-    let resolvedAppId = applicationId as string | undefined;
+    const resolvedAppId = applicationId as string | undefined;
 
     if (resolvedAppId && !resolvedJobId) {
       const { data: app } = await admin.from("applications").select("job_id").eq("id", resolvedAppId).maybeSingle();

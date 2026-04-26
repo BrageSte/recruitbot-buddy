@@ -9,6 +9,7 @@ import { AppLayout } from "@/components/AppLayout";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
+import Matches from "./pages/Matches";
 import JobSwipe from "./pages/JobSwipe";
 import JobDetail from "./pages/JobDetail";
 import Applications from "./pages/Applications";
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/matches" element={<Matches />} />
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/jobs/swipe" element={<JobSwipe />} />
               <Route path="/jobs/:id" element={<JobDetail />} />

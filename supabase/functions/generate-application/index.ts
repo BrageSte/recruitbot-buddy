@@ -40,7 +40,7 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY mangler" }, 500);
 
-    const userContext = `MASTER-PROFIL:\n${profile?.master_profile ?? "(tom)"}\n\nSTIL-GUIDE:\n${profile?.style_guide ?? "(tom)"}\n\nCV-MAL (faktisk erfaring):\n${cv ? JSON.stringify(cv, null, 2) : "(ingen mal — bruk kun master-profil)"}\n\nSTILLING:\nTittel: ${job.title}\nSelskap: ${job.company ?? ""}\nLokasjon: ${job.location ?? ""}\n\nBeskrivelse:\n${job.description ?? ""}\n\nAI-oppsummering: ${job.ai_summary ?? ""}\n\nDelscores:\n- Fag: ${job.score_professional}\n- Kultur: ${job.score_culture}\n- Praktisk: ${job.score_practical}\n- Entusiasme: ${job.score_enthusiasm}`;
+    const userContext = `MASTER-PROFIL:\n${profile?.master_profile ?? "(tom)"}\n\nSTIL-GUIDE:\n${profile?.style_guide ?? "(tom)"}\n\nCV-MAL (faktisk erfaring):\n${cv ? JSON.stringify(cv, null, 2) : "(ingen mal — bruk kun master-profil)"}\n\nSTILLING:\nTittel: ${job.title}\nSelskap: ${job.company ?? ""}\nLokasjon: ${job.location ?? ""}\n\nBeskrivelse:\n${job.description ?? ""}\n\nAI-oppsummering: ${job.ai_summary ?? ""}\n\nMatchforklaring:\n${JSON.stringify(job.match_reasoning ?? {}, null, 2)}\n\nDelscores:\n- Fag: ${job.score_professional}\n- Kultur: ${job.score_culture}\n- Praktisk: ${job.score_practical}\n- Entusiasme: ${job.score_enthusiasm}`;
 
     const tool = {
       type: "function",

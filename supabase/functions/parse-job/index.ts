@@ -30,8 +30,8 @@ serve(async (req) => {
 
     // Fetch text from URL if provided
     let raw = text ?? "";
-    let sourceUrl: string | null = url ?? null;
-    let source: "manual" | "url" = text && !url ? "manual" : "url";
+    const sourceUrl: string | null = url ?? null;
+    const source: "manual" | "url" = text && !url ? "manual" : "url";
 
     if (url && !text) {
       try {

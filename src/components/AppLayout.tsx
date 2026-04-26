@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Briefcase, FileText, User, LogOut, Sparkles, Radar, FileCog, CalendarDays, Menu } from "lucide-react";
+import { LayoutDashboard, Briefcase, FileText, User, LogOut, Sparkles, Radar, FileCog, CalendarDays, Menu, ScanSearch } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -9,6 +9,7 @@ import { useState } from "react";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/matches", label: "Matcher", icon: ScanSearch },
   { to: "/jobs", label: "Jobber", icon: Briefcase },
   { to: "/applications", label: "Søknader", icon: FileText },
   { to: "/calendar", label: "Kalender", icon: CalendarDays },

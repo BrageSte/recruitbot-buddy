@@ -30,6 +30,7 @@ const STATUSES = [
 const SOURCES = [
   { v: "manual", label: "Manuell" }, { v: "url", label: "URL" },
   { v: "rss", label: "RSS" }, { v: "auto_search", label: "Auto-søk" },
+  { v: "arbeidsplassen", label: "Arbeidsplassen" }, { v: "finn", label: "Finn" },
   { v: "linkedin", label: "LinkedIn" }, { v: "file", label: "Fil" },
 ];
 

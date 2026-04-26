@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Sparkles, ExternalLink, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, Sparkles, ExternalLink, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -60,6 +60,10 @@ const JobDetail = () => {
 
   if (loading) return <div className="p-8 flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Laster…</div>;
   if (!job) return <div className="p-8">Jobb ikke funnet. <Link to="/jobs" className="text-primary underline">Tilbake</Link></div>;
+  const reasoning = job.match_reasoning ?? {};
+  const strengths = Array.isArray(reasoning.strengths) ? reasoning.strengths : [];
+  const concerns = Array.isArray(reasoning.concerns) ? reasoning.concerns : [];
+  const usedSignals = Array.isArray(reasoning.used_signals) ? reasoning.used_signals : [];
 
   return (
     <div className="max-w-5xl mx-auto p-6 lg:p-10 space-y-6">
@@ -95,6 +99,49 @@ const JobDetail = () => {
           <CardHeader><CardTitle className="text-base">AI-oppsummering</CardTitle></CardHeader>
           <CardContent>
             <p className="text-sm">{job.ai_summary}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {(reasoning.summary || strengths.length > 0 || concerns.length > 0) && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Matchforklaring</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            {reasoning.summary && <p className="text-sm">{reasoning.summary}</p>}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {strengths.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground">Det som trekker opp</div>
+                  {strengths.map((s: string, i: number) => (
+                    <div key={i} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>{s}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {concerns.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground">Det som bør sjekkes</div>
+                  {concerns.map((s: string, i: number) => (
+                    <div key={i} className="flex items-start gap-2 text-sm">
+                      <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                      <span>{s}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {reasoning.recommendation && (
+              <div className="text-sm border border-border rounded-md p-3 bg-muted/30">{reasoning.recommendation}</div>
+            )}
+            {usedSignals.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {usedSignals.map((s: string, i: number) => (
+                  <span key={i} className="text-xs px-2 py-1 rounded bg-accent text-accent-foreground">{s}</span>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

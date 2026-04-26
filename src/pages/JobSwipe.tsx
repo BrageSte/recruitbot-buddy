@@ -39,6 +39,9 @@ const SOURCE_LABEL: Record<string, string> = {
   rss: "RSS",
   linkedin: "LinkedIn",
   file: "Fil",
+  auto_search: "Auto-søk",
+  arbeidsplassen: "Arbeidsplassen",
+  finn: "Finn",
 };
 
 const JobSwipe = () => {
@@ -93,6 +96,28 @@ const JobSwipe = () => {
     supabase.from("jobs").update(update).eq("id", job.id).then(({ error }) => {
       if (error) toast({ title: "Kunne ikke lagre", description: error.message, variant: "destructive" });
     });
+
+    if (job.external_job_id) {
+      supabase.from("job_score_feedback").insert({
+        user_id: job.user_id,
+        job_id: job.id,
+        external_job_id: job.external_job_id,
+        decision,
+        original_score: job.match_score,
+        metadata: { source: "job_swipe" },
+      }).then(({ error }) => {
+        if (error) console.error("Kunne ikke lagre match-feedback", error.message);
+      });
+
+      supabase
+        .from("user_job_matches")
+        .update({ status: decision === "uninterested" ? "dismissed" : "saved" })
+        .eq("user_id", job.user_id)
+        .eq("external_job_id", job.external_job_id)
+        .then(({ error }) => {
+          if (error) console.error("Kunne ikke oppdatere match-status", error.message);
+        });
+    }
 
     setHistory((h) => [...h, { job, decision }]);
     setQueue((q) => q.slice(1));

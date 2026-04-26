@@ -374,6 +374,63 @@ export type Database = {
         }
         Relationships: []
       }
+      external_jobs: {
+        Row: {
+          company: string | null
+          created_at: string
+          deadline: string | null
+          description: string | null
+          external_id: string
+          fetched_at: string
+          id: string
+          last_seen_at: string
+          location: string | null
+          provider: Database["public"]["Enums"]["external_job_provider"]
+          provider_updated_at: string | null
+          raw_data: Json
+          source_url: string | null
+          status: Database["public"]["Enums"]["external_job_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          external_id: string
+          fetched_at?: string
+          id?: string
+          last_seen_at?: string
+          location?: string | null
+          provider: Database["public"]["Enums"]["external_job_provider"]
+          provider_updated_at?: string | null
+          raw_data?: Json
+          source_url?: string | null
+          status?: Database["public"]["Enums"]["external_job_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          company?: string | null
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          external_id?: string
+          fetched_at?: string
+          id?: string
+          last_seen_at?: string
+          location?: string | null
+          provider?: Database["public"]["Enums"]["external_job_provider"]
+          provider_updated_at?: string | null
+          raw_data?: Json
+          source_url?: string | null
+          status?: Database["public"]["Enums"]["external_job_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       goals: {
         Row: {
           ai_generated: boolean
@@ -441,9 +498,12 @@ export type Database = {
           created_at: string
           deadline: string | null
           description: string | null
+          external_id: string | null
+          external_job_id: string | null
           id: string
           interest_level: Database["public"]["Enums"]["job_interest_level"]
           location: string | null
+          match_reasoning: Json
           match_score: number | null
           notes: string | null
           risk_flags: string[] | null
@@ -465,9 +525,12 @@ export type Database = {
           created_at?: string
           deadline?: string | null
           description?: string | null
+          external_id?: string | null
+          external_job_id?: string | null
           id?: string
           interest_level?: Database["public"]["Enums"]["job_interest_level"]
           location?: string | null
+          match_reasoning?: Json
           match_score?: number | null
           notes?: string | null
           risk_flags?: string[] | null
@@ -489,9 +552,12 @@ export type Database = {
           created_at?: string
           deadline?: string | null
           description?: string | null
+          external_id?: string | null
+          external_job_id?: string | null
           id?: string
           interest_level?: Database["public"]["Enums"]["job_interest_level"]
           location?: string | null
+          match_reasoning?: Json
           match_score?: number | null
           notes?: string | null
           risk_flags?: string[] | null
@@ -506,7 +572,76 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "jobs_external_job_id_fkey"
+            columns: ["external_job_id"]
+            isOneToOne: false
+            referencedRelation: "external_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_score_feedback: {
+        Row: {
+          created_at: string
+          decision: Database["public"]["Enums"]["job_interest_level"]
+          external_job_id: string | null
+          id: string
+          job_id: string | null
+          metadata: Json
+          note: string | null
+          original_score: number | null
+          user_id: string
+          user_job_match_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          decision: Database["public"]["Enums"]["job_interest_level"]
+          external_job_id?: string | null
+          id?: string
+          job_id?: string | null
+          metadata?: Json
+          note?: string | null
+          original_score?: number | null
+          user_id: string
+          user_job_match_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          decision?: Database["public"]["Enums"]["job_interest_level"]
+          external_job_id?: string | null
+          id?: string
+          job_id?: string | null
+          metadata?: Json
+          note?: string | null
+          original_score?: number | null
+          user_id?: string
+          user_job_match_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_score_feedback_external_job_id_fkey"
+            columns: ["external_job_id"]
+            isOneToOne: false
+            referencedRelation: "external_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_score_feedback_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_score_feedback_user_job_match_id_fkey"
+            columns: ["user_job_match_id"]
+            isOneToOne: false
+            referencedRelation: "user_job_matches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {
@@ -549,6 +684,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          auto_source_suggestions_enabled: boolean
           created_at: string
           display_name: string | null
           email: string | null
@@ -571,6 +707,7 @@ export type Database = {
           weight_professional: number
         }
         Insert: {
+          auto_source_suggestions_enabled?: boolean
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -593,6 +730,7 @@ export type Database = {
           weight_professional?: number
         }
         Update: {
+          auto_source_suggestions_enabled?: boolean
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -613,6 +751,45 @@ export type Database = {
           weight_enthusiasm?: number
           weight_practical?: number
           weight_professional?: number
+        }
+        Relationships: []
+      }
+      profile_interest_signals: {
+        Row: {
+          category: Database["public"]["Enums"]["profile_signal_category"]
+          confidence: number
+          created_at: string
+          id: string
+          label: string
+          metadata: Json
+          source: Database["public"]["Enums"]["profile_signal_source"]
+          updated_at: string
+          user_id: string
+          weight: number
+        }
+        Insert: {
+          category?: Database["public"]["Enums"]["profile_signal_category"]
+          confidence?: number
+          created_at?: string
+          id?: string
+          label: string
+          metadata?: Json
+          source?: Database["public"]["Enums"]["profile_signal_source"]
+          updated_at?: string
+          user_id: string
+          weight?: number
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["profile_signal_category"]
+          confidence?: number
+          created_at?: string
+          id?: string
+          label?: string
+          metadata?: Json
+          source?: Database["public"]["Enums"]["profile_signal_source"]
+          updated_at?: string
+          user_id?: string
+          weight?: number
         }
         Relationships: []
       }
@@ -717,6 +894,99 @@ export type Database = {
         }
         Relationships: []
       }
+      source_ingest_state: {
+        Row: {
+          created_at: string
+          last_checked_at: string | null
+          last_error: string | null
+          last_feed_url: string | null
+          last_modified_at: string | null
+          last_run_stats: Json
+          last_status: string
+          provider: Database["public"]["Enums"]["external_job_provider"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_feed_url?: string | null
+          last_modified_at?: string | null
+          last_run_stats?: Json
+          last_status?: string
+          provider: Database["public"]["Enums"]["external_job_provider"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_feed_url?: string | null
+          last_modified_at?: string | null
+          last_run_stats?: Json
+          last_status?: string
+          provider?: Database["public"]["Enums"]["external_job_provider"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      source_suggestions: {
+        Row: {
+          confidence: number
+          created_at: string
+          id: string
+          is_active: boolean
+          last_generated_at: string
+          location: string | null
+          metadata: Json
+          name: string
+          provider: Database["public"]["Enums"]["source_suggestion_provider"]
+          query: string
+          reason: string | null
+          rss_url: string | null
+          search_url: string
+          status: Database["public"]["Enums"]["source_suggestion_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_generated_at?: string
+          location?: string | null
+          metadata?: Json
+          name: string
+          provider?: Database["public"]["Enums"]["source_suggestion_provider"]
+          query: string
+          reason?: string | null
+          rss_url?: string | null
+          search_url: string
+          status?: Database["public"]["Enums"]["source_suggestion_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_generated_at?: string
+          location?: string | null
+          metadata?: Json
+          name?: string
+          provider?: Database["public"]["Enums"]["source_suggestion_provider"]
+          query?: string
+          reason?: string | null
+          rss_url?: string | null
+          search_url?: string
+          status?: Database["public"]["Enums"]["source_suggestion_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       uploaded_files: {
         Row: {
           created_at: string
@@ -752,6 +1022,75 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_job_matches: {
+        Row: {
+          computed_at: string
+          created_at: string
+          external_job_id: string
+          id: string
+          job_id: string | null
+          match_reasoning: Json
+          match_score: number | null
+          risk_flags: string[] | null
+          score_culture: number | null
+          score_enthusiasm: number | null
+          score_practical: number | null
+          score_professional: number | null
+          status: Database["public"]["Enums"]["user_job_match_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          computed_at?: string
+          created_at?: string
+          external_job_id: string
+          id?: string
+          job_id?: string | null
+          match_reasoning?: Json
+          match_score?: number | null
+          risk_flags?: string[] | null
+          score_culture?: number | null
+          score_enthusiasm?: number | null
+          score_practical?: number | null
+          score_professional?: number | null
+          status?: Database["public"]["Enums"]["user_job_match_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          computed_at?: string
+          created_at?: string
+          external_job_id?: string
+          id?: string
+          job_id?: string | null
+          match_reasoning?: Json
+          match_score?: number | null
+          risk_flags?: string[] | null
+          score_culture?: number | null
+          score_enthusiasm?: number | null
+          score_practical?: number | null
+          score_professional?: number | null
+          status?: Database["public"]["Enums"]["user_job_match_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_job_matches_external_job_id_fkey"
+            columns: ["external_job_id"]
+            isOneToOne: false
+            referencedRelation: "external_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_job_matches_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -801,6 +1140,8 @@ export type Database = {
       auto_search_status: "ok" | "blocked" | "error" | "pending"
       calendar_event_kind: "interview" | "follow_up" | "note" | "custom"
       cv_style: "skandinavisk" | "korporat" | "akademisk" | "startup" | "bold"
+      external_job_provider: "arbeidsplassen" | "finn"
+      external_job_status: "active" | "inactive" | "unknown"
       file_kind: "cv" | "previous_application" | "other"
       goal_kind: "target_date" | "weekly_apps" | "milestone" | "custom"
       goal_status: "active" | "completed" | "missed" | "archived"
@@ -809,7 +1150,15 @@ export type Database = {
         | "uninterested"
         | "interested"
         | "very_interested"
-      job_source: "manual" | "url" | "rss" | "linkedin" | "file" | "auto_search"
+      job_source:
+        | "manual"
+        | "url"
+        | "rss"
+        | "linkedin"
+        | "file"
+        | "auto_search"
+        | "arbeidsplassen"
+        | "finn"
       job_status:
         | "discovered"
         | "considering"
@@ -823,6 +1172,25 @@ export type Database = {
         | "deadline_soon"
         | "interview_reminder"
         | "system"
+      profile_signal_category:
+        | "role"
+        | "industry"
+        | "task"
+        | "skill"
+        | "value"
+        | "work_style"
+        | "location"
+        | "dealbreaker"
+        | "other"
+      profile_signal_source:
+        | "manual"
+        | "cv"
+        | "application"
+        | "swipe"
+        | "ai_suggested"
+      source_suggestion_provider: "finn"
+      source_suggestion_status: "suggested" | "active" | "paused" | "dismissed"
+      user_job_match_status: "new" | "saved" | "dismissed" | "archived"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -964,6 +1332,8 @@ export const Constants = {
       auto_search_status: ["ok", "blocked", "error", "pending"],
       calendar_event_kind: ["interview", "follow_up", "note", "custom"],
       cv_style: ["skandinavisk", "korporat", "akademisk", "startup", "bold"],
+      external_job_provider: ["arbeidsplassen", "finn"],
+      external_job_status: ["active", "inactive", "unknown"],
       file_kind: ["cv", "previous_application", "other"],
       goal_kind: ["target_date", "weekly_apps", "milestone", "custom"],
       goal_status: ["active", "completed", "missed", "archived"],
@@ -973,7 +1343,16 @@ export const Constants = {
         "interested",
         "very_interested",
       ],
-      job_source: ["manual", "url", "rss", "linkedin", "file", "auto_search"],
+      job_source: [
+        "manual",
+        "url",
+        "rss",
+        "linkedin",
+        "file",
+        "auto_search",
+        "arbeidsplassen",
+        "finn",
+      ],
       job_status: [
         "discovered",
         "considering",
@@ -989,6 +1368,27 @@ export const Constants = {
         "interview_reminder",
         "system",
       ],
+      profile_signal_category: [
+        "role",
+        "industry",
+        "task",
+        "skill",
+        "value",
+        "work_style",
+        "location",
+        "dealbreaker",
+        "other",
+      ],
+      profile_signal_source: [
+        "manual",
+        "cv",
+        "application",
+        "swipe",
+        "ai_suggested",
+      ],
+      source_suggestion_provider: ["finn"],
+      source_suggestion_status: ["suggested", "active", "paused", "dismissed"],
+      user_job_match_status: ["new", "saved", "dismissed", "archived"],
     },
   },
 } as const

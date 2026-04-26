@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { buildFinnSearchUrl } from "@/lib/sourceSuggestions";
 import {
   Loader2,
   Plus,
@@ -22,6 +23,9 @@ import {
   CheckCircle2,
   Info,
   Sparkles,
+  Database,
+  ExternalLink,
+  Wand2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { nb } from "date-fns/locale";
@@ -53,6 +57,20 @@ type AutoSearch = {
   items_found: number;
 };
 
+type SourceSuggestion = {
+  id: string;
+  provider: "finn";
+  name: string;
+  query: string;
+  location: string | null;
+  search_url: string;
+  rss_url: string | null;
+  reason: string | null;
+  confidence: number;
+  status: "suggested" | "active" | "paused" | "dismissed";
+  is_active: boolean;
+};
+
 const SOURCE_LABEL: Record<Source, string> = {
   finn: "Finn.no",
   arbeidsplassen: "Arbeidsplassen (NAV)",
@@ -72,6 +90,13 @@ const Sources = () => {
   const [autoSource, setAutoSource] = useState<Source>("arbeidsplassen");
   const [autoQuery, setAutoQuery] = useState("");
   const [autoLocation, setAutoLocation] = useState("");
+  const [sourceStates, setSourceStates] = useState<any[]>([]);
+  const [externalCounts, setExternalCounts] = useState<Record<string, number>>({});
+  const [fullRunning, setFullRunning] = useState<string | null>(null);
+  const [sourceSuggestions, setSourceSuggestions] = useState<SourceSuggestion[]>([]);
+  const [suggestionsEnabled, setSuggestionsEnabled] = useState(true);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(true);
+  const [suggestionsRunning, setSuggestionsRunning] = useState(false);
 
   // RSS state
   const [feeds, setFeeds] = useState<Feed[]>([]);
@@ -84,7 +109,149 @@ const Sources = () => {
   useEffect(() => {
     loadAuto();
     loadRss();
+    loadCoverage();
+    loadSuggestions(true);
   }, [user]);
+
+  const loadSuggestions = async (generateIfEmpty = false) => {
+    if (!user) return;
+    setSuggestionsLoading(true);
+    const [{ data: prof }, { data: suggestions }] = await Promise.all([
+      supabase.from("profiles").select("auto_source_suggestions_enabled").eq("user_id", user.id).maybeSingle(),
+      supabase
+        .from("source_suggestions")
+        .select("*")
+        .eq("user_id", user.id)
+        .neq("status", "dismissed" as any)
+        .order("confidence", { ascending: false }),
+    ]);
+    const enabled = prof?.auto_source_suggestions_enabled ?? true;
+    setSuggestionsEnabled(enabled);
+    if (generateIfEmpty && enabled && (suggestions?.length ?? 0) === 0) {
+      const { error } = await supabase.functions.invoke("suggest-source-feeds", { body: {} });
+      if (!error) {
+        const { data: refreshed } = await supabase
+          .from("source_suggestions")
+          .select("*")
+          .eq("user_id", user.id)
+          .neq("status", "dismissed" as any)
+          .order("confidence", { ascending: false });
+        setSourceSuggestions((refreshed ?? []) as SourceSuggestion[]);
+        setSuggestionsLoading(false);
+        return;
+      }
+    }
+    setSourceSuggestions((suggestions ?? []) as SourceSuggestion[]);
+    setSuggestionsLoading(false);
+  };
+
+  const setAutoSuggestionsEnabled = async (enabled: boolean) => {
+    if (!user) return;
+    setSuggestionsEnabled(enabled);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ auto_source_suggestions_enabled: enabled } as any)
+      .eq("user_id", user.id);
+    if (error) toast({ title: "Kunne ikke lagre", description: error.message, variant: "destructive" });
+    if (enabled && sourceSuggestions.length === 0) generateSuggestions(false);
+  };
+
+  const generateSuggestions = async (force = true) => {
+    setSuggestionsRunning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("suggest-source-feeds", { body: { force } });
+      if (error) throw error;
+      const d: any = data;
+      toast({
+        title: "Kildeforslag oppdatert",
+        description: `${d.generated ?? 0} Finn-søkeforslag er klare.`,
+      });
+      loadSuggestions(false);
+    } catch (e: any) {
+      toast({ title: "Kunne ikke lage forslag", description: e.message, variant: "destructive" });
+    } finally {
+      setSuggestionsRunning(false);
+    }
+  };
+
+  const updateSuggestion = async (id: string, patch: Partial<SourceSuggestion>) => {
+    const next = sourceSuggestions.find((item) => item.id === id);
+    const query = patch.query ?? next?.query ?? "";
+    const location = patch.location ?? next?.location ?? null;
+    const searchUrl = buildFinnSearchUrl(query, location);
+    setSourceSuggestions((items) => items.map((item) => (item.id === id ? { ...item, ...patch, search_url: searchUrl } : item)));
+    const { error } = await supabase
+      .from("source_suggestions")
+      .update({ ...patch, search_url: searchUrl } as any)
+      .eq("id", id);
+    if (error) toast({ title: "Kunne ikke oppdatere forslag", description: error.message, variant: "destructive" });
+  };
+
+  const dismissSuggestion = async (id: string) => {
+    await supabase.from("source_suggestions").update({ status: "dismissed" as any, is_active: false }).eq("id", id);
+    setSourceSuggestions((items) => items.filter((item) => item.id !== id));
+  };
+
+  const connectSuggestionRss = async (suggestion: SourceSuggestion) => {
+    if (!user || !suggestion.rss_url?.trim()) {
+      toast({ title: "Lim inn RSS-lenke først", variant: "destructive" });
+      return;
+    }
+    const { error } = await supabase.from("rss_feeds").insert({
+      user_id: user.id,
+      name: suggestion.name,
+      url: suggestion.rss_url.trim(),
+    });
+    if (error) {
+      toast({ title: "Kunne ikke koble RSS", description: error.message, variant: "destructive" });
+      return;
+    }
+    await supabase.from("source_suggestions").update({ status: "active" as any, is_active: true }).eq("id", suggestion.id);
+    toast({ title: "RSS koblet" });
+    loadSuggestions(false);
+    loadRss();
+  };
+
+  const loadCoverage = async () => {
+    const [states, arbeidsplassenCount, finnCount] = await Promise.all([
+      supabase.from("source_ingest_state").select("*"),
+      supabase
+        .from("external_jobs")
+        .select("id", { count: "exact", head: true })
+        .eq("provider", "arbeidsplassen" as any)
+        .eq("status", "active" as any),
+      supabase
+        .from("external_jobs")
+        .select("id", { count: "exact", head: true })
+        .eq("provider", "finn" as any)
+        .eq("status", "active" as any),
+    ]);
+    setSourceStates(states.data ?? []);
+    setExternalCounts({
+      arbeidsplassen: arbeidsplassenCount.count ?? 0,
+      finn: finnCount.count ?? 0,
+    });
+  };
+
+  const runFullSource = async (source: "arbeidsplassen" | "finn") => {
+    setFullRunning(source);
+    try {
+      const { data, error } = source === "arbeidsplassen"
+        ? await supabase.functions.invoke("ingest-arbeidsplassen-feed", { body: { maxPages: 8, sinceDays: 30 } })
+        : await supabase.functions.invoke("ingest-finn", { body: { includeUserFeeds: true, userId: user?.id } });
+      if (error) throw error;
+      const d: any = data;
+      toast({
+        title: source === "arbeidsplassen" ? "Arbeidsplassen oppdatert" : "Finn sjekket",
+        description: d.hint ?? `${d.activeUpserted ?? d.upserted ?? 0} annonser oppdatert.`,
+      });
+      loadCoverage();
+    } catch (e: any) {
+      toast({ title: "Feilet", description: e.message, variant: "destructive" });
+    } finally {
+      setFullRunning(null);
+    }
+  };
 
   // ============= Auto-søk =============
   const loadAuto = async () => {
@@ -256,6 +423,156 @@ const Sources = () => {
           <Badge variant="outline">{totalFound} treff totalt</Badge>
         </div>
       </header>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Database className="w-4 h-4 text-primary" />
+            Full-match dekning
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Delt jobb-cache for anbefalinger på tvers av egne søk. Arbeidsplassen hentes bredt fra NAV-feed; Finn krever API-tilgang eller RSS-fallback.
+          </p>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {[
+            { key: "arbeidsplassen", label: "Arbeidsplassen", action: "Hent NAV-feed" },
+            { key: "finn", label: "Finn", action: "Hent RSS fallback" },
+          ].map((s) => {
+            const state = sourceStates.find((item) => item.provider === s.key);
+            return (
+              <div key={s.key} className="border border-border rounded-md p-3 bg-muted/20">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-medium text-sm">{s.label}</div>
+                    <div className="text-2xl font-semibold mt-2">{externalCounts[s.key] ?? 0}</div>
+                    <div className="text-xs text-muted-foreground">aktive annonser i cache</div>
+                    {state?.last_error && <div className="text-xs text-warning mt-2 line-clamp-2">{state.last_error}</div>}
+                  </div>
+                  <StatusBadge
+                    s={(
+                      state?.last_status === "partial"
+                        ? "ok"
+                        : state?.last_status === "needs_access"
+                        ? "blocked"
+                        : state?.last_status ?? "pending"
+                    ) as Status}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => runFullSource(s.key as "arbeidsplassen" | "finn")}
+                  disabled={fullRunning !== null}
+                >
+                  {fullRunning === s.key ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                  {s.action}
+                </Button>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wand2 className="w-4 h-4 text-primary" />
+              Automatiske Finn-søk
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Appen foreslår Finn-søk fra profil, CV, interesser og matcher. Forslagene ligger på automatisk og kan pauses eller endres.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Switch checked={suggestionsEnabled} onCheckedChange={setAutoSuggestionsEnabled} />
+            <span className="text-xs text-muted-foreground">{suggestionsEnabled ? "På" : "Av"}</span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-xs text-muted-foreground">
+              {sourceSuggestions.length} forslag · åpne i Finn, lagre søket der, og lim inn RSS-lenken hvis du vil at appen skal hente treff automatisk.
+            </div>
+            <Button variant="outline" size="sm" onClick={() => generateSuggestions(true)} disabled={suggestionsRunning || !suggestionsEnabled}>
+              {suggestionsRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Oppdater forslag
+            </Button>
+          </div>
+
+          {suggestionsLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" /> Klargjør kildeforslag...
+            </div>
+          ) : sourceSuggestions.length === 0 ? (
+            <div className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              Ingen forslag ennå. Fyll ut interesseprofilen eller kjør matching først.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {sourceSuggestions.map((suggestion) => (
+                <div key={suggestion.id} className="rounded-md border border-border bg-card p-3 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Switch
+                      checked={suggestion.is_active && suggestion.status !== "paused"}
+                      onCheckedChange={(checked) =>
+                        updateSuggestion(suggestion.id, {
+                          is_active: checked,
+                          status: checked ? "suggested" : "paused",
+                        } as Partial<SourceSuggestion>)
+                      }
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">{suggestion.name}</span>
+                        <Badge variant="secondary">{suggestion.confidence}%</Badge>
+                        {suggestion.status === "active" && <Badge variant="outline">RSS koblet</Badge>}
+                      </div>
+                      {suggestion.reason && <p className="text-xs text-muted-foreground mt-1">{suggestion.reason}</p>}
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={suggestion.search_url} target="_blank" rel="noreferrer">
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => dismissSuggestion(suggestion.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:pl-12">
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Søkeord</Label>
+                      <Input value={suggestion.query} onChange={(e) => updateSuggestion(suggestion.id, { query: e.target.value })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Sted</Label>
+                      <Input value={suggestion.location ?? ""} onChange={(e) => updateSuggestion(suggestion.id, { location: e.target.value || null })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">RSS fra lagret Finn-søk</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={suggestion.rss_url ?? ""}
+                          onChange={(e) => updateSuggestion(suggestion.id, { rss_url: e.target.value || null })}
+                          placeholder="https://..."
+                        />
+                        <Button variant="outline" onClick={() => connectSuggestionRss(suggestion)}>
+                          Koble
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="auto" className="space-y-5">
         <TabsList className="grid w-full grid-cols-2 max-w-md">
