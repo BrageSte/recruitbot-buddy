@@ -122,6 +122,18 @@ serve(async (req) => {
 
           totalNewItems++;
 
+          // Notify user if score is very high
+          if (job && total >= highMatchThreshold) {
+            await admin.from("notifications").insert({
+              user_id: feed.user_id,
+              kind: "high_match_job",
+              title: `Ny match ${total}/100: ${parsed.title}`,
+              body: parsed.company ? `${parsed.company}${parsed.location ? ` · ${parsed.location}` : ""}` : (parsed.location ?? null),
+              job_id: job.id,
+              metadata: { score: total, source: "rss", feed_name: feed.name },
+            });
+          }
+
           // Auto-draft if score qualifies
           if (job && autoSettings?.is_enabled && total >= autoSettings.min_score) {
             const skipForRisks = autoSettings.exclude_with_risks && (parsed.risk_flags?.length ?? 0) > 0;
