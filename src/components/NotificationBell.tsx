@@ -28,7 +28,7 @@ export const NotificationBell = () => {
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between p-3 border-b border-border">
           <div className="text-sm font-semibold">Varsler</div>
-          {unreadCount > 0 && (
+          {items.length > 0 && (
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={markAllRead}>
               <CheckCheck className="w-3.5 h-3.5 mr-1" /> Marker alle som lest
             </Button>
