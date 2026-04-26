@@ -278,7 +278,7 @@ const Sources = () => {
               <Info className="w-4 h-4 mt-0.5 text-primary shrink-0" />
               <div className="text-xs text-muted-foreground">
                 La appen sjekke <strong>Finn, Arbeidsplassen og LinkedIn</strong> for deg. Mest pålitelig: Arbeidsplassen.
-                Hvis en kilde blokkerer skraping får du en oppskrift på hvordan du legger inn søket som RSS i stedet.
+                Auto-søk kjører <strong>automatisk hver time</strong>. Når en ny jobb scorer ≥ 90 får du varsel i bjella oppe til høyre og på dashbordet.
               </div>
             </CardContent>
           </Card>
