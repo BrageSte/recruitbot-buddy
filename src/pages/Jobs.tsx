@@ -232,6 +232,12 @@ const Jobs = () => {
               )}
             </Button>
           )}
+          {unscoredCount > 0 && (
+            <Button variant="outline" onClick={enrichMissing} disabled={enriching}>
+              {enriching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Hent manglende info ({unscoredCount})
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
             <Filter className="w-4 h-4 mr-2" /> Filter {activeFilterCount > 0 && <span className="ml-1.5 px-1.5 py-0 rounded bg-primary text-primary-foreground text-xs">{activeFilterCount}</span>}
           </Button>
