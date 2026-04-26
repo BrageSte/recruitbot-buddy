@@ -17,6 +17,7 @@ import {
   Users,
   ArrowRight,
   CheckCircle2,
+  Layers,
 } from "lucide-react";
 import {
   startOfWeek,
