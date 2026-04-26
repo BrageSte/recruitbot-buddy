@@ -113,7 +113,7 @@ const CalendarPage = () => {
     const [g, e, j, a] = await Promise.all([
       supabase.from("goals").select("*").eq("user_id", user.id).neq("status", "archived").order("sort_order"),
       supabase.from("calendar_events").select("*").eq("user_id", user.id).order("event_date"),
-      supabase.from("jobs").select("id,title,company,deadline").eq("user_id", user.id).not("deadline", "is", null),
+      supabase.from("jobs").select("id,title,company,deadline,status").eq("user_id", user.id).not("deadline", "is", null).not("status", "in", "(archived,rejected)"),
       supabase.from("applications").select("id,job_id,sent_at,status,jobs(title,company)").eq("user_id", user.id),
     ]);
     setGoals((g.data ?? []) as Goal[]);
