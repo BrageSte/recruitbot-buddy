@@ -201,6 +201,7 @@ const Dashboard = () => {
 
     jobs.forEach((j) => {
       if (!j.deadline) return;
+      if (["archived", "rejected"].includes(j.status)) return;
       const d = parseISO(j.deadline);
       if (isBefore(d, today) && !isSameDay(d, today)) return;
       items.push({
