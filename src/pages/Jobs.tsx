@@ -85,7 +85,9 @@ const Jobs = () => {
   };
 
   const filtered = useMemo(() => {
-    return jobs.filter((j) => {
+    const list = jobs.filter((j) => {
+      // Hide archived by default unless user toggled or explicitly filters on it
+      if (!showArchived && j.status === "archived" && !config.status?.includes("archived")) return false;
       if (config.status?.length && !config.status.includes(j.status)) return false;
       if (config.sources?.length && !config.sources.includes(j.source)) return false;
       if (config.minScore != null && (j.match_score ?? 0) < config.minScore) return false;
@@ -102,7 +104,34 @@ const Jobs = () => {
       }
       return true;
     });
-  }, [jobs, config]);
+
+    const sorted = [...list];
+    sorted.sort((a, b) => {
+      switch (sortBy) {
+        case "created_asc":
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case "score_desc":
+          return (b.match_score ?? -1) - (a.match_score ?? -1);
+        case "score_asc":
+          return (a.match_score ?? 101) - (b.match_score ?? 101);
+        case "deadline_asc": {
+          const da = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+          const db = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+          return da - db;
+        }
+        case "status":
+          return (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
+        case "title_asc":
+          return (a.title ?? "").localeCompare(b.title ?? "", "no");
+        case "created_desc":
+        default:
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+    });
+    return sorted;
+  }, [jobs, config, sortBy, showArchived]);
+
+  const archivedCount = useMemo(() => jobs.filter((j) => j.status === "archived").length, [jobs]);
 
   const addJob = async () => {
     if (!url && !text.trim()) { toast({ title: "Lim inn URL eller tekst", variant: "destructive" }); return; }
