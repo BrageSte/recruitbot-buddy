@@ -38,9 +38,9 @@ export const useNotifications = () => {
     if (!user) return;
     load();
 
-    // Realtime updates
+    // Realtime updates – unique channel name avoids "subscribe already called" errors
     const channel = supabase
-      .channel(`notifications:${user.id}`)
+      .channel(`notifications-${user.id}-${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
@@ -51,7 +51,8 @@ export const useNotifications = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const unreadCount = items.filter((n) => !n.read_at).length;
 
