@@ -71,6 +71,7 @@ serve(async (req) => {
         admin.from("profiles").select("*").eq("user_id", feed.user_id).maybeSingle(),
         admin.from("auto_apply_settings").select("*").eq("user_id", feed.user_id).maybeSingle(),
       ]);
+      const highMatchThreshold = (profile as any)?.notify_high_match_min_score ?? 90;
 
       for (const item of toProcess) {
         try {
