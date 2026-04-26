@@ -223,6 +223,7 @@ serve(async (req) => {
         .select("*")
         .eq("user_id", s.user_id)
         .maybeSingle();
+      const highMatchThreshold = (profile as any)?.notify_high_match_min_score ?? 90;
 
       let newCount = 0;
       for (const hit of result.hits) {
@@ -251,9 +252,11 @@ serve(async (req) => {
           ai_summary: parsed?.ai_summary ?? `Funnet via auto-søk: ${s.name}`,
         };
 
+        let totalScore: number | null = null;
         if (parsed) {
           insertRow.deadline = parsed.deadline && /^\d{4}-\d{2}-\d{2}$/.test(parsed.deadline) ? parsed.deadline : null;
-          insertRow.match_score = weightedScore(parsed, profile);
+          totalScore = weightedScore(parsed, profile);
+          insertRow.match_score = totalScore;
           insertRow.score_professional = parsed.score_professional;
           insertRow.score_culture = parsed.score_culture;
           insertRow.score_practical = parsed.score_practical;
@@ -261,8 +264,26 @@ serve(async (req) => {
           insertRow.risk_flags = parsed.risk_flags ?? [];
         }
 
-        const { error: insErr } = await admin.from("jobs").insert(insertRow);
-        if (!insErr) newCount++;
+        const { data: insertedJob, error: insErr } = await admin
+          .from("jobs")
+          .insert(insertRow)
+          .select("id, title, company, location")
+          .maybeSingle();
+        if (insErr) continue;
+        newCount++;
+
+        if (insertedJob && totalScore !== null && totalScore >= highMatchThreshold) {
+          await admin.from("notifications").insert({
+            user_id: s.user_id,
+            kind: "high_match_job",
+            title: `Ny match ${totalScore}/100: ${insertedJob.title}`,
+            body: insertedJob.company
+              ? `${insertedJob.company}${insertedJob.location ? ` · ${insertedJob.location}` : ""}`
+              : (insertedJob.location ?? null),
+            job_id: insertedJob.id,
+            metadata: { score: totalScore, source: s.source, search_name: s.name },
+          });
+        }
       }
 
       totalNew += newCount;

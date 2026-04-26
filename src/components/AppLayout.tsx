@@ -3,6 +3,7 @@ import { LayoutDashboard, Briefcase, FileText, User, LogOut, Sparkles, Radar, Fi
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { NotificationBell } from "@/components/NotificationBell";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
@@ -24,14 +25,17 @@ interface SidebarContentProps {
 
 const SidebarContent = ({ email, onSignOut, onNavigate }: SidebarContentProps) => (
   <div className="flex flex-col h-full">
-    <div className="p-5 flex items-center gap-2.5">
-      <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center shadow-elevated">
-        <Sparkles className="w-4 h-4 text-primary-foreground" />
+    <div className="p-5 flex items-center justify-between gap-2.5">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center shadow-elevated shrink-0">
+          <Sparkles className="w-4 h-4 text-primary-foreground" />
+        </div>
+        <div className="min-w-0">
+          <div className="font-semibold text-sm leading-tight">JobHunter</div>
+          <div className="text-[11px] text-muted-foreground leading-tight">AI</div>
+        </div>
       </div>
-      <div>
-        <div className="font-semibold text-sm leading-tight">JobHunter</div>
-        <div className="text-[11px] text-muted-foreground leading-tight">AI</div>
-      </div>
+      <NotificationBell />
     </div>
 
     <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
@@ -91,23 +95,26 @@ export const AppLayout = () => {
           </div>
           <div className="font-semibold text-sm">JobHunter AI</div>
         </div>
-        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Åpne meny">
-              <Menu className="w-5 h-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="p-0 w-64 bg-sidebar border-sidebar-border">
-            <SidebarContent
-              email={user?.email}
-              onSignOut={() => {
-                setMobileOpen(false);
-                handleSignOut();
-              }}
-              onNavigate={() => setMobileOpen(false)}
-            />
-          </SheetContent>
-        </Sheet>
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Åpne meny">
+                <Menu className="w-5 h-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="p-0 w-64 bg-sidebar border-sidebar-border">
+              <SidebarContent
+                email={user?.email}
+                onSignOut={() => {
+                  setMobileOpen(false);
+                  handleSignOut();
+                }}
+                onNavigate={() => setMobileOpen(false)}
+              />
+            </SheetContent>
+          </Sheet>
+        </div>
       </header>
 
       <main className="flex-1 min-w-0 overflow-x-hidden">

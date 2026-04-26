@@ -71,6 +71,7 @@ serve(async (req) => {
         admin.from("profiles").select("*").eq("user_id", feed.user_id).maybeSingle(),
         admin.from("auto_apply_settings").select("*").eq("user_id", feed.user_id).maybeSingle(),
       ]);
+      const highMatchThreshold = (profile as any)?.notify_high_match_min_score ?? 90;
 
       for (const item of toProcess) {
         try {
@@ -120,6 +121,18 @@ serve(async (req) => {
           }).select().maybeSingle();
 
           totalNewItems++;
+
+          // Notify user if score is very high
+          if (job && total >= highMatchThreshold) {
+            await admin.from("notifications").insert({
+              user_id: feed.user_id,
+              kind: "high_match_job",
+              title: `Ny match ${total}/100: ${parsed.title}`,
+              body: parsed.company ? `${parsed.company}${parsed.location ? ` · ${parsed.location}` : ""}` : (parsed.location ?? null),
+              job_id: job.id,
+              metadata: { score: total, source: "rss", feed_name: feed.name },
+            });
+          }
 
           // Auto-draft if score qualifies
           if (job && autoSettings?.is_enabled && total >= autoSettings.min_score) {
