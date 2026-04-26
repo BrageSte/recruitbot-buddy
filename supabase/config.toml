@@ -18,6 +18,9 @@ verify_jwt = true
 [functions.auto-search]
 verify_jwt = false
 
+[functions.enrich-jobs]
+verify_jwt = false
+
 [functions.generate-plan]
 verify_jwt = true
 
