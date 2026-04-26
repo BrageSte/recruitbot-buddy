@@ -133,6 +133,29 @@ const Jobs = () => {
   }, [jobs, config, sortBy, showArchived]);
 
   const archivedCount = useMemo(() => jobs.filter((j) => j.status === "archived").length, [jobs]);
+  const unscoredCount = useMemo(
+    () => jobs.filter((j) => j.match_score == null && j.source_url && ["auto_search", "rss", "url", "linkedin"].includes(j.source)).length,
+    [jobs]
+  );
+  const [enriching, setEnriching] = useState(false);
+
+  const enrichMissing = async () => {
+    setEnriching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("enrich-jobs", { body: {} });
+      if (error) throw error;
+      const d: any = data;
+      toast({
+        title: "Berikelse fullført",
+        description: `${d.enriched ?? 0} jobber oppdatert${d.skipped ? `, ${d.skipped} hoppet over` : ""}${d.remaining ? `. ${d.remaining} gjenstår.` : "."}`,
+      });
+      load();
+    } catch (e: any) {
+      toast({ title: "Feilet", description: e.message, variant: "destructive" });
+    } finally {
+      setEnriching(false);
+    }
+  };
 
   const addJob = async () => {
     if (!url && !text.trim()) { toast({ title: "Lim inn URL eller tekst", variant: "destructive" }); return; }
