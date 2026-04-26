@@ -165,12 +165,49 @@ const Jobs = () => {
       <header className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-semibold">Jobber</h1>
-          <p className="text-muted-foreground text-sm mt-1">{filtered.length} av {jobs.length} jobber</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            {filtered.length} av {jobs.length} jobber
+            {!showArchived && archivedCount > 0 && ` · ${archivedCount} arkivert skjult`}
+          </p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" asChild>
             <Link to="/jobs/swipe"><Layers className="w-4 h-4 mr-2" /> Sveip-modus</Link>
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <ArrowUpDown className="w-4 h-4 mr-2" />
+                {SORT_OPTIONS.find((s) => s.v === sortBy)?.label}
+                <ChevronDown className="w-3 h-3 ml-1.5 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel className="text-xs">Sorter etter</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {SORT_OPTIONS.map((s) => (
+                <DropdownMenuItem
+                  key={s.v}
+                  onClick={() => setSortBy(s.v)}
+                  className={sortBy === s.v ? "bg-accent" : ""}
+                >
+                  {s.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {archivedCount > 0 && (
+            <Button
+              variant={showArchived ? "secondary" : "outline"}
+              onClick={() => setShowArchived((v) => !v)}
+            >
+              {showArchived ? (
+                <><Archive className="w-4 h-4 mr-2" /> Skjul arkiverte</>
+              ) : (
+                <><ArchiveRestore className="w-4 h-4 mr-2" /> Vis arkiverte ({archivedCount})</>
+              )}
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
             <Filter className="w-4 h-4 mr-2" /> Filter {activeFilterCount > 0 && <span className="ml-1.5 px-1.5 py-0 rounded bg-primary text-primary-foreground text-xs">{activeFilterCount}</span>}
           </Button>
