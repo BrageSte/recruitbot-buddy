@@ -116,6 +116,7 @@ const Dashboard = () => {
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [goals, setGoals] = useState<any[]>([]);
   const [profile, setProfile] = useState<any>(null);
+  const [highMatchNotifs, setHighMatchNotifs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -125,13 +126,22 @@ const Dashboard = () => {
       supabase.from("applications").select("*, jobs(title, company, deadline, match_score)").eq("user_id", user.id),
       supabase.from("calendar_events").select("*").eq("user_id", user.id),
       supabase.from("goals").select("*").eq("user_id", user.id).neq("status", "archived").order("sort_order"),
-      supabase.from("profiles").select("weekly_goal, display_name").eq("user_id", user.id).maybeSingle(),
-    ]).then(([j, a, e, g, p]) => {
+      supabase.from("profiles").select("weekly_goal, display_name, notify_high_match_min_score").eq("user_id", user.id).maybeSingle(),
+      supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("kind", "high_match_job")
+        .is("read_at", null)
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]).then(([j, a, e, g, p, n]) => {
       setJobs((j.data ?? []) as any);
       setApps((a.data ?? []) as any);
       setEvents((e.data ?? []) as any);
       setGoals((g.data ?? []) as any);
       setProfile(p.data);
+      setHighMatchNotifs((n.data ?? []) as any);
       setLoading(false);
     });
   }, [user]);
