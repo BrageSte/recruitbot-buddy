@@ -200,9 +200,13 @@ serve(async (req) => {
     if (error) return json({ error: error.message }, 500);
 
     let totalNew = 0;
+    let totalSkipped = 0;
+    let stoppedNoCredits = false;
     const results: any[] = [];
 
     for (const s of searches ?? []) {
+      if (stoppedNoCredits) break;
+
       const result = await runSearch(s.source as Source, s.query, s.location);
       const updates: Record<string, unknown> = {
         last_checked_at: new Date().toISOString(),
@@ -226,7 +230,11 @@ serve(async (req) => {
       const highMatchThreshold = (profile as any)?.notify_high_match_min_score ?? 90;
 
       let newCount = 0;
+      let skippedCount = 0;
+
       for (const hit of result.hits) {
+        if (stoppedNoCredits) break;
+
         const { data: existing } = await admin
           .from("jobs")
           .select("id")
@@ -238,32 +246,46 @@ serve(async (req) => {
         // Fetch the actual job page and let the AI extract description, deadline, scores etc.
         const baseText = `${hit.title}\n${hit.company ?? ""}\n${hit.location ?? ""}\n${hit.description ?? ""}`;
         const fullText = await fetchJobText(hit.url, baseText);
-        const parsed = await aiParse(fullText, hit.url, profile);
+        const aiResult = await aiParse(fullText, hit.url, profile);
+
+        // Throttle between AI calls to avoid rate-limit spikes
+        await new Promise((r) => setTimeout(r, 300));
+
+        if (!aiResult.ok) {
+          if (aiResult.reason === "no_credits") {
+            stoppedNoCredits = true;
+            updates.last_status = "error";
+            updates.last_error = "AI-kreditt tom – fyll på i Lovable-arbeidsområdet.";
+            console.error("Stopping auto-search: no credits");
+            break;
+          }
+          // Rate-limited or transient error: don't insert empty job — try again next cron
+          skippedCount++;
+          continue;
+        }
+
+        const parsed = aiResult.parsed;
+        const totalScore = weightedScore(parsed, profile);
 
         const insertRow: Record<string, unknown> = {
           user_id: s.user_id,
-          title: parsed?.title || hit.title,
-          company: parsed?.company || hit.company || null,
-          location: parsed?.location || hit.location || null,
+          title: parsed.title || hit.title,
+          company: parsed.company || hit.company || null,
+          location: parsed.location || hit.location || null,
           source: s.source === "linkedin" ? ("linkedin" as const) : ("auto_search" as const),
           source_url: hit.url,
-          description: parsed?.description ?? hit.description ?? null,
+          description: parsed.description ?? hit.description ?? null,
           status: "discovered" as const,
-          ai_summary: parsed?.ai_summary ?? `Funnet via auto-søk: ${s.name}`,
+          ai_summary: parsed.ai_summary,
           notes: `Fra auto-søk: ${s.name} (${s.source})`,
+          deadline: parsed.deadline && /^\d{4}-\d{2}-\d{2}$/.test(parsed.deadline) ? parsed.deadline : null,
+          match_score: totalScore,
+          score_professional: parsed.score_professional,
+          score_culture: parsed.score_culture,
+          score_practical: parsed.score_practical,
+          score_enthusiasm: parsed.score_enthusiasm,
+          risk_flags: parsed.risk_flags ?? [],
         };
-
-        let totalScore: number | null = null;
-        if (parsed) {
-          insertRow.deadline = parsed.deadline && /^\d{4}-\d{2}-\d{2}$/.test(parsed.deadline) ? parsed.deadline : null;
-          totalScore = weightedScore(parsed, profile);
-          insertRow.match_score = totalScore;
-          insertRow.score_professional = parsed.score_professional;
-          insertRow.score_culture = parsed.score_culture;
-          insertRow.score_practical = parsed.score_practical;
-          insertRow.score_enthusiasm = parsed.score_enthusiasm;
-          insertRow.risk_flags = parsed.risk_flags ?? [];
-        }
 
         const { data: insertedJob, error: insErr } = await admin
           .from("jobs")
@@ -273,7 +295,7 @@ serve(async (req) => {
         if (insErr) continue;
         newCount++;
 
-        if (insertedJob && totalScore !== null && totalScore >= highMatchThreshold) {
+        if (insertedJob && totalScore >= highMatchThreshold) {
           await admin.from("notifications").insert({
             user_id: s.user_id,
             kind: "high_match_job",
@@ -288,15 +310,18 @@ serve(async (req) => {
       }
 
       totalNew += newCount;
-      updates.last_status = "ok";
-      updates.last_error = null;
-      updates.blocked_hint = null;
-      updates.items_found = (s.items_found ?? 0) + newCount;
+      totalSkipped += skippedCount;
+      if (!stoppedNoCredits) {
+        updates.last_status = "ok";
+        updates.last_error = skippedCount > 0 ? `${skippedCount} jobber hoppet over (rate-limit) – prøves igjen neste runde.` : null;
+        updates.blocked_hint = null;
+        updates.items_found = (s.items_found ?? 0) + newCount;
+      }
       await admin.from("auto_searches").update(updates).eq("id", s.id);
-      results.push({ id: s.id, name: s.name, status: "ok", hits: result.hits.length, new: newCount });
+      results.push({ id: s.id, name: s.name, status: "ok", hits: result.hits.length, new: newCount, skipped: skippedCount });
     }
 
-    return json({ searches: searches?.length ?? 0, newJobs: totalNew, results });
+    return json({ searches: searches?.length ?? 0, newJobs: totalNew, skipped: totalSkipped, stoppedNoCredits, results });
   } catch (e) {
     console.error("auto-search error", e);
     return json({ error: (e as Error).message }, 500);
