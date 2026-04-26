@@ -392,7 +392,7 @@ const Sources = () => {
             <CardContent className="p-4 flex items-start gap-3">
               <Info className="w-4 h-4 mt-0.5 text-primary shrink-0" />
               <div className="text-xs text-muted-foreground">
-                Bruk RSS når du allerede har et lagret søk på Finn eller andre sider. Sjekkes automatisk hvert 30. minutt.
+                Bruk RSS når du allerede har et lagret søk på Finn eller andre sider. Sjekkes <strong>automatisk hver time</strong>.
                 <br />
                 <strong>På finn.no:</strong> gjør et søk → "Lagre søk" → finn RSS-lenken under "Mine sider → Lagrede søk".
               </div>
