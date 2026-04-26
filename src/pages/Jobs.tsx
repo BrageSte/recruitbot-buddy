@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Loader2, Sparkles, ExternalLink, Filter, Bookmark, Trash2, X, Send, ChevronDown, Layers } from "lucide-react";
+import { Plus, Loader2, Sparkles, ExternalLink, Filter, Bookmark, Trash2, X, Send, ChevronDown, Layers, ArrowUpDown, Archive, ArchiveRestore } from "lucide-react";
 import { format } from "date-fns";
 
 type Job = any;
@@ -38,6 +38,22 @@ const INTEREST_META: Record<string, { label: string; cls: string }> = {
   very_interested: { label: "Veldig interessert", cls: "bg-primary/15 text-primary" },
 };
 
+type SortKey = "created_desc" | "created_asc" | "score_desc" | "score_asc" | "deadline_asc" | "status" | "title_asc";
+
+const SORT_OPTIONS: { v: SortKey; label: string }[] = [
+  { v: "created_desc", label: "Nyeste først" },
+  { v: "created_asc", label: "Eldste først" },
+  { v: "score_desc", label: "Høyest score" },
+  { v: "score_asc", label: "Lavest score" },
+  { v: "deadline_asc", label: "Nærmeste frist" },
+  { v: "status", label: "Status" },
+  { v: "title_asc", label: "Tittel A–Å" },
+];
+
+const STATUS_ORDER: Record<string, number> = {
+  discovered: 0, considering: 1, applied: 2, interview: 3, offer: 4, rejected: 5, archived: 6,
+};
+
 const Jobs = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -51,6 +67,8 @@ const Jobs = () => {
   const [adding, setAdding] = useState(false);
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
+  const [sortBy, setSortBy] = useState<SortKey>("created_desc");
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => { load(); }, [user]);
 
@@ -67,7 +85,9 @@ const Jobs = () => {
   };
 
   const filtered = useMemo(() => {
-    return jobs.filter((j) => {
+    const list = jobs.filter((j) => {
+      // Hide archived by default unless user toggled or explicitly filters on it
+      if (!showArchived && j.status === "archived" && !config.status?.includes("archived")) return false;
       if (config.status?.length && !config.status.includes(j.status)) return false;
       if (config.sources?.length && !config.sources.includes(j.source)) return false;
       if (config.minScore != null && (j.match_score ?? 0) < config.minScore) return false;
@@ -84,7 +104,34 @@ const Jobs = () => {
       }
       return true;
     });
-  }, [jobs, config]);
+
+    const sorted = [...list];
+    sorted.sort((a, b) => {
+      switch (sortBy) {
+        case "created_asc":
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case "score_desc":
+          return (b.match_score ?? -1) - (a.match_score ?? -1);
+        case "score_asc":
+          return (a.match_score ?? 101) - (b.match_score ?? 101);
+        case "deadline_asc": {
+          const da = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+          const db = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+          return da - db;
+        }
+        case "status":
+          return (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
+        case "title_asc":
+          return (a.title ?? "").localeCompare(b.title ?? "", "no");
+        case "created_desc":
+        default:
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+    });
+    return sorted;
+  }, [jobs, config, sortBy, showArchived]);
+
+  const archivedCount = useMemo(() => jobs.filter((j) => j.status === "archived").length, [jobs]);
 
   const addJob = async () => {
     if (!url && !text.trim()) { toast({ title: "Lim inn URL eller tekst", variant: "destructive" }); return; }
@@ -118,12 +165,49 @@ const Jobs = () => {
       <header className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-semibold">Jobber</h1>
-          <p className="text-muted-foreground text-sm mt-1">{filtered.length} av {jobs.length} jobber</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            {filtered.length} av {jobs.length} jobber
+            {!showArchived && archivedCount > 0 && ` · ${archivedCount} arkivert skjult`}
+          </p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" asChild>
             <Link to="/jobs/swipe"><Layers className="w-4 h-4 mr-2" /> Sveip-modus</Link>
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <ArrowUpDown className="w-4 h-4 mr-2" />
+                {SORT_OPTIONS.find((s) => s.v === sortBy)?.label}
+                <ChevronDown className="w-3 h-3 ml-1.5 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel className="text-xs">Sorter etter</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {SORT_OPTIONS.map((s) => (
+                <DropdownMenuItem
+                  key={s.v}
+                  onClick={() => setSortBy(s.v)}
+                  className={sortBy === s.v ? "bg-accent" : ""}
+                >
+                  {s.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {archivedCount > 0 && (
+            <Button
+              variant={showArchived ? "secondary" : "outline"}
+              onClick={() => setShowArchived((v) => !v)}
+            >
+              {showArchived ? (
+                <><Archive className="w-4 h-4 mr-2" /> Skjul arkiverte</>
+              ) : (
+                <><ArchiveRestore className="w-4 h-4 mr-2" /> Vis arkiverte ({archivedCount})</>
+              )}
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
             <Filter className="w-4 h-4 mr-2" /> Filter {activeFilterCount > 0 && <span className="ml-1.5 px-1.5 py-0 rounded bg-primary text-primary-foreground text-xs">{activeFilterCount}</span>}
           </Button>
