@@ -16,6 +16,7 @@ import { SheetViewer } from "@/components/cv/SheetViewer";
 import { exportNodeToPdf } from "@/components/cv/exportPdf";
 import { CvStyleId } from "@/components/cv/cvStyles";
 import { ApplicationChatEditor } from "@/components/cv/ApplicationChatEditor";
+import { JobContextCard } from "@/components/JobContextCard";
 import { useRef } from "react";
 
 const STATUSES = [
@@ -158,6 +159,8 @@ const ApplicationDetail = () => {
           <Button variant="outline" size="icon" onClick={remove}><Trash2 className="w-4 h-4" /></Button>
         </div>
       </header>
+
+      {app.jobs && <JobContextCard job={app.jobs} />}
 
       <Tabs defaultValue="letter">
         <TabsList>
