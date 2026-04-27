@@ -461,14 +461,7 @@ const SplitLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
           </p>
         </section>
       )}
-      {!!cv.experiences?.length && <Section title="Erfaring" color={style.accent}><Experience items={cv.experiences} style={style} /></Section>}
-      {!!cv.education?.length && <Section title="Utdanning" color={style.accent}><Education items={cv.education} style={style} /></Section>}
-      {!!cv.skills?.length && <Section title="Ferdigheter" color={style.accent}><SkillsBlock groups={cv.skills} style={style} /></Section>}
-      {!!cv.languages?.length && (
-        <Section title="Språk" color={style.accent}>
-          <div style={{ fontSize: 10.5 }}>{cv.languages.map((l) => `${l.name} (${l.level})`).join(" · ")}</div>
-        </Section>
-      )}
+      {renderSections(cv, style)}
     </div>
   </div>
 );
