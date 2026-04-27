@@ -305,22 +305,7 @@ const MinimalLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => {
 
       {cv.intro && <p style={{ fontSize: 11, lineHeight: 1.6, marginTop: 14, color: style.ink }}>{cv.intro}</p>}
 
-      {!!cv.experiences?.length && (
-        <Section title="Erfaring" color={style.accent}><Experience items={cv.experiences} style={style} /></Section>
-      )}
-      {!!cv.education?.length && (
-        <Section title="Utdanning" color={style.accent}><Education items={cv.education} style={style} /></Section>
-      )}
-      {!!cv.skills?.length && (
-        <Section title="Ferdigheter" color={style.accent}><SkillsBlock groups={cv.skills} style={style} /></Section>
-      )}
-      {!!cv.languages?.length && (
-        <Section title="Språk" color={style.accent}>
-          <div style={{ fontSize: 10.5, color: style.ink }}>
-            {cv.languages.map((l, i) => `${l.name} (${l.level})`).join(" · ")}
-          </div>
-        </Section>
-      )}
+      {renderSections(cv, style)}
     </div>
   );
 };
