@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Save, Upload, FileText, Trash2, Zap, Plus, Sparkles } from "lucide-react";
+import { Loader2, Save, Upload, FileText, Trash2, Zap, Plus, Sparkles, Wand2 } from "lucide-react";
 
 type Profile = {
   display_name: string | null;
@@ -26,6 +27,8 @@ type Profile = {
   rules_yellow: string | null;
   rules_red: string | null;
   weekly_goal: number;
+  onboarding_completed_at?: string | null;
+  onboarding_skipped_at?: string | null;
 };
 
 type UploadedFile = {
@@ -59,6 +62,41 @@ const defaultAuto: AutoApply = {
   daily_limit: 5,
   only_from_rss: false,
   exclude_with_risks: true,
+};
+
+const signalCategoryLabels: Record<string, string> = {
+  role: "Rolle",
+  industry: "Bransje",
+  task: "Oppgave",
+  skill: "Ferdighet",
+  value: "Verdi",
+  work_style: "Arbeidsform",
+  location: "Sted",
+  dealbreaker: "Dealbreaker",
+  other: "Annet",
+};
+
+const extractSection = (markdown: string | null | undefined, title: string) => {
+  if (!markdown) return "";
+  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^#{1,3}\\s+${escaped}\\s*$([\\s\\S]*?)(?=^#{1,3}\\s+|\\s*$)`, "im");
+  return markdown.match(re)?.[1]?.trim() ?? "";
+};
+
+const profilePreviewSections = (markdown: string | null | undefined) => {
+  const about = extractSection(markdown, "Om meg");
+  const lookingFor = extractSection(markdown, "Hva jeg ser etter");
+  const interests = extractSection(markdown, "Interesser og sterke signaler") || extractSection(markdown, "Interesser");
+  const constraints = extractSection(markdown, "Rammer");
+  const dealbreakers = extractSection(markdown, "Dealbreakers");
+
+  return [
+    { label: "Om meg", value: about },
+    { label: "Hva jeg ser etter", value: lookingFor },
+    { label: "Interesser", value: interests },
+    { label: "Rammer", value: constraints },
+    { label: "Dealbreakers", value: dealbreakers },
+  ];
 };
 
 const Profile = () => {
@@ -182,6 +220,8 @@ const Profile = () => {
   };
 
   const totalWeight = (profile?.weight_professional ?? 0) + (profile?.weight_culture ?? 0) + (profile?.weight_practical ?? 0) + (profile?.weight_enthusiasm ?? 0);
+  const previewSections = profilePreviewSections(profile?.master_profile);
+  const hasStructuredPreview = previewSections.some((section) => section.value);
 
   if (loading || !profile) {
     return <div className="p-8 flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Laster…</div>;
@@ -194,10 +234,18 @@ const Profile = () => {
           <h1 className="text-3xl font-semibold">Profil</h1>
           <p className="text-muted-foreground text-sm mt-1">Kilden AI bruker for å score jobber og skrive søknader.</p>
         </div>
-        <Button onClick={save} disabled={saving}>
-          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Lagre
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link to="/onboarding?rerun=1">
+              <Wand2 className="w-4 h-4 mr-2" />
+              Bygg interesseprofil på nytt
+            </Link>
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Lagre
+          </Button>
+        </div>
       </header>
 
       <Card>
@@ -218,8 +266,46 @@ const Profile = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Master-profil</CardTitle>
-          <p className="text-xs text-muted-foreground">Markdown. Beskriv kjernehistorier, styrker, erfaringer, preferanser. AI bruker dette i ALT.</p>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-primary" />
+            Interesseprofil
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Strukturert oversikt over hvem du er, hva du vil mot, og hva matchmotoren bør prioritere.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {hasStructuredPreview ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {previewSections.map((section) => (
+                <div key={section.label} className="rounded-md border border-border bg-muted/20 p-3">
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{section.label}</div>
+                  <p className="text-sm mt-2 whitespace-pre-line line-clamp-5">
+                    {section.value || "Ikke utfylt ennå."}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-md border border-dashed border-border p-5">
+              <p className="text-sm text-muted-foreground">
+                Profilen er ikke strukturert i seksjoner ennå. Kjør guidet onboarding for å lage en tydeligere "om meg", retning, rammer og dealbreakers.
+              </p>
+              <Button asChild className="mt-4">
+                <Link to="/onboarding?rerun=1">
+                  <Wand2 className="w-4 h-4 mr-2" />
+                  Bygg interesseprofil
+                </Link>
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Detaljert profiltekst</CardTitle>
+          <p className="text-xs text-muted-foreground">Markdown som AI bruker i matcher og søknader. Onboarding kan generere denne, men du kan fortsatt finjustere her.</p>
         </CardHeader>
         <CardContent>
           <Textarea
@@ -294,7 +380,7 @@ const Profile = () => {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-primary" />
-            Interesseprofil
+            Tags og signaler
           </CardTitle>
           <p className="text-xs text-muted-foreground">Strukturerte signaler matchmotoren bruker sammen med CV, profil og sveip.</p>
         </CardHeader>
@@ -341,7 +427,7 @@ const Profile = () => {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium">{signal.label}</span>
                       <Badge variant={signal.category === "dealbreaker" || signal.weight < 0 ? "destructive" : "secondary"}>
-                        {signal.category}
+                        {signalCategoryLabels[signal.category] ?? signal.category}
                       </Badge>
                       {signal.source !== "manual" && <Badge variant="outline">{signal.source}</Badge>}
                     </div>

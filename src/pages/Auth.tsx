@@ -19,7 +19,10 @@ const Auth = () => {
   const [displayName, setDisplayName] = useState("");
 
   useEffect(() => {
-    if (user) navigate("/", { replace: true });
+    if (!user) return;
+    const target = sessionStorage.getItem("post_auth_target");
+    if (target) sessionStorage.removeItem("post_auth_target");
+    navigate(target || "/", { replace: true });
   }, [user, navigate]);
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -37,12 +40,15 @@ const Auth = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    sessionStorage.setItem("post_auth_target", "/onboarding");
     const { error } = await signUp(email, password, displayName);
     setLoading(false);
     if (error) {
+      sessionStorage.removeItem("post_auth_target");
       toast({ title: "Registrering feilet", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Konto opprettet", description: "Du er logget inn." });
+      navigate("/onboarding", { replace: true });
     }
   };
 

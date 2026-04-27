@@ -35,3 +35,6 @@ verify_jwt = true
 
 [functions.suggest-source-feeds]
 verify_jwt = true
+
+[functions.profile-onboarding-ai]
+verify_jwt = true

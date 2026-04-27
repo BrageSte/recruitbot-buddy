@@ -18,6 +18,7 @@ import Profile from "./pages/Profile";
 import Sources from "./pages/Sources";
 import CvTemplate from "./pages/CvTemplate";
 import CalendarPage from "./pages/CalendarPage";
+import Onboarding from "./pages/Onboarding";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/matches" element={<Matches />} />
