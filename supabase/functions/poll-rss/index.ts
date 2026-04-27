@@ -330,7 +330,7 @@ async function triggerAutoDraft(admin: any, userId: string, jobId: string) {
     const [{ data: job }, { data: profile }, { data: cv }] = await Promise.all([
       admin.from("jobs").select("*").eq("id", jobId).maybeSingle(),
       admin.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
-      admin.from("cv_templates").select("*").eq("user_id", userId).eq("is_active", true).maybeSingle(),
+      admin.from("cv_templates").select("*").eq("user_id", userId).order("is_default", { ascending: false }).order("created_at", { ascending: true }).limit(1).maybeSingle(),
     ]);
     if (!job) return;
 

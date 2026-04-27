@@ -39,12 +39,29 @@ serve(async (req) => {
     const { applicationId } = await req.json();
     if (!applicationId) return json({ error: "applicationId påkrevd" }, 400);
 
-    const [{ data: app }, { data: cv }, { data: profile }] = await Promise.all([
+    const [{ data: app }, { data: profile }] = await Promise.all([
       supabase.from("applications").select("*, jobs(*)").eq("id", applicationId).maybeSingle(),
-      supabase.from("cv_templates").select("*").eq("user_id", user.id).eq("is_active", true).maybeSingle(),
       supabase.from("profiles").select("master_profile, style_guide").eq("user_id", user.id).maybeSingle(),
     ]);
     if (!app) return json({ error: "Søknad ikke funnet" }, 404);
+
+    // Use the CV variant tied to this application, or fall back to the user's default.
+    let cv: any = null;
+    if (app.cv_template_id) {
+      const { data } = await supabase.from("cv_templates").select("*").eq("id", app.cv_template_id).maybeSingle();
+      cv = data;
+    }
+    if (!cv) {
+      const { data } = await supabase
+        .from("cv_templates")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("is_default", { ascending: false })
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      cv = data;
+    }
     if (!cv) return json({ error: "Du må opprette en CV-mal først." }, 400);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");

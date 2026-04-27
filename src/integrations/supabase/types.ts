@@ -110,6 +110,7 @@ export type Database = {
           created_at: string
           cv_notes: string | null
           cv_style: Database["public"]["Enums"]["cv_style"] | null
+          cv_template_id: string | null
           generated_text: string | null
           id: string
           job_id: string
@@ -123,6 +124,7 @@ export type Database = {
           created_at?: string
           cv_notes?: string | null
           cv_style?: Database["public"]["Enums"]["cv_style"] | null
+          cv_template_id?: string | null
           generated_text?: string | null
           id?: string
           job_id: string
@@ -136,6 +138,7 @@ export type Database = {
           created_at?: string
           cv_notes?: string | null
           cv_style?: Database["public"]["Enums"]["cv_style"] | null
+          cv_template_id?: string | null
           generated_text?: string | null
           id?: string
           job_id?: string
@@ -315,6 +318,7 @@ export type Database = {
           id: string
           intro: string | null
           is_active: boolean
+          is_default: boolean
           languages: Json
           linkedin_url: string | null
           location: string | null
@@ -324,6 +328,8 @@ export type Database = {
           skills: Json
           updated_at: string
           user_id: string
+          variant_description: string | null
+          variant_name: string
           website_url: string | null
         }
         Insert: {
@@ -338,6 +344,7 @@ export type Database = {
           id?: string
           intro?: string | null
           is_active?: boolean
+          is_default?: boolean
           languages?: Json
           linkedin_url?: string | null
           location?: string | null
@@ -347,6 +354,8 @@ export type Database = {
           skills?: Json
           updated_at?: string
           user_id: string
+          variant_description?: string | null
+          variant_name?: string
           website_url?: string | null
         }
         Update: {
@@ -361,6 +370,7 @@ export type Database = {
           id?: string
           intro?: string | null
           is_active?: boolean
+          is_default?: boolean
           languages?: Json
           linkedin_url?: string | null
           location?: string | null
@@ -370,6 +380,8 @@ export type Database = {
           skills?: Json
           updated_at?: string
           user_id?: string
+          variant_description?: string | null
+          variant_name?: string
           website_url?: string | null
         }
         Relationships: []
@@ -490,6 +502,67 @@ export type Database = {
           },
         ]
       }
+      job_score_feedback: {
+        Row: {
+          created_at: string
+          decision: Database["public"]["Enums"]["job_interest_level"]
+          external_job_id: string | null
+          id: string
+          job_id: string | null
+          metadata: Json
+          note: string | null
+          original_score: number | null
+          user_id: string
+          user_job_match_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          decision: Database["public"]["Enums"]["job_interest_level"]
+          external_job_id?: string | null
+          id?: string
+          job_id?: string | null
+          metadata?: Json
+          note?: string | null
+          original_score?: number | null
+          user_id: string
+          user_job_match_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          decision?: Database["public"]["Enums"]["job_interest_level"]
+          external_job_id?: string | null
+          id?: string
+          job_id?: string | null
+          metadata?: Json
+          note?: string | null
+          original_score?: number | null
+          user_id?: string
+          user_job_match_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_score_feedback_external_job_id_fkey"
+            columns: ["external_job_id"]
+            isOneToOne: false
+            referencedRelation: "external_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_score_feedback_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_score_feedback_user_job_match_id_fkey"
+            columns: ["user_job_match_id"]
+            isOneToOne: false
+            referencedRelation: "user_job_matches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           ai_summary: string | null
@@ -582,67 +655,6 @@ export type Database = {
           },
         ]
       }
-      job_score_feedback: {
-        Row: {
-          created_at: string
-          decision: Database["public"]["Enums"]["job_interest_level"]
-          external_job_id: string | null
-          id: string
-          job_id: string | null
-          metadata: Json
-          note: string | null
-          original_score: number | null
-          user_id: string
-          user_job_match_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          decision: Database["public"]["Enums"]["job_interest_level"]
-          external_job_id?: string | null
-          id?: string
-          job_id?: string | null
-          metadata?: Json
-          note?: string | null
-          original_score?: number | null
-          user_id: string
-          user_job_match_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          decision?: Database["public"]["Enums"]["job_interest_level"]
-          external_job_id?: string | null
-          id?: string
-          job_id?: string | null
-          metadata?: Json
-          note?: string | null
-          original_score?: number | null
-          user_id?: string
-          user_job_match_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "job_score_feedback_external_job_id_fkey"
-            columns: ["external_job_id"]
-            isOneToOne: false
-            referencedRelation: "external_jobs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_score_feedback_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_score_feedback_user_job_match_id_fkey"
-            columns: ["user_job_match_id"]
-            isOneToOne: false
-            referencedRelation: "user_job_matches"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       notifications: {
         Row: {
           application_id: string | null
@@ -682,78 +694,6 @@ export type Database = {
         }
         Relationships: []
       }
-      profiles: {
-        Row: {
-          auto_source_suggestions_enabled: boolean
-          created_at: string
-          display_name: string | null
-          email: string | null
-          id: string
-          linkedin_url: string | null
-          master_profile: string | null
-          notify_email: boolean
-          notify_high_match_min_score: number
-          notify_push: boolean
-          rules_green: string | null
-          rules_red: string | null
-          rules_yellow: string | null
-          style_guide: string | null
-          updated_at: string
-          user_id: string
-          weekly_goal: number
-          weight_culture: number
-          weight_enthusiasm: number
-          weight_practical: number
-          weight_professional: number
-        }
-        Insert: {
-          auto_source_suggestions_enabled?: boolean
-          created_at?: string
-          display_name?: string | null
-          email?: string | null
-          id?: string
-          linkedin_url?: string | null
-          master_profile?: string | null
-          notify_email?: boolean
-          notify_high_match_min_score?: number
-          notify_push?: boolean
-          rules_green?: string | null
-          rules_red?: string | null
-          rules_yellow?: string | null
-          style_guide?: string | null
-          updated_at?: string
-          user_id: string
-          weekly_goal?: number
-          weight_culture?: number
-          weight_enthusiasm?: number
-          weight_practical?: number
-          weight_professional?: number
-        }
-        Update: {
-          auto_source_suggestions_enabled?: boolean
-          created_at?: string
-          display_name?: string | null
-          email?: string | null
-          id?: string
-          linkedin_url?: string | null
-          master_profile?: string | null
-          notify_email?: boolean
-          notify_high_match_min_score?: number
-          notify_push?: boolean
-          rules_green?: string | null
-          rules_red?: string | null
-          rules_yellow?: string | null
-          style_guide?: string | null
-          updated_at?: string
-          user_id?: string
-          weekly_goal?: number
-          weight_culture?: number
-          weight_enthusiasm?: number
-          weight_practical?: number
-          weight_professional?: number
-        }
-        Relationships: []
-      }
       profile_interest_signals: {
         Row: {
           category: Database["public"]["Enums"]["profile_signal_category"]
@@ -790,6 +730,123 @@ export type Database = {
           updated_at?: string
           user_id?: string
           weight?: number
+        }
+        Relationships: []
+      }
+      profile_onboarding_runs: {
+        Row: {
+          answers: Json
+          completed_at: string | null
+          created_at: string
+          current_step: string
+          cv_draft: Json
+          id: string
+          profile_draft: Json
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          answers?: Json
+          completed_at?: string | null
+          created_at?: string
+          current_step?: string
+          cv_draft?: Json
+          id?: string
+          profile_draft?: Json
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          answers?: Json
+          completed_at?: string | null
+          created_at?: string
+          current_step?: string
+          cv_draft?: Json
+          id?: string
+          profile_draft?: Json
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          auto_source_suggestions_enabled: boolean
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          linkedin_url: string | null
+          master_profile: string | null
+          notify_email: boolean
+          notify_high_match_min_score: number
+          notify_push: boolean
+          onboarding_completed_at: string | null
+          onboarding_skipped_at: string | null
+          rules_green: string | null
+          rules_red: string | null
+          rules_yellow: string | null
+          style_guide: string | null
+          updated_at: string
+          user_id: string
+          weekly_goal: number
+          weight_culture: number
+          weight_enthusiasm: number
+          weight_practical: number
+          weight_professional: number
+        }
+        Insert: {
+          auto_source_suggestions_enabled?: boolean
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          linkedin_url?: string | null
+          master_profile?: string | null
+          notify_email?: boolean
+          notify_high_match_min_score?: number
+          notify_push?: boolean
+          onboarding_completed_at?: string | null
+          onboarding_skipped_at?: string | null
+          rules_green?: string | null
+          rules_red?: string | null
+          rules_yellow?: string | null
+          style_guide?: string | null
+          updated_at?: string
+          user_id: string
+          weekly_goal?: number
+          weight_culture?: number
+          weight_enthusiasm?: number
+          weight_practical?: number
+          weight_professional?: number
+        }
+        Update: {
+          auto_source_suggestions_enabled?: boolean
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          linkedin_url?: string | null
+          master_profile?: string | null
+          notify_email?: boolean
+          notify_high_match_min_score?: number
+          notify_push?: boolean
+          onboarding_completed_at?: string | null
+          onboarding_skipped_at?: string | null
+          rules_green?: string | null
+          rules_red?: string | null
+          rules_yellow?: string | null
+          style_guide?: string | null
+          updated_at?: string
+          user_id?: string
+          weekly_goal?: number
+          weight_culture?: number
+          weight_enthusiasm?: number
+          weight_practical?: number
+          weight_professional?: number
         }
         Relationships: []
       }

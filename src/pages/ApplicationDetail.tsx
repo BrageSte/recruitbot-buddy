@@ -31,6 +31,7 @@ const ApplicationDetail = () => {
   const [app, setApp] = useState<any>(null);
   const [tweak, setTweak] = useState<any>(null);
   const [cvTpl, setCvTpl] = useState<any>(null);
+  const [allCvs, setAllCvs] = useState<any[]>([]);
   const [text, setText] = useState("");
   const [preview, setPreview] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -52,8 +53,30 @@ const ApplicationDetail = () => {
     ]);
     setApp(a); setTweak(t); setText(a?.generated_text ?? "");
     if (a?.user_id) {
-      const { data: c } = await supabase.from("cv_templates").select("*").eq("user_id", a.user_id).eq("is_active", true).maybeSingle();
-      setCvTpl(c);
+      let cv: any = null;
+      if ((a as any).cv_template_id) {
+        const { data } = await supabase.from("cv_templates").select("*").eq("id", (a as any).cv_template_id).maybeSingle();
+        cv = data;
+      }
+      if (!cv) {
+        const { data } = await supabase
+          .from("cv_templates")
+          .select("*")
+          .eq("user_id", a.user_id)
+          .order("is_default", { ascending: false })
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        cv = data;
+      }
+      setCvTpl(cv);
+      const { data: cvs } = await supabase
+        .from("cv_templates")
+        .select("id, variant_name, variant_description, cv_style, is_default")
+        .eq("user_id", a.user_id)
+        .order("is_default", { ascending: false })
+        .order("created_at", { ascending: true });
+      setAllCvs(cvs ?? []);
     }
     setLoading(false);
   };
@@ -62,6 +85,13 @@ const ApplicationDetail = () => {
   const setStyle = async (id: CvStyleId) => {
     setApp({ ...app, cv_style: id });
     await supabase.from("applications").update({ cv_style: id }).eq("id", app.id);
+  };
+  const setCvVariant = async (cvTemplateId: string) => {
+    await supabase.from("applications").update({ cv_template_id: cvTemplateId } as any).eq("id", app.id);
+    const { data: cv } = await supabase.from("cv_templates").select("*").eq("id", cvTemplateId).maybeSingle();
+    setCvTpl(cv);
+    setApp({ ...app, cv_template_id: cvTemplateId, cv_style: (cv as any)?.cv_style ?? app.cv_style });
+    toast({ title: "CV byttet", description: (cv as any)?.variant_name ?? "" });
   };
   const exportLetterPdf = async () => {
     if (!letterRef.current) return;
@@ -136,6 +166,29 @@ const ApplicationDetail = () => {
         </TabsList>
 
         <TabsContent value="letter" className="space-y-4 mt-4">
+          {allCvs.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">CV-variant</CardTitle>
+                <p className="text-xs text-muted-foreground">Hvilken CV som ble brukt for denne søknaden. Bytt for å bruke en annen variant.</p>
+              </CardHeader>
+              <CardContent>
+                <select
+                  value={(app as any).cv_template_id ?? cvTpl?.id ?? ""}
+                  onChange={(e) => setCvVariant(e.target.value)}
+                  className="text-sm border border-input rounded-md px-3 py-2 bg-background w-full max-w-md"
+                >
+                  {allCvs.map((v: any) => (
+                    <option key={v.id} value={v.id}>
+                      {v.variant_name || "Standard"}
+                      {v.is_default ? " (standard)" : ""}
+                      {v.cv_style ? ` · ${v.cv_style}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">CV-stil (matcher søknadsbrevet)</CardTitle>

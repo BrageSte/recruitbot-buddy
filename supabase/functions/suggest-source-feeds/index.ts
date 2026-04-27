@@ -221,7 +221,7 @@ serve(async (req) => {
     }
 
     const [{ data: cv }, { data: signals }, { data: feedback }, { data: matches }] = await Promise.all([
-      admin.from("cv_templates").select("*").eq("user_id", user.id).eq("is_active", true).maybeSingle(),
+      admin.from("cv_templates").select("*").eq("user_id", user.id).order("is_default", { ascending: false }).order("created_at", { ascending: true }).limit(1).maybeSingle(),
       admin.from("profile_interest_signals").select("*").eq("user_id", user.id),
       admin.from("job_score_feedback").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(80),
       admin

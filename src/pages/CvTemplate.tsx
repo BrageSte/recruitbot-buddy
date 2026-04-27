@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, Save, Plus, Trash2, GripVertical, Upload, Sparkles, FileText, Download } from "lucide-react";
+import { Loader2, Save, Plus, Trash2, GripVertical, Upload, Sparkles, FileText, Download, Star, Copy, Pencil } from "lucide-react";
 import { CvDocument } from "@/components/cv/CvDocument";
 import { CvStylePicker } from "@/components/cv/CvStylePicker";
 import { SheetViewer } from "@/components/cv/SheetViewer";
@@ -30,6 +30,9 @@ type Cert = { name: string; issuer: string; date?: string; url?: string };
 type CV = {
   id?: string;
   cv_style?: CvStyleId;
+  variant_name?: string;
+  variant_description?: string | null;
+  is_default?: boolean;
   full_name: string | null;
   headline: string | null;
   email: string | null;
@@ -47,8 +50,19 @@ type CV = {
   certifications: Cert[];
 };
 
+type VariantSummary = {
+  id: string;
+  variant_name: string | null;
+  variant_description: string | null;
+  cv_style: string | null;
+  is_default: boolean;
+};
+
 const empty: CV = {
   cv_style: "skandinavisk",
+  variant_name: "Standard",
+  variant_description: "",
+  is_default: true,
   full_name: "", headline: "", email: "", phone: "", location: "",
   linkedin_url: "", website_url: "", photo_url: null, intro: "",
   experiences: [], education: [], skills: [], languages: [], projects: [], certifications: [],
@@ -57,45 +71,127 @@ const empty: CV = {
 const CvTemplate = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [variants, setVariants] = useState<VariantSummary[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [cv, setCv] = useState<CV>(empty);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameDraft, setRenameDraft] = useState({ name: "", description: "" });
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { initialLoad(); }, [user]);
 
-  const load = async () => {
+  const initialLoad = async () => {
     if (!user) return;
     setLoading(true);
-    const { data } = await supabase.from("cv_templates")
-      .select("*").eq("user_id", user.id).eq("is_active", true).maybeSingle();
-    if (data) {
-      setCv({
-        ...data,
-        experiences: (data.experiences as any) ?? [],
-        education: (data.education as any) ?? [],
-        skills: (data.skills as any) ?? [],
-        languages: (data.languages as any) ?? [],
-        projects: (data.projects as any) ?? [],
-        certifications: (data.certifications as any) ?? [],
-      } as CV);
+    const { data } = await supabase
+      .from("cv_templates")
+      .select("id, variant_name, variant_description, cv_style, is_default")
+      .eq("user_id", user.id)
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: true });
+    const list = (data ?? []) as VariantSummary[];
+    setVariants(list);
+
+    if (list.length === 0) {
+      // Pre-fill from profile and create the first variant in-memory.
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("display_name, email, linkedin_url")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (prof) {
+        setCv({
+          ...empty,
+          full_name: prof.display_name ?? "",
+          email: prof.email ?? "",
+          linkedin_url: prof.linkedin_url ?? "",
+        });
+      } else {
+        setCv(empty);
+      }
+      setActiveId(null);
     } else {
-      // Pre-fill from profile
-      const { data: prof } = await supabase.from("profiles")
-        .select("display_name, email, linkedin_url").eq("user_id", user.id).maybeSingle();
-      if (prof) setCv({ ...empty, full_name: prof.display_name ?? "", email: prof.email ?? "", linkedin_url: prof.linkedin_url ?? "" });
+      const first = list[0];
+      await loadVariant(first.id);
     }
     setLoading(false);
   };
 
-  const save = async () => {
+  const loadVariant = async (id: string) => {
+    const { data } = await supabase.from("cv_templates").select("*").eq("id", id).maybeSingle();
+    if (data) {
+      setCv({
+        ...(data as any),
+        variant_name: (data as any).variant_name ?? "Standard",
+        experiences: ((data as any).experiences as any) ?? [],
+        education: ((data as any).education as any) ?? [],
+        skills: ((data as any).skills as any) ?? [],
+        languages: ((data as any).languages as any) ?? [],
+        projects: ((data as any).projects as any) ?? [],
+        certifications: ((data as any).certifications as any) ?? [],
+      } as CV);
+      setActiveId(id);
+    }
+  };
+
+  const refreshVariants = async () => {
     if (!user) return;
-    setSaving(true);
-    const payload = {
-      user_id: user.id, is_active: true,
+    const { data } = await supabase
+      .from("cv_templates")
+      .select("id, variant_name, variant_description, cv_style, is_default")
+      .eq("user_id", user.id)
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: true });
+    setVariants((data ?? []) as VariantSummary[]);
+  };
+
+  const switchVariant = async (id: string) => {
+    if (id === activeId) return;
+    setLoading(true);
+    await loadVariant(id);
+    setLoading(false);
+  };
+
+  const createVariant = async () => {
+    if (!user) return;
+    const baseName = `Variant ${variants.length + 1}`;
+    const payload: any = {
+      user_id: user.id,
+      is_active: true,
+      cv_style: "skandinavisk",
+      variant_name: baseName,
+      variant_description: "",
+      is_default: variants.length === 0,
+      full_name: cv.full_name, headline: cv.headline, email: cv.email,
+      phone: cv.phone, location: cv.location, linkedin_url: cv.linkedin_url, website_url: cv.website_url,
+      photo_url: cv.photo_url,
+      intro: "",
+      experiences: [], education: [], skills: [], languages: [], projects: [], certifications: [],
+    };
+    const { data, error } = await supabase.from("cv_templates").insert(payload).select().maybeSingle();
+    if (error || !data) {
+      toast({ title: "Kunne ikke opprette", description: error?.message, variant: "destructive" });
+      return;
+    }
+    await refreshVariants();
+    await loadVariant((data as any).id);
+    toast({ title: "Ny CV opprettet", description: baseName });
+  };
+
+  const duplicateVariant = async () => {
+    if (!user || !activeId) return;
+    const newName = `${cv.variant_name ?? "Standard"} (kopi)`;
+    const payload: any = {
+      user_id: user.id,
+      is_active: true,
       cv_style: cv.cv_style ?? "skandinavisk",
+      variant_name: newName,
+      variant_description: cv.variant_description ?? "",
+      is_default: false,
       full_name: cv.full_name, headline: cv.headline, email: cv.email,
       phone: cv.phone, location: cv.location, linkedin_url: cv.linkedin_url, website_url: cv.website_url,
       photo_url: cv.photo_url,
@@ -104,12 +200,102 @@ const CvTemplate = () => {
       skills: cv.skills as any, languages: cv.languages as any,
       projects: cv.projects as any, certifications: cv.certifications as any,
     };
-    const { error } = cv.id
-      ? await supabase.from("cv_templates").update(payload).eq("id", cv.id)
-      : await supabase.from("cv_templates").insert(payload);
+    const { data, error } = await supabase.from("cv_templates").insert(payload).select().maybeSingle();
+    if (error || !data) {
+      toast({ title: "Kunne ikke duplisere", description: error?.message, variant: "destructive" });
+      return;
+    }
+    await refreshVariants();
+    await loadVariant((data as any).id);
+    toast({ title: "CV duplisert" });
+  };
+
+  const setAsDefault = async () => {
+    if (!user || !activeId) return;
+    await supabase.from("cv_templates").update({ is_default: false }).eq("user_id", user.id);
+    await supabase.from("cv_templates").update({ is_default: true }).eq("id", activeId);
+    setCv({ ...cv, is_default: true });
+    await refreshVariants();
+    toast({ title: "Satt som standard" });
+  };
+
+  const deleteVariant = async () => {
+    if (!user || !activeId) return;
+    if (variants.length <= 1) {
+      toast({ title: "Kan ikke slette", description: "Du må ha minst én CV.", variant: "destructive" });
+      return;
+    }
+    if (!confirm(`Slette "${cv.variant_name}"?`)) return;
+    const wasDefault = cv.is_default;
+    await supabase.from("cv_templates").delete().eq("id", activeId);
+    const remaining = variants.filter((v) => v.id !== activeId);
+    if (wasDefault && remaining.length > 0) {
+      await supabase.from("cv_templates").update({ is_default: true }).eq("id", remaining[0].id);
+    }
+    await refreshVariants();
+    if (remaining.length > 0) await loadVariant(remaining[0].id);
+    toast({ title: "Slettet" });
+  };
+
+  const openRename = () => {
+    setRenameDraft({ name: cv.variant_name ?? "Standard", description: cv.variant_description ?? "" });
+    setRenameOpen(true);
+  };
+
+  const saveRename = async () => {
+    if (!activeId) {
+      // Variant not yet persisted — just update local state.
+      setCv({ ...cv, variant_name: renameDraft.name, variant_description: renameDraft.description });
+    } else {
+      await supabase.from("cv_templates").update({
+        variant_name: renameDraft.name,
+        variant_description: renameDraft.description,
+      }).eq("id", activeId);
+      setCv({ ...cv, variant_name: renameDraft.name, variant_description: renameDraft.description });
+      await refreshVariants();
+    }
+    setRenameOpen(false);
+    toast({ title: "Oppdatert" });
+  };
+
+  const save = async () => {
+    if (!user) return;
+    setSaving(true);
+    const payload: any = {
+      user_id: user.id,
+      is_active: true,
+      cv_style: cv.cv_style ?? "skandinavisk",
+      variant_name: cv.variant_name ?? "Standard",
+      variant_description: cv.variant_description ?? "",
+      is_default: cv.is_default ?? false,
+      full_name: cv.full_name, headline: cv.headline, email: cv.email,
+      phone: cv.phone, location: cv.location, linkedin_url: cv.linkedin_url, website_url: cv.website_url,
+      photo_url: cv.photo_url,
+      intro: cv.intro,
+      experiences: cv.experiences as any, education: cv.education as any,
+      skills: cv.skills as any, languages: cv.languages as any,
+      projects: cv.projects as any, certifications: cv.certifications as any,
+    };
+    let savedId = activeId;
+    let error: any = null;
+    if (activeId) {
+      const r = await supabase.from("cv_templates").update(payload).eq("id", activeId);
+      error = r.error;
+    } else {
+      // First time saving — make sure at least one is default.
+      if (variants.length === 0) payload.is_default = true;
+      const r = await supabase.from("cv_templates").insert(payload).select().maybeSingle();
+      error = r.error;
+      savedId = (r.data as any)?.id ?? null;
+    }
     setSaving(false);
-    if (error) toast({ title: "Lagring feilet", description: error.message, variant: "destructive" });
-    else { toast({ title: "Lagret" }); load(); }
+    if (error) {
+      toast({ title: "Lagring feilet", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Lagret" });
+      await refreshVariants();
+      if (savedId && savedId !== activeId) await loadVariant(savedId);
+    }
   };
 
   const applyImported = (imported: any) => {
@@ -220,10 +406,10 @@ const CvTemplate = () => {
 
   return (
     <div className="max-w-6xl mx-auto p-6 lg:p-10 space-y-6">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-semibold">CV-mal</h1>
-          <p className="text-muted-foreground text-sm mt-1">Strukturert CV som AI bruker som faktagrunnlag for hver søknad. Velg stil, AI overstyrer per jobb.</p>
+          <h1 className="text-3xl font-semibold">CV</h1>
+          <p className="text-muted-foreground text-sm mt-1">Lag flere CV-varianter (formell, uformell, design, akademisk…). Velg per søknad — eller la AI velge.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={exportPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
@@ -233,6 +419,97 @@ const CvTemplate = () => {
           </Button>
         </div>
       </header>
+
+      {/* Variant selector */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">CV-varianter</CardTitle>
+          <p className="text-xs text-muted-foreground">Bytt mellom varianter, eller opprett en ny for et annet bruksområde.</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {variants.map((v) => {
+              const isActive = v.id === activeId;
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => switchVariant(v.id)}
+                  className={`group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm transition-colors ${
+                    isActive ? "bg-primary text-primary-foreground border-primary" : "bg-background border-input hover:bg-accent"
+                  }`}
+                >
+                  {v.is_default && <Star className={`w-3 h-3 ${isActive ? "fill-current" : "fill-warning text-warning"}`} />}
+                  <span className="font-medium">{v.variant_name || "Standard"}</span>
+                  {v.cv_style && (
+                    <span className={`text-[10px] uppercase tracking-wide ${isActive ? "opacity-80" : "text-muted-foreground"}`}>
+                      {v.cv_style}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            <Button variant="outline" size="sm" onClick={createVariant}>
+              <Plus className="w-3.5 h-3.5 mr-1" /> Ny variant
+            </Button>
+          </div>
+
+          {(activeId || variants.length === 0) && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button variant="outline" size="sm" onClick={openRename}>
+                <Pencil className="w-3.5 h-3.5 mr-1.5" /> Gi nytt navn
+              </Button>
+              {activeId && (
+                <>
+                  <Button variant="outline" size="sm" onClick={duplicateVariant}>
+                    <Copy className="w-3.5 h-3.5 mr-1.5" /> Dupliser
+                  </Button>
+                  {!cv.is_default && (
+                    <Button variant="outline" size="sm" onClick={setAsDefault}>
+                      <Star className="w-3.5 h-3.5 mr-1.5" /> Sett som standard
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={deleteVariant} disabled={variants.length <= 1}>
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Slett
+                  </Button>
+                </>
+              )}
+              {cv.variant_description && (
+                <span className="text-xs text-muted-foreground italic ml-1">{cv.variant_description}</span>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Gi CV-varianten et navn</DialogTitle>
+            <DialogDescription>Navnet hjelper deg å skille variantene. Beskrivelsen brukes også av AI når den skal velge variant per søknad.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Navn</Label>
+              <Input value={renameDraft.name} onChange={(e) => setRenameDraft({ ...renameDraft, name: e.target.value })} placeholder="f.eks. Formell IT" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Beskrivelse (valgfri)</Label>
+              <Textarea
+                rows={3}
+                value={renameDraft.description}
+                onChange={(e) => setRenameDraft({ ...renameDraft, description: e.target.value })}
+                placeholder="Når passer denne best? F.eks. 'Tech/scaleups, vekt på produkt og fullstack.'"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameOpen(false)}>Avbryt</Button>
+            <Button onClick={saveRename} disabled={!renameDraft.name.trim()}>Lagre</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       <Card>
         <CardHeader className="pb-3">
