@@ -200,6 +200,89 @@ const Pills = ({ items, style }: { items: string[]; style: CvStyleDef }) => (
   </div>
 );
 
+/**
+ * Render the configurable CV sections in the user-defined order.
+ * `exclude` can be used by layouts that already render certain sections
+ * elsewhere (e.g. Sidebar shows skills/languages in the aside).
+ * `labels` lets a layout override the default heading text per section.
+ */
+const renderSections = (
+  cv: CvData,
+  style: CvStyleDef,
+  opts?: {
+    exclude?: CvSectionKey[];
+    labels?: Partial<Record<CvSectionKey, string>>;
+    divider?: string;
+  },
+) => {
+  const order = resolveOrder(cv, opts?.exclude ?? []);
+  const label = (k: CvSectionKey) => opts?.labels?.[k] ?? SECTION_LABELS[k];
+  return order.map((key) => {
+    switch (key) {
+      case "experiences":
+        if (!cv.experiences?.length) return null;
+        return (
+          <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
+            <Experience items={cv.experiences} style={style} />
+          </Section>
+        );
+      case "education":
+        if (!cv.education?.length) return null;
+        return (
+          <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
+            <Education items={cv.education} style={style} />
+          </Section>
+        );
+      case "skills":
+        if (!cv.skills?.length) return null;
+        return (
+          <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
+            <SkillsBlock groups={cv.skills} style={style} />
+          </Section>
+        );
+      case "languages":
+        if (!cv.languages?.length) return null;
+        return (
+          <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
+            <div style={{ fontSize: 10.5, color: style.ink }}>
+              {cv.languages.map((l) => `${l.name} (${l.level})`).join(" · ")}
+            </div>
+          </Section>
+        );
+      case "projects":
+        if (!cv.projects?.length) return null;
+        return (
+          <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {cv.projects.map((p, i) => (
+                <div key={i}>
+                  <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{p.name}</div>
+                  <div style={{ fontSize: 10.5, color: style.ink, lineHeight: 1.6 }}>{p.description}</div>
+                  {!!p.technologies?.length && (
+                    <div style={{ marginTop: 3 }}><Pills items={p.technologies} style={style} /></div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Section>
+        );
+      case "certifications":
+        if (!cv.certifications?.length) return null;
+        return (
+          <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
+            <div style={{ fontSize: 10.5, lineHeight: 1.6, color: style.ink }}>
+              {cv.certifications.map((c, i) => (
+                <div key={i}><strong>{c.name}</strong> — {c.issuer}{c.date ? `, ${c.date}` : ""}</div>
+              ))}
+            </div>
+          </Section>
+        );
+      default:
+        return null;
+    }
+  });
+};
+
 /* ---------- LAYOUT 1 — Skandinavisk (minimal) ---------- */
 
 const MinimalLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => {
