@@ -4,6 +4,32 @@
 import { CSSProperties } from "react";
 import { CvStyleDef, getStyle } from "./cvStyles";
 
+export type CvSectionKey =
+  | "experiences"
+  | "education"
+  | "skills"
+  | "languages"
+  | "projects"
+  | "certifications";
+
+export const DEFAULT_SECTION_ORDER: CvSectionKey[] = [
+  "experiences",
+  "education",
+  "skills",
+  "languages",
+  "projects",
+  "certifications",
+];
+
+export const SECTION_LABELS: Record<CvSectionKey, string> = {
+  experiences: "Erfaring",
+  education: "Utdanning",
+  skills: "Ferdigheter",
+  languages: "Språk",
+  projects: "Prosjekter",
+  certifications: "Sertifikater",
+};
+
 export type CvData = {
   full_name?: string | null;
   headline?: string | null;
@@ -14,6 +40,7 @@ export type CvData = {
   website_url?: string | null;
   photo_url?: string | null;
   intro?: string | null;
+  section_order?: string[] | null;
   experiences?: Array<{
     title: string;
     company: string;
@@ -30,6 +57,16 @@ export type CvData = {
   languages?: Array<{ name: string; level: string }>;
   projects?: Array<{ name: string; description: string; url?: string; technologies?: string[] }>;
   certifications?: Array<{ name: string; issuer: string; date?: string; url?: string }>;
+};
+
+const resolveOrder = (cv: CvData, exclude: CvSectionKey[] = []): CvSectionKey[] => {
+  const raw = (cv.section_order ?? []).filter((k): k is CvSectionKey =>
+    (DEFAULT_SECTION_ORDER as string[]).includes(k),
+  );
+  const seen = new Set(raw);
+  const merged: CvSectionKey[] = [...raw];
+  for (const k of DEFAULT_SECTION_ORDER) if (!seen.has(k)) merged.push(k);
+  return merged.filter((k) => !exclude.includes(k));
 };
 
 type Props = { cv: CvData; styleId?: string | null };
@@ -163,6 +200,89 @@ const Pills = ({ items, style }: { items: string[]; style: CvStyleDef }) => (
   </div>
 );
 
+/**
+ * Render the configurable CV sections in the user-defined order.
+ * `exclude` can be used by layouts that already render certain sections
+ * elsewhere (e.g. Sidebar shows skills/languages in the aside).
+ * `labels` lets a layout override the default heading text per section.
+ */
+const renderSections = (
+  cv: CvData,
+  style: CvStyleDef,
+  opts?: {
+    exclude?: CvSectionKey[];
+    labels?: Partial<Record<CvSectionKey, string>>;
+    divider?: string;
+  },
+) => {
+  const order = resolveOrder(cv, opts?.exclude ?? []);
+  const label = (k: CvSectionKey) => opts?.labels?.[k] ?? SECTION_LABELS[k];
+  return order.map((key) => {
+    switch (key) {
+      case "experiences":
+        if (!cv.experiences?.length) return null;
+        return (
+          <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
+            <Experience items={cv.experiences} style={style} />
+          </Section>
+        );
+      case "education":
+        if (!cv.education?.length) return null;
+        return (
+          <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
+            <Education items={cv.education} style={style} />
+          </Section>
+        );
+      case "skills":
+        if (!cv.skills?.length) return null;
+        return (
+          <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
+            <SkillsBlock groups={cv.skills} style={style} />
+          </Section>
+        );
+      case "languages":
+        if (!cv.languages?.length) return null;
+        return (
+          <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
+            <div style={{ fontSize: 10.5, color: style.ink }}>
+              {cv.languages.map((l) => `${l.name} (${l.level})`).join(" · ")}
+            </div>
+          </Section>
+        );
+      case "projects":
+        if (!cv.projects?.length) return null;
+        return (
+          <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {cv.projects.map((p, i) => (
+                <div key={i}>
+                  <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{p.name}</div>
+                  <div style={{ fontSize: 10.5, color: style.ink, lineHeight: 1.6 }}>{p.description}</div>
+                  {!!p.technologies?.length && (
+                    <div style={{ marginTop: 3 }}><Pills items={p.technologies} style={style} /></div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Section>
+        );
+      case "certifications":
+        if (!cv.certifications?.length) return null;
+        return (
+          <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
+            <div style={{ fontSize: 10.5, lineHeight: 1.6, color: style.ink }}>
+              {cv.certifications.map((c, i) => (
+                <div key={i}><strong>{c.name}</strong> — {c.issuer}{c.date ? `, ${c.date}` : ""}</div>
+              ))}
+            </div>
+          </Section>
+        );
+      default:
+        return null;
+    }
+  });
+};
+
 /* ---------- LAYOUT 1 — Skandinavisk (minimal) ---------- */
 
 const MinimalLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => {
@@ -185,22 +305,7 @@ const MinimalLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => {
 
       {cv.intro && <p style={{ fontSize: 11, lineHeight: 1.6, marginTop: 14, color: style.ink }}>{cv.intro}</p>}
 
-      {!!cv.experiences?.length && (
-        <Section title="Erfaring" color={style.accent}><Experience items={cv.experiences} style={style} /></Section>
-      )}
-      {!!cv.education?.length && (
-        <Section title="Utdanning" color={style.accent}><Education items={cv.education} style={style} /></Section>
-      )}
-      {!!cv.skills?.length && (
-        <Section title="Ferdigheter" color={style.accent}><SkillsBlock groups={cv.skills} style={style} /></Section>
-      )}
-      {!!cv.languages?.length && (
-        <Section title="Språk" color={style.accent}>
-          <div style={{ fontSize: 10.5, color: style.ink }}>
-            {cv.languages.map((l, i) => `${l.name} (${l.level})`).join(" · ")}
-          </div>
-        </Section>
-      )}
+      {renderSections(cv, style)}
     </div>
   );
 };
@@ -227,23 +332,10 @@ const HeaderBandLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
           {cv.intro}
         </p>
       )}
-      {!!cv.experiences?.length && <Section title="Yrkeserfaring" color={style.accent} divider={style.accentSoft}><Experience items={cv.experiences} style={style} /></Section>}
-      {!!cv.education?.length && <Section title="Utdanning" color={style.accent} divider={style.accentSoft}><Education items={cv.education} style={style} /></Section>}
-      {!!cv.skills?.length && <Section title="Kompetanse" color={style.accent} divider={style.accentSoft}><SkillsBlock groups={cv.skills} style={style} /></Section>}
-      {!!cv.languages?.length && (
-        <Section title="Språk" color={style.accent} divider={style.accentSoft}>
-          <div style={{ fontSize: 10.5 }}>{cv.languages.map((l) => `${l.name} (${l.level})`).join(" · ")}</div>
-        </Section>
-      )}
-      {!!cv.certifications?.length && (
-        <Section title="Sertifikater" color={style.accent} divider={style.accentSoft}>
-          <div style={{ fontSize: 10.5, lineHeight: 1.6 }}>
-            {cv.certifications.map((c, i) => (
-              <div key={i}><strong>{c.name}</strong> — {c.issuer}{c.date ? `, ${c.date}` : ""}</div>
-            ))}
-          </div>
-        </Section>
-      )}
+      {renderSections(cv, style, {
+        divider: style.accentSoft,
+        labels: { experiences: "Yrkeserfaring", skills: "Kompetanse" },
+      })}
     </div>
   </div>
 );
@@ -269,27 +361,13 @@ const CenteredLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
     {cv.intro && (
       <p style={{ fontSize: 11, lineHeight: 1.7, marginTop: 14, textAlign: "justify", color: style.ink }}>{cv.intro}</p>
     )}
-    {!!cv.experiences?.length && <Section title="Faglig erfaring" color={style.accent}><Experience items={cv.experiences} style={style} /></Section>}
-    {!!cv.education?.length && <Section title="Utdanning" color={style.accent}><Education items={cv.education} style={style} /></Section>}
-    {!!cv.projects?.length && (
-      <Section title="Forskning og prosjekter" color={style.accent}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {cv.projects.map((p, i) => (
-            <div key={i}>
-              <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{p.name}</div>
-              <div style={{ fontSize: 10.5, color: style.ink, lineHeight: 1.6 }}>{p.description}</div>
-              {!!p.technologies?.length && <div style={{ fontSize: 9.5, color: style.muted, marginTop: 2 }}>{p.technologies.join(" · ")}</div>}
-            </div>
-          ))}
-        </div>
-      </Section>
-    )}
-    {!!cv.skills?.length && <Section title="Kompetanseområder" color={style.accent}><SkillsBlock groups={cv.skills} style={style} /></Section>}
-    {!!cv.languages?.length && (
-      <Section title="Språk" color={style.accent}>
-        <div style={{ fontSize: 10.5 }}>{cv.languages.map((l) => `${l.name} (${l.level})`).join(" · ")}</div>
-      </Section>
-    )}
+    {renderSections(cv, style, {
+      labels: {
+        experiences: "Faglig erfaring",
+        projects: "Forskning og prosjekter",
+        skills: "Kompetanseområder",
+      },
+    })}
   </div>
 );
 
@@ -346,21 +424,7 @@ const SidebarLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
           <p style={{ fontSize: 11, lineHeight: 1.6, color: style.ink, margin: 0 }}>{cv.intro}</p>
         </section>
       )}
-      {!!cv.experiences?.length && <Section title="Erfaring" color={style.accent}><Experience items={cv.experiences} style={style} /></Section>}
-      {!!cv.projects?.length && (
-        <Section title="Prosjekter" color={style.accent}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {cv.projects.map((p, i) => (
-              <div key={i}>
-                <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{p.name}</div>
-                <div style={{ fontSize: 10.5, color: style.ink }}>{p.description}</div>
-                {!!p.technologies?.length && <div style={{ marginTop: 3 }}><Pills items={p.technologies} style={style} /></div>}
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
-      {!!cv.education?.length && <Section title="Utdanning" color={style.accent}><Education items={cv.education} style={style} /></Section>}
+      {renderSections(cv, style, { exclude: ["skills", "languages"] })}
     </main>
   </div>
 );
@@ -397,14 +461,7 @@ const SplitLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
           </p>
         </section>
       )}
-      {!!cv.experiences?.length && <Section title="Erfaring" color={style.accent}><Experience items={cv.experiences} style={style} /></Section>}
-      {!!cv.education?.length && <Section title="Utdanning" color={style.accent}><Education items={cv.education} style={style} /></Section>}
-      {!!cv.skills?.length && <Section title="Ferdigheter" color={style.accent}><SkillsBlock groups={cv.skills} style={style} /></Section>}
-      {!!cv.languages?.length && (
-        <Section title="Språk" color={style.accent}>
-          <div style={{ fontSize: 10.5 }}>{cv.languages.map((l) => `${l.name} (${l.level})`).join(" · ")}</div>
-        </Section>
-      )}
+      {renderSections(cv, style)}
     </div>
   </div>
 );

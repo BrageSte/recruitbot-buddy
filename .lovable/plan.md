@@ -1,36 +1,50 @@
 ## Mål
-Når man åpner en søknad skal selve stillingsannonsen være lett tilgjengelig — uten å måtte navigere tilbake til jobben.
 
-## Hva legges til på `ApplicationDetail`
+Gjør det enkelt å endre rekkefølgen på CV-avsnittene (Erfaring, Utdanning, Ferdigheter, Språk, Prosjekter, Sertifikater) — både i redigeringen og i den eksporterte/forhåndsviste CV-en. Du kan f.eks. dra Utdanning over Erfaring for en akademisk variant.
 
-Et nytt "Stillingsannonse"-kort plasseres rett under headeren (over fanene), slik at konteksten alltid er synlig:
+Rekkefølgen lagres per CV-variant, så ulike varianter kan ha ulik struktur.
 
-1. **Tittel + selskap + sted** (allerede tilgjengelig via `app.jobs`)
-2. **Lenke til original annonse**
-   - Knapp: "Åpne original annonse" → `app.jobs.source_url` (åpnes i ny fane)
-   - Vises kun hvis `source_url` finnes
-   - Vis også domenet som liten tekst (f.eks. `finn.no`)
-3. **AI-oppsummering (kort)**
-   - Bruker eksisterende `jobs.ai_summary` hvis den finnes
-   - Hvis den mangler: vis knapp "Lag AI-sammendrag" som kaller en ny edge-funksjon `summarize-job` (kort 2–4 setningers oppsummering: hva rollen handler om, viktigste krav, hva som er spesielt). Resultat lagres i `jobs.ai_summary`.
-4. **Full annonsetekst (sammenleggbar)**
-   - Et `<details>`/Collapsible: "Vis full annonsetekst" → viser `app.jobs.description`
-   - Standard: kollapset, så det ikke tar plass
-5. **Direktelenke til jobben i appen**
-   - Liten lenke "Åpne i jobbvisning" → `/jobs/:job_id` for full kontekst (notater, score, osv.)
+## Hva som endres
 
-## Edge-funksjon: `summarize-job` (ny)
-- Input: `{ jobId }`
-- Henter `jobs.title`, `jobs.company`, `jobs.description`
-- Bruker Lovable AI Gateway (samme mønster som `tailor-cv`) til å lage 2–4 setninger på norsk
-- Lagrer i `jobs.ai_summary` og returnerer teksten
-- Kalles automatisk første gang en søknad åpnes hvis `ai_summary` mangler og `description` finnes (med en liten "genererer…" indikator), eller manuelt via knapp
+### 1. Database
+Ny migrasjon: legg til kolonne `section_order text[]` på `cv_templates`.
+- Default: `['experiences','education','skills','languages','projects','certifications']`
+- Lagres per variant.
 
-## Filer som endres
-- `src/pages/ApplicationDetail.tsx` — nytt JobContextCard mellom header og Tabs
-- `src/components/JobContextCard.tsx` (ny) — gjenbrukbar komponent som tar imot `job` og viser annonse-info
-- `supabase/functions/summarize-job/index.ts` (ny)
-- `supabase/config.toml` — registrer ny funksjon (verify_jwt = true)
+### 2. CV-redigering (`src/pages/CvTemplate.tsx`)
+- Nytt kort øverst: **"Rekkefølge på avsnitt"** med en enkel liste:
+  - Hver rad viser avsnittets navn (Erfaring, Utdanning …) med en grip-ikon og opp/ned-piler.
+  - Drag-and-drop med HTML5 native (samme mønster brukt allerede i `SectionList`).
+  - Endringer oppdaterer `cv.section_order` og lagres med "Lagre"-knappen.
+- Selve seksjonene under rendres dynamisk i den valgte rekkefølgen (én `renderSection(key)`-funksjon i stedet for hardkodet rekkefølge).
+- "Tilbakestill rekkefølge"-knapp som setter default.
 
-## Ingen DB-endringer
-Alt ligger allerede i `jobs`-tabellen (`ai_summary`, `description`, `source_url`).
+### 3. Forhåndsvisning og PDF (`src/components/cv/CvDocument.tsx`)
+- `CvData`-typen får valgfri `section_order?: string[]`.
+- Alle 5 layouts (Minimal, HeaderBand, Centered, Sidebar, Split) bruker en felles helper `renderSections(cv, style, order)` for hovedkolonnen, så avsnittene følger brukerens rekkefølge.
+- Sidebar/Split: kun "main"-kolonnens avsnitt påvirkes (Erfaring, Utdanning, Prosjekter, Sertifikater). Sidebaren beholder sin faste struktur (kontakt + skills + språk), siden den er en del av layoutdesignet.
+
+### 4. Typer
+- Oppdater `src/integrations/supabase/types.ts` (auto-generert — ikke manuelt redigert; backend-migrasjon trigger regenerering).
+- Lokal `CV`-type i `CvTemplate.tsx` får `section_order: string[]`.
+
+## UI-skisse
+
+```text
+┌─ Rekkefølge på avsnitt ────────────────┐
+│ ⋮⋮ Erfaring          ▲ ▼              │
+│ ⋮⋮ Utdanning         ▲ ▼              │
+│ ⋮⋮ Ferdigheter       ▲ ▼              │
+│ ⋮⋮ Språk             ▲ ▼              │
+│ ⋮⋮ Prosjekter        ▲ ▼              │
+│ ⋮⋮ Sertifikater      ▲ ▼              │
+│              [Tilbakestill rekkefølge] │
+└────────────────────────────────────────┘
+```
+
+## Filer som berøres
+
+- `supabase/migrations/<ny>.sql` (ny)
+- `src/pages/CvTemplate.tsx`
+- `src/components/cv/CvDocument.tsx`
+- `src/integrations/supabase/types.ts` (auto)
