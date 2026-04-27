@@ -24,6 +24,8 @@ export type Database = {
           notes: string | null
           prioritize_skills: string[] | null
           rephrase_suggestions: Json | null
+          section_order: string[] | null
+          tailored_cv: Json | null
           tailored_cv_markdown: string | null
           tailored_intro: string | null
           updated_at: string
@@ -38,6 +40,8 @@ export type Database = {
           notes?: string | null
           prioritize_skills?: string[] | null
           rephrase_suggestions?: Json | null
+          section_order?: string[] | null
+          tailored_cv?: Json | null
           tailored_cv_markdown?: string | null
           tailored_intro?: string | null
           updated_at?: string
@@ -52,6 +56,8 @@ export type Database = {
           notes?: string | null
           prioritize_skills?: string[] | null
           rephrase_suggestions?: Json | null
+          section_order?: string[] | null
+          tailored_cv?: Json | null
           tailored_cv_markdown?: string | null
           tailored_intro?: string | null
           updated_at?: string

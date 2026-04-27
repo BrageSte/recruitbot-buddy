@@ -1,50 +1,56 @@
 ## Mål
 
-Gjør det enkelt å endre rekkefølgen på CV-avsnittene (Erfaring, Utdanning, Ferdigheter, Språk, Prosjekter, Sertifikater) — både i redigeringen og i den eksporterte/forhåndsviste CV-en. Du kan f.eks. dra Utdanning over Erfaring for en akademisk variant.
+Når AI tilpasser CV per søknad, skal resultatet bli en **ekte, strukturert CV-snapshot** koblet til søknaden — ikke bare markdown og løse anbefalinger. Snapshotet brukes i forhåndsvisningen ("CV samme stil"), eksporteres til PDF i samme stil som søknadsbrevet, og kan endres etterpå.
 
-Rekkefølgen lagres per CV-variant, så ulike varianter kan ha ulik struktur.
+AI får nå også omstrukturere `section_order`, prioritere ferdigheter på toppen, fremheve/tone ned erfaringer og oppdatere intro — alt i én operasjon.
 
 ## Hva som endres
 
 ### 1. Database
-Ny migrasjon: legg til kolonne `section_order text[]` på `cv_templates`.
-- Default: `['experiences','education','skills','languages','projects','certifications']`
-- Lagres per variant.
+Ny migrasjon: legg til kolonner på `application_cv_tweaks`:
+- `tailored_cv jsonb` — strukturert CV-snapshot (samme form som `cv_templates`-feltene). Brukes til å rendre CvDocument og PDF.
+- `section_order text[]` — AI-foreslått rekkefølge for snapshotet.
 
-### 2. CV-redigering (`src/pages/CvTemplate.tsx`)
-- Nytt kort øverst: **"Rekkefølge på avsnitt"** med en enkel liste:
-  - Hver rad viser avsnittets navn (Erfaring, Utdanning …) med en grip-ikon og opp/ned-piler.
-  - Drag-and-drop med HTML5 native (samme mønster brukt allerede i `SectionList`).
-  - Endringer oppdaterer `cv.section_order` og lagres med "Lagre"-knappen.
-- Selve seksjonene under rendres dynamisk i den valgte rekkefølgen (én `renderSection(key)`-funksjon i stedet for hardkodet rekkefølge).
-- "Tilbakestill rekkefølge"-knapp som setter default.
+(Beholder `tailored_cv_markdown` for bakoverkompatibilitet, men den blir sekundær.)
 
-### 3. Forhåndsvisning og PDF (`src/components/cv/CvDocument.tsx`)
-- `CvData`-typen får valgfri `section_order?: string[]`.
-- Alle 5 layouts (Minimal, HeaderBand, Centered, Sidebar, Split) bruker en felles helper `renderSections(cv, style, order)` for hovedkolonnen, så avsnittene følger brukerens rekkefølge.
-- Sidebar/Split: kun "main"-kolonnens avsnitt påvirkes (Erfaring, Utdanning, Prosjekter, Sertifikater). Sidebaren beholder sin faste struktur (kontakt + skills + språk), siden den er en del av layoutdesignet.
+### 2. `tailor-cv` edge function
+- Henter CV-malen + jobb + profil som før.
+- Tool-skjemaet utvides med `tailored_cv` (full struktur: intro, experiences, education, skills, languages, projects, certifications) og `section_order`.
+- AI får eksplisitt instruks om å:
+  - Beholde original-data sannferdig (ikke finne på), men tillate omformuleringer av `description`/`bullets` og rekkefølgen innen lister (f.eks. flytte mest relevant erfaring først).
+  - Filtrere bort åpenbart irrelevante punkter når det styrker søknaden.
+  - Sette `section_order` slik den passer best for jobben.
+- Lagrer `tailored_cv` + `section_order` i `application_cv_tweaks`.
 
-### 4. Typer
-- Oppdater `src/integrations/supabase/types.ts` (auto-generert — ikke manuelt redigert; backend-migrasjon trigger regenerering).
-- Lokal `CV`-type i `CvTemplate.tsx` får `section_order: string[]`.
+### 3. `ApplicationDetail.tsx` — bruke snapshotet
+- "CV (samme stil)"-kortet i Søknadsbrev-tabben viser nå **tilpasset CV når den finnes**, ellers fallback til mal.
+- Ny indikator over CV-en: "🪄 AI-tilpasset for denne stillingen — [Bruk original mal]".
+- I CV-tabben:
+  - Erstatt markdown-blokken med en **ekte forhåndsvisning** via `CvDocument` (samme stil og rekkefølge som søknadsbrevet).
+  - "Generer på nytt"-knappen som før.
+  - Ny knapp: "Bruk original mal igjen" (sletter snapshotet, beholder anbefalinger).
 
-## UI-skisse
-
-```text
-┌─ Rekkefølge på avsnitt ────────────────┐
-│ ⋮⋮ Erfaring          ▲ ▼              │
-│ ⋮⋮ Utdanning         ▲ ▼              │
-│ ⋮⋮ Ferdigheter       ▲ ▼              │
-│ ⋮⋮ Språk             ▲ ▼              │
-│ ⋮⋮ Prosjekter        ▲ ▼              │
-│ ⋮⋮ Sertifikater      ▲ ▼              │
-│              [Tilbakestill rekkefølge] │
-└────────────────────────────────────────┘
-```
+### 4. Eksport
+PDF-eksport bruker nå snapshotet automatisk siden `CvDocument` får tilpasset data inn. Ingen separat kodeløype for "tilpasset PDF".
 
 ## Filer som berøres
 
-- `supabase/migrations/<ny>.sql` (ny)
-- `src/pages/CvTemplate.tsx`
-- `src/components/cv/CvDocument.tsx`
-- `src/integrations/supabase/types.ts` (auto)
+- Ny migrasjon (kolonner på `application_cv_tweaks`)
+- `supabase/functions/tailor-cv/index.ts` — utvidet tool-skjema og lagring
+- `src/pages/ApplicationDetail.tsx` — bruk snapshot, ny preview i CV-tab, fallback-knapp
+- `src/integrations/supabase/types.ts` (auto-regenereres etter migrasjon)
+
+## UI-flyt
+
+```text
+Søknadsbrev-tab:
+  [CV-variant: Tech]   ← grunnvalg
+  [CV-stil: Skandinavisk]
+  [Søknadsbrev …]
+  [CV (samme stil) — 🪄 AI-tilpasset for stillingen]   ← snapshot brukes
+  
+CV-tab:
+  [Generer på nytt]  [Bruk original mal igjen]
+  AI-anbefalinger (intro, fremhev, ton ned, omformuleringer)
+  [Forhåndsvisning av tilpasset CV — samme stil som brevet]
+```
