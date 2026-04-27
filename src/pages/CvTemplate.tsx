@@ -138,6 +138,7 @@ const CvTemplate = () => {
       setCv({
         ...(data as any),
         variant_name: (data as any).variant_name ?? "Standard",
+        section_order: normalizeOrder((data as any).section_order),
         experiences: ((data as any).experiences as any) ?? [],
         education: ((data as any).education as any) ?? [],
         skills: ((data as any).skills as any) ?? [],
