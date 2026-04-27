@@ -269,24 +269,27 @@ const renderSections = (
             <SkillsBlock groups={cv.skills} style={style} />
           </Section>
         );
-      case "languages":
-        if (!cv.languages?.length) return null;
+      case "languages": {
+        const langs = (cv.languages ?? []).filter((l) => l && (l.name || l.level));
+        if (!langs.length) return null;
         return (
           <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
             <div style={{ fontSize: 10.5, color: style.ink }}>
-              {cv.languages.map((l) => `${l.name} (${l.level})`).join(" · ")}
+              {langs.map((l) => l.level ? `${l.name ?? ""} (${l.level})` : (l.name ?? "")).filter(Boolean).join(" · ")}
             </div>
           </Section>
         );
-      case "projects":
-        if (!cv.projects?.length) return null;
+      }
+      case "projects": {
+        const projects = (cv.projects ?? []).filter((p) => p && (p.name || p.description));
+        if (!projects.length) return null;
         return (
           <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {cv.projects.map((p, i) => (
+              {projects.map((p, i) => (
                 <div key={i}>
-                  <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{p.name}</div>
-                  <div style={{ fontSize: 10.5, color: style.ink, lineHeight: 1.6 }}>{p.description}</div>
+                  {p.name && <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{p.name}</div>}
+                  {p.description && <div style={{ fontSize: 10.5, color: style.ink, lineHeight: 1.6 }}>{p.description}</div>}
                   {!!p.technologies?.length && (
                     <div style={{ marginTop: 3 }}><Pills items={p.technologies} style={style} /></div>
                   )}
@@ -295,17 +298,20 @@ const renderSections = (
             </div>
           </Section>
         );
-      case "certifications":
-        if (!cv.certifications?.length) return null;
+      }
+      case "certifications": {
+        const certs = (cv.certifications ?? []).filter((c) => c && (c.name || c.issuer));
+        if (!certs.length) return null;
         return (
           <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
             <div style={{ fontSize: 10.5, lineHeight: 1.6, color: style.ink }}>
-              {cv.certifications.map((c, i) => (
-                <div key={i}><strong>{c.name}</strong> — {c.issuer}{c.date ? `, ${c.date}` : ""}</div>
+              {certs.map((c, i) => (
+                <div key={i}><strong>{c.name ?? ""}</strong>{c.issuer ? ` — ${c.issuer}` : ""}{c.date ? `, ${c.date}` : ""}</div>
               ))}
             </div>
           </Section>
         );
+      }
       default:
         return null;
     }
