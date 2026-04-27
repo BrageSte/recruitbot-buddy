@@ -4,6 +4,32 @@
 import { CSSProperties } from "react";
 import { CvStyleDef, getStyle } from "./cvStyles";
 
+export type CvSectionKey =
+  | "experiences"
+  | "education"
+  | "skills"
+  | "languages"
+  | "projects"
+  | "certifications";
+
+export const DEFAULT_SECTION_ORDER: CvSectionKey[] = [
+  "experiences",
+  "education",
+  "skills",
+  "languages",
+  "projects",
+  "certifications",
+];
+
+export const SECTION_LABELS: Record<CvSectionKey, string> = {
+  experiences: "Erfaring",
+  education: "Utdanning",
+  skills: "Ferdigheter",
+  languages: "Språk",
+  projects: "Prosjekter",
+  certifications: "Sertifikater",
+};
+
 export type CvData = {
   full_name?: string | null;
   headline?: string | null;
@@ -14,6 +40,7 @@ export type CvData = {
   website_url?: string | null;
   photo_url?: string | null;
   intro?: string | null;
+  section_order?: string[] | null;
   experiences?: Array<{
     title: string;
     company: string;
@@ -30,6 +57,16 @@ export type CvData = {
   languages?: Array<{ name: string; level: string }>;
   projects?: Array<{ name: string; description: string; url?: string; technologies?: string[] }>;
   certifications?: Array<{ name: string; issuer: string; date?: string; url?: string }>;
+};
+
+const resolveOrder = (cv: CvData, exclude: CvSectionKey[] = []): CvSectionKey[] => {
+  const raw = (cv.section_order ?? []).filter((k): k is CvSectionKey =>
+    (DEFAULT_SECTION_ORDER as string[]).includes(k),
+  );
+  const seen = new Set(raw);
+  const merged: CvSectionKey[] = [...raw];
+  for (const k of DEFAULT_SECTION_ORDER) if (!seen.has(k)) merged.push(k);
+  return merged.filter((k) => !exclude.includes(k));
 };
 
 type Props = { cv: CvData; styleId?: string | null };
