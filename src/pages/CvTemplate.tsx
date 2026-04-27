@@ -182,6 +182,7 @@ const CvTemplate = () => {
       phone: cv.phone, location: cv.location, linkedin_url: cv.linkedin_url, website_url: cv.website_url,
       photo_url: cv.photo_url,
       intro: "",
+      section_order: [...DEFAULT_SECTION_ORDER],
       experiences: [], education: [], skills: [], languages: [], projects: [], certifications: [],
     };
     const { data, error } = await supabase.from("cv_templates").insert(payload).select().maybeSingle();
