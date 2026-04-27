@@ -452,7 +452,9 @@ const Onboarding = () => {
             .from("cv_templates")
             .select("id")
             .eq("user_id", user.id)
-            .eq("is_active", true)
+            .order("is_default", { ascending: false })
+            .order("created_at", { ascending: true })
+            .limit(1)
             .maybeSingle()
         ).data?.id;
 
