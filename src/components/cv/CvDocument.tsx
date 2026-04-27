@@ -136,69 +136,98 @@ const Section = ({ title, color, children, divider }: { title: string; color: st
   </section>
 );
 
-const Experience = ({ items, style }: { items: NonNullable<CvData["experiences"]>; style: CvStyleDef }) => (
-  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-    {items.map((e, i) => (
-      <div key={i}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+const Experience = ({ items, style }: { items: NonNullable<CvData["experiences"]>; style: CvStyleDef }) => {
+  const valid = (items ?? []).filter((e) => e && (e.title || e.company));
+  if (!valid.length) return null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {valid.map((e, i) => {
+        const bullets = Array.isArray(e.bullets) ? e.bullets.filter((b) => typeof b === "string" && b.trim()) : [];
+        const techs = Array.isArray(e.technologies) ? e.technologies.filter((t) => typeof t === "string" && t.trim()) : [];
+        return (
+          <div key={i}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 11.5, color: style.ink }}>{e.title ?? ""}</div>
+                <div style={{ fontSize: 10.5, color: style.accent }}>
+                  {e.company ?? ""}{e.location ? ` · ${e.location}` : ""}
+                </div>
+              </div>
+              <div style={{ fontSize: 9.5, color: style.muted, whiteSpace: "nowrap" }}>{fmtRange(e.start, e.end, e.current)}</div>
+            </div>
+            {e.description && <p style={{ fontSize: 10.5, margin: "4px 0 0", color: style.ink }}>{e.description}</p>}
+            {!!bullets.length && (
+              <ul style={{ margin: "4px 0 0", paddingLeft: 16, fontSize: 10.5, color: style.ink, lineHeight: 1.5 }}>
+                {bullets.map((b, j) => <li key={j}>{b}</li>)}
+              </ul>
+            )}
+            {!!techs.length && (
+              <div style={{ marginTop: 4, fontSize: 9.5, color: style.muted }}>
+                {techs.join(" · ")}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const Education = ({ items, style }: { items: NonNullable<CvData["education"]>; style: CvStyleDef }) => {
+  const valid = (items ?? []).filter((e) => e && (e.degree || e.institution));
+  if (!valid.length) return null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {valid.map((e, i) => (
+        <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
           <div>
-            <div style={{ fontWeight: 600, fontSize: 11.5, color: style.ink }}>{e.title}</div>
-            <div style={{ fontSize: 10.5, color: style.accent }}>{e.company}{e.location ? ` · ${e.location}` : ""}</div>
+            <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{e.degree ?? ""}</div>
+            <div style={{ fontSize: 10.5, color: style.accent }}>{e.institution ?? ""}</div>
+            {e.description && <div style={{ fontSize: 10, color: style.muted, marginTop: 2 }}>{e.description}</div>}
           </div>
-          <div style={{ fontSize: 9.5, color: style.muted, whiteSpace: "nowrap" }}>{fmtRange(e.start, e.end, e.current)}</div>
+          <div style={{ fontSize: 9.5, color: style.muted, whiteSpace: "nowrap" }}>{fmtRange(e.start, e.end)}</div>
         </div>
-        {e.description && <p style={{ fontSize: 10.5, margin: "4px 0 0", color: style.ink }}>{e.description}</p>}
-        {!!e.bullets?.length && (
-          <ul style={{ margin: "4px 0 0", paddingLeft: 16, fontSize: 10.5, color: style.ink, lineHeight: 1.5 }}>
-            {e.bullets.map((b, j) => <li key={j}>{b}</li>)}
-          </ul>
-        )}
-        {!!e.technologies?.length && (
-          <div style={{ marginTop: 4, fontSize: 9.5, color: style.muted }}>
-            {e.technologies.join(" · ")}
-          </div>
-        )}
-      </div>
-    ))}
-  </div>
-);
+      ))}
+    </div>
+  );
+};
 
-const Education = ({ items, style }: { items: NonNullable<CvData["education"]>; style: CvStyleDef }) => (
-  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-    {items.map((e, i) => (
-      <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-        <div>
-          <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{e.degree}</div>
-          <div style={{ fontSize: 10.5, color: style.accent }}>{e.institution}</div>
-          {e.description && <div style={{ fontSize: 10, color: style.muted, marginTop: 2 }}>{e.description}</div>}
+const SkillsBlock = ({ groups, style, vertical }: { groups: NonNullable<CvData["skills"]>; style: CvStyleDef; vertical?: boolean }) => {
+  const valid = (groups ?? [])
+    .map((g) => ({
+      category: g?.category ?? "",
+      items: Array.isArray(g?.items) ? g.items.filter((i) => typeof i === "string" && i.trim()) : [],
+    }))
+    .filter((g) => g.category || g.items.length);
+  if (!valid.length) return null;
+  return (
+    <div style={{ display: "flex", flexDirection: vertical ? "column" : "column", gap: 8 }}>
+      {valid.map((g, i) => (
+        <div key={i}>
+          {g.category && <div style={{ fontSize: 10, fontWeight: 600, color: style.ink, marginBottom: 3 }}>{g.category}</div>}
+          {!!g.items.length && (
+            <div style={{ fontSize: 10, color: style.muted, lineHeight: 1.6 }}>{g.items.join(" · ")}</div>
+          )}
         </div>
-        <div style={{ fontSize: 9.5, color: style.muted, whiteSpace: "nowrap" }}>{fmtRange(e.start, e.end)}</div>
-      </div>
-    ))}
-  </div>
-);
+      ))}
+    </div>
+  );
+};
 
-const SkillsBlock = ({ groups, style, vertical }: { groups: NonNullable<CvData["skills"]>; style: CvStyleDef; vertical?: boolean }) => (
-  <div style={{ display: "flex", flexDirection: vertical ? "column" : "column", gap: 8 }}>
-    {groups.map((g, i) => (
-      <div key={i}>
-        <div style={{ fontSize: 10, fontWeight: 600, color: style.ink, marginBottom: 3 }}>{g.category}</div>
-        <div style={{ fontSize: 10, color: style.muted, lineHeight: 1.6 }}>{g.items.join(" · ")}</div>
-      </div>
-    ))}
-  </div>
-);
-
-const Pills = ({ items, style }: { items: string[]; style: CvStyleDef }) => (
-  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-    {items.map((it, i) => (
-      <span key={i} style={{
-        background: style.accentSoft, color: style.accent,
-        fontSize: 9.5, padding: "2px 7px", borderRadius: 4, fontWeight: 500,
-      }}>{it}</span>
-    ))}
-  </div>
-);
+const Pills = ({ items, style }: { items: string[]; style: CvStyleDef }) => {
+  const valid = (items ?? []).filter((it) => typeof it === "string" && it.trim());
+  if (!valid.length) return null;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+      {valid.map((it, i) => (
+        <span key={i} style={{
+          background: style.accentSoft, color: style.accent,
+          fontSize: 9.5, padding: "2px 7px", borderRadius: 4, fontWeight: 500,
+        }}>{it}</span>
+      ))}
+    </div>
+  );
+};
 
 /**
  * Render the configurable CV sections in the user-defined order.
@@ -240,24 +269,27 @@ const renderSections = (
             <SkillsBlock groups={cv.skills} style={style} />
           </Section>
         );
-      case "languages":
-        if (!cv.languages?.length) return null;
+      case "languages": {
+        const langs = (cv.languages ?? []).filter((l) => l && (l.name || l.level));
+        if (!langs.length) return null;
         return (
           <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
             <div style={{ fontSize: 10.5, color: style.ink }}>
-              {cv.languages.map((l) => `${l.name} (${l.level})`).join(" · ")}
+              {langs.map((l) => l.level ? `${l.name ?? ""} (${l.level})` : (l.name ?? "")).filter(Boolean).join(" · ")}
             </div>
           </Section>
         );
-      case "projects":
-        if (!cv.projects?.length) return null;
+      }
+      case "projects": {
+        const projects = (cv.projects ?? []).filter((p) => p && (p.name || p.description));
+        if (!projects.length) return null;
         return (
           <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {cv.projects.map((p, i) => (
+              {projects.map((p, i) => (
                 <div key={i}>
-                  <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{p.name}</div>
-                  <div style={{ fontSize: 10.5, color: style.ink, lineHeight: 1.6 }}>{p.description}</div>
+                  {p.name && <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{p.name}</div>}
+                  {p.description && <div style={{ fontSize: 10.5, color: style.ink, lineHeight: 1.6 }}>{p.description}</div>}
                   {!!p.technologies?.length && (
                     <div style={{ marginTop: 3 }}><Pills items={p.technologies} style={style} /></div>
                   )}
@@ -266,17 +298,20 @@ const renderSections = (
             </div>
           </Section>
         );
-      case "certifications":
-        if (!cv.certifications?.length) return null;
+      }
+      case "certifications": {
+        const certs = (cv.certifications ?? []).filter((c) => c && (c.name || c.issuer));
+        if (!certs.length) return null;
         return (
           <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
             <div style={{ fontSize: 10.5, lineHeight: 1.6, color: style.ink }}>
-              {cv.certifications.map((c, i) => (
-                <div key={i}><strong>{c.name}</strong> — {c.issuer}{c.date ? `, ${c.date}` : ""}</div>
+              {certs.map((c, i) => (
+                <div key={i}><strong>{c.name ?? ""}</strong>{c.issuer ? ` — ${c.issuer}` : ""}{c.date ? `, ${c.date}` : ""}</div>
               ))}
             </div>
           </Section>
         );
+      }
       default:
         return null;
     }
@@ -395,26 +430,36 @@ const SidebarLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
         </div>
       </div>
 
-      {!!cv.skills?.length && (
-        <div style={{ marginTop: 18 }}>
-          <h3 style={{ fontSize: 9.5, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.8, margin: "0 0 6px" }}>Skills</h3>
-          {cv.skills.map((g, i) => (
-            <div key={i} style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 2 }}>{g.category}</div>
-              <div style={{ fontSize: 9.5, opacity: 0.85, lineHeight: 1.5 }}>{g.items.join(" · ")}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!!cv.languages?.length && (
-        <div style={{ marginTop: 18 }}>
-          <h3 style={{ fontSize: 9.5, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.8, margin: "0 0 6px" }}>Språk</h3>
-          <div style={{ fontSize: 10, lineHeight: 1.6 }}>
-            {cv.languages.map((l, i) => <div key={i}>{l.name} <span style={{ opacity: 0.7 }}>· {l.level}</span></div>)}
+      {(() => {
+        const skillGroups = (cv.skills ?? [])
+          .map((g) => ({ category: g?.category ?? "", items: Array.isArray(g?.items) ? g.items.filter((i) => typeof i === "string" && i.trim()) : [] }))
+          .filter((g) => g.category || g.items.length);
+        if (!skillGroups.length) return null;
+        return (
+          <div style={{ marginTop: 18 }}>
+            <h3 style={{ fontSize: 9.5, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.8, margin: "0 0 6px" }}>Skills</h3>
+            {skillGroups.map((g, i) => (
+              <div key={i} style={{ marginBottom: 8 }}>
+                {g.category && <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 2 }}>{g.category}</div>}
+                {!!g.items.length && <div style={{ fontSize: 9.5, opacity: 0.85, lineHeight: 1.5 }}>{g.items.join(" · ")}</div>}
+              </div>
+            ))}
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {(() => {
+        const langs = (cv.languages ?? []).filter((l) => l && (l.name || l.level));
+        if (!langs.length) return null;
+        return (
+          <div style={{ marginTop: 18 }}>
+            <h3 style={{ fontSize: 9.5, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.8, margin: "0 0 6px" }}>Språk</h3>
+            <div style={{ fontSize: 10, lineHeight: 1.6 }}>
+              {langs.map((l, i) => <div key={i}>{l.name ?? ""}{l.level ? <span style={{ opacity: 0.7 }}> · {l.level}</span> : null}</div>)}
+            </div>
+          </div>
+        );
+      })()}
     </aside>
 
     <main style={{ flex: 1, padding: "22mm 18mm", boxSizing: "border-box" }}>
