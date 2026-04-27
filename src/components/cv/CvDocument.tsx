@@ -361,27 +361,13 @@ const CenteredLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
     {cv.intro && (
       <p style={{ fontSize: 11, lineHeight: 1.7, marginTop: 14, textAlign: "justify", color: style.ink }}>{cv.intro}</p>
     )}
-    {!!cv.experiences?.length && <Section title="Faglig erfaring" color={style.accent}><Experience items={cv.experiences} style={style} /></Section>}
-    {!!cv.education?.length && <Section title="Utdanning" color={style.accent}><Education items={cv.education} style={style} /></Section>}
-    {!!cv.projects?.length && (
-      <Section title="Forskning og prosjekter" color={style.accent}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {cv.projects.map((p, i) => (
-            <div key={i}>
-              <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{p.name}</div>
-              <div style={{ fontSize: 10.5, color: style.ink, lineHeight: 1.6 }}>{p.description}</div>
-              {!!p.technologies?.length && <div style={{ fontSize: 9.5, color: style.muted, marginTop: 2 }}>{p.technologies.join(" · ")}</div>}
-            </div>
-          ))}
-        </div>
-      </Section>
-    )}
-    {!!cv.skills?.length && <Section title="Kompetanseområder" color={style.accent}><SkillsBlock groups={cv.skills} style={style} /></Section>}
-    {!!cv.languages?.length && (
-      <Section title="Språk" color={style.accent}>
-        <div style={{ fontSize: 10.5 }}>{cv.languages.map((l) => `${l.name} (${l.level})`).join(" · ")}</div>
-      </Section>
-    )}
+    {renderSections(cv, style, {
+      labels: {
+        experiences: "Faglig erfaring",
+        projects: "Forskning og prosjekter",
+        skills: "Kompetanseområder",
+      },
+    })}
   </div>
 );
 
