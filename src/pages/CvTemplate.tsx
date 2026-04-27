@@ -43,6 +43,7 @@ type CV = {
   website_url: string | null;
   photo_url: string | null;
   intro: string;
+  section_order: CvSectionKey[];
   experiences: Experience[];
   education: Education[];
   skills: SkillGroup[];
@@ -66,7 +67,16 @@ const empty: CV = {
   is_default: true,
   full_name: "", headline: "", email: "", phone: "", location: "",
   linkedin_url: "", website_url: "", photo_url: null, intro: "",
+  section_order: [...DEFAULT_SECTION_ORDER],
   experiences: [], education: [], skills: [], languages: [], projects: [], certifications: [],
+};
+
+const normalizeOrder = (raw: unknown): CvSectionKey[] => {
+  const arr = Array.isArray(raw) ? raw.filter((v): v is string => typeof v === "string") : [];
+  const valid = arr.filter((k): k is CvSectionKey => (DEFAULT_SECTION_ORDER as string[]).includes(k));
+  const seen = new Set(valid);
+  for (const k of DEFAULT_SECTION_ORDER) if (!seen.has(k)) valid.push(k);
+  return valid;
 };
 
 const CvTemplate = () => {
