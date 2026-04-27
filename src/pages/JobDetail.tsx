@@ -233,6 +233,47 @@ const JobDetail = () => {
           <Textarea rows={4} value={job.notes ?? ""} onChange={(e) => saveNotes(e.target.value)} placeholder="Egne notater om denne jobben…" />
         </CardContent>
       </Card>
+
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Velg CV-variant</DialogTitle>
+            <DialogDescription>Hvilken CV vil du bruke for denne søknaden? AI tilpasser teksten basert på valgt variant.</DialogDescription>
+          </DialogHeader>
+          <RadioGroup value={chosen} onValueChange={setChosen} className="space-y-2">
+            <label className="flex items-start gap-3 p-3 rounded-md border border-border hover:bg-accent/40 cursor-pointer">
+              <RadioGroupItem value="__ai__" id="cv-ai" className="mt-1" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium flex items-center gap-1.5">
+                  <Wand2 className="w-3.5 h-3.5 text-primary" /> La AI velge
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">AI plukker varianten som passer best for denne stillingen.</div>
+              </div>
+            </label>
+            {variants.map((v) => (
+              <label key={v.id} className="flex items-start gap-3 p-3 rounded-md border border-border hover:bg-accent/40 cursor-pointer">
+                <RadioGroupItem value={v.id} id={`cv-${v.id}`} className="mt-1" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium flex items-center gap-2">
+                    {v.variant_name || "Standard"}
+                    {v.is_default && <span className="text-[10px] uppercase tracking-wide text-muted-foreground border border-border rounded px-1.5 py-0.5">standard</span>}
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{v.cv_style}</span>
+                  </div>
+                  {v.variant_description && (
+                    <div className="text-xs text-muted-foreground mt-0.5">{v.variant_description}</div>
+                  )}
+                </div>
+              </label>
+            ))}
+          </RadioGroup>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPickerOpen(false)}>Avbryt</Button>
+            <Button onClick={confirmPick}>
+              <Sparkles className="w-4 h-4 mr-2" /> Generer søknad
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
