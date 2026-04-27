@@ -424,21 +424,7 @@ const SidebarLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
           <p style={{ fontSize: 11, lineHeight: 1.6, color: style.ink, margin: 0 }}>{cv.intro}</p>
         </section>
       )}
-      {!!cv.experiences?.length && <Section title="Erfaring" color={style.accent}><Experience items={cv.experiences} style={style} /></Section>}
-      {!!cv.projects?.length && (
-        <Section title="Prosjekter" color={style.accent}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {cv.projects.map((p, i) => (
-              <div key={i}>
-                <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{p.name}</div>
-                <div style={{ fontSize: 10.5, color: style.ink }}>{p.description}</div>
-                {!!p.technologies?.length && <div style={{ marginTop: 3 }}><Pills items={p.technologies} style={style} /></div>}
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
-      {!!cv.education?.length && <Section title="Utdanning" color={style.accent}><Education items={cv.education} style={style} /></Section>}
+      {renderSections(cv, style, { exclude: ["skills", "languages"] })}
     </main>
   </div>
 );
