@@ -14,7 +14,7 @@ const nav = [
   { to: "/applications", label: "Søknader", icon: FileText },
   { to: "/calendar", label: "Kalender", icon: CalendarDays },
   { to: "/sources", label: "Kilder", icon: Radar },
-  { to: "/cv", label: "CV-mal", icon: FileCog },
+  { to: "/cv", label: "CV", icon: FileCog },
   { to: "/profile", label: "Profil", icon: User },
 ];
 

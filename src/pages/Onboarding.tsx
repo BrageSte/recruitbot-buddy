@@ -457,11 +457,17 @@ const Onboarding = () => {
         ).data?.id;
 
     if (existingId) {
-      const { error } = await (supabase as any).from("cv_templates").update(payload).eq("id", existingId);
+      const { error } = await (supabase as any)
+        .from("cv_templates")
+        .update({ ...payload, variant_name: "Standard", is_default: true })
+        .eq("id", existingId);
       if (error) throw error;
     } else {
-      await (supabase as any).from("cv_templates").update({ is_active: false }).eq("user_id", user.id);
-      const { error } = await (supabase as any).from("cv_templates").insert(payload);
+      // First-time onboarding CV becomes the user's default variant.
+      await (supabase as any).from("cv_templates").update({ is_default: false }).eq("user_id", user.id);
+      const { error } = await (supabase as any)
+        .from("cv_templates")
+        .insert({ ...payload, variant_name: "Standard", is_default: true });
       if (error) throw error;
     }
     setSetupItem("cv", "done");
