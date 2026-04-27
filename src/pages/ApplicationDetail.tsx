@@ -70,6 +70,13 @@ const ApplicationDetail = () => {
         cv = data;
       }
       setCvTpl(cv);
+      const { data: cvs } = await supabase
+        .from("cv_templates")
+        .select("id, variant_name, variant_description, cv_style, is_default")
+        .eq("user_id", a.user_id)
+        .order("is_default", { ascending: false })
+        .order("created_at", { ascending: true });
+      setAllCvs(cvs ?? []);
     }
     setLoading(false);
   };
@@ -78,6 +85,13 @@ const ApplicationDetail = () => {
   const setStyle = async (id: CvStyleId) => {
     setApp({ ...app, cv_style: id });
     await supabase.from("applications").update({ cv_style: id }).eq("id", app.id);
+  };
+  const setCvVariant = async (cvTemplateId: string) => {
+    await supabase.from("applications").update({ cv_template_id: cvTemplateId } as any).eq("id", app.id);
+    const { data: cv } = await supabase.from("cv_templates").select("*").eq("id", cvTemplateId).maybeSingle();
+    setCvTpl(cv);
+    setApp({ ...app, cv_template_id: cvTemplateId, cv_style: (cv as any)?.cv_style ?? app.cv_style });
+    toast({ title: "CV byttet", description: (cv as any)?.variant_name ?? "" });
   };
   const exportLetterPdf = async () => {
     if (!letterRef.current) return;
