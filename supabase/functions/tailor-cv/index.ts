@@ -1,5 +1,10 @@
 // Generates AI-tailored CV tweaks for a specific application,
 // based on the user's CV template + the job description.
+//
+// Output now includes a fully-structured `tailored_cv` snapshot
+// (same shape as cv_templates) plus a recommended `section_order`,
+// so the application detail page can render a real PDF/preview
+// in the same style as the cover letter.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -9,13 +14,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SYS = `Du tilpasser en CV-mal til en spesifikk stilling. Vær ærlig — ikke finn på erfaring. Foreslå:
-- En tilpasset intro (2-4 linjer) som kobler kandidatens bakgrunn til stillingens behov
-- Hvilke erfaringer/prosjekter som bør fremheves (titler fra mal-en)
-- Hvilke som bør tones ned eller hoppes over
-- Hvilke ferdigheter som bør prioriteres øverst
-- Konkrete omformuleringsforslag (gammel tekst -> ny tekst) for utvalgte erfaringspunkter
-- En komplett tilpasset CV i markdown, klar til eksport
+const SYS = `Du tilpasser en CV til en spesifikk stilling. ABSOLUTT REGEL: Aldri finn på erfaring, utdanning, sertifiseringer eller ferdigheter som ikke finnes i mal-en.
+
+Du SKAL produsere et komplett, strukturert "tailored_cv"-objekt med samme felter som mal-en. Innenfor dette har du lov til å:
+- Omformulere intro, beskrivelser og bullet points slik at de treffer stillingen bedre.
+- Endre rekkefølgen på elementer i listene (f.eks. flytte mest relevante erfaring øverst).
+- Utelate enkeltelementer som er åpenbart irrelevante (f.eks. uvedkommende ferdigheter), når det styrker søknaden.
+- Justere "section_order" slik at de viktigste avsnittene kommer først for denne stillingen.
+
+I tillegg skal du levere korte AI-anbefalinger (intro, fremhev, ton ned, omformuleringer) og en markdown-versjon for arkiv.
 
 Svar på norsk. Bruk kun informasjon fra mal-en.`;
 
@@ -69,6 +76,25 @@ serve(async (req) => {
 
     const ctx = `CV-MAL (JSON):\n${JSON.stringify(cv, null, 2)}\n\nMASTER-PROFIL:\n${profile?.master_profile ?? ""}\n\nSTIL-GUIDE:\n${profile?.style_guide ?? ""}\n\nSTILLING:\nTittel: ${app.jobs.title}\nSelskap: ${app.jobs.company ?? ""}\nBeskrivelse:\n${app.jobs.description ?? ""}\nAI-oppsummering: ${app.jobs.ai_summary ?? ""}`;
 
+    // Loose schema for the tailored CV — mirrors cv_templates fields.
+    // We avoid being overly strict so the model can pass through whatever
+    // structure each list item already has (titles, bullets, dates, etc.).
+    const tailoredCvSchema = {
+      type: "object",
+      description: "Komplett tilpasset CV-snapshot med samme struktur som mal-en. Behold originaldata, men omformuler/sorter/filtrer.",
+      properties: {
+        intro: { type: "string" },
+        headline: { type: "string" },
+        experiences: { type: "array", items: { type: "object", additionalProperties: true } },
+        education: { type: "array", items: { type: "object", additionalProperties: true } },
+        skills: { type: "array", items: { type: "object", additionalProperties: true } },
+        languages: { type: "array", items: { type: "object", additionalProperties: true } },
+        projects: { type: "array", items: { type: "object", additionalProperties: true } },
+        certifications: { type: "array", items: { type: "object", additionalProperties: true } },
+      },
+      required: ["intro", "experiences", "education", "skills"],
+    };
+
     const tool = {
       type: "function",
       function: {
@@ -76,7 +102,13 @@ serve(async (req) => {
         parameters: {
           type: "object",
           properties: {
-            tailored_intro: { type: "string", description: "2-4 linjer norsk tekst" },
+            tailored_cv: tailoredCvSchema,
+            section_order: {
+              type: "array",
+              items: { type: "string", enum: ["experiences", "education", "skills", "languages", "projects", "certifications"] },
+              description: "Anbefalt rekkefølge på avsnitt for denne stillingen.",
+            },
+            tailored_intro: { type: "string", description: "2-4 linjer norsk tekst (samme som tailored_cv.intro)" },
             highlight_experiences: { type: "array", items: { type: "string" }, description: "Titler fra mal-ens experiences som bør fremheves" },
             deemphasize: { type: "array", items: { type: "string" }, description: "Titler som bør tones ned" },
             prioritize_skills: { type: "array", items: { type: "string" } },
@@ -85,7 +117,7 @@ serve(async (req) => {
               items: {
                 type: "object",
                 properties: {
-                  context: { type: "string", description: "Hvor i CV-en (f.eks. 'Erfaring: Tomra')" },
+                  context: { type: "string" },
                   before: { type: "string" },
                   after: { type: "string" },
                 },
@@ -93,9 +125,9 @@ serve(async (req) => {
               },
             },
             tailored_cv_markdown: { type: "string", description: "Komplett CV i markdown med tilpasninger anvendt" },
-            notes: { type: "string", description: "Korte begrunnelser for valgene" },
+            notes: { type: "string" },
           },
-          required: ["tailored_intro", "highlight_experiences", "deemphasize", "prioritize_skills", "rephrase_suggestions", "tailored_cv_markdown"],
+          required: ["tailored_cv", "section_order", "tailored_intro", "highlight_experiences", "deemphasize", "prioritize_skills", "rephrase_suggestions", "tailored_cv_markdown"],
         },
       },
     };
@@ -127,6 +159,28 @@ serve(async (req) => {
     if (!call) return json({ error: "AI returnerte ikke struktur" }, 500);
     const parsed = JSON.parse(call.function.arguments);
 
+    // Merge the AI's tailored_cv onto the original template so we keep
+    // contact info / styling fields the AI doesn't need to think about.
+    const baseSnapshot: any = {
+      full_name: cv.full_name,
+      headline: cv.headline,
+      email: cv.email,
+      phone: cv.phone,
+      location: cv.location,
+      linkedin_url: cv.linkedin_url,
+      website_url: cv.website_url,
+      photo_url: cv.photo_url,
+      cv_style: cv.cv_style,
+      intro: cv.intro,
+      experiences: cv.experiences,
+      education: cv.education,
+      skills: cv.skills,
+      languages: cv.languages,
+      projects: cv.projects,
+      certifications: cv.certifications,
+    };
+    const tailoredCv = { ...baseSnapshot, ...(parsed.tailored_cv ?? {}) };
+
     // Upsert tweaks
     const { data: tweak, error } = await supabase.from("application_cv_tweaks")
       .upsert({
@@ -138,8 +192,10 @@ serve(async (req) => {
         prioritize_skills: parsed.prioritize_skills ?? [],
         rephrase_suggestions: parsed.rephrase_suggestions ?? [],
         tailored_cv_markdown: parsed.tailored_cv_markdown,
+        tailored_cv: tailoredCv,
+        section_order: parsed.section_order ?? cv.section_order ?? null,
         notes: parsed.notes ?? null,
-      }, { onConflict: "application_id" })
+      } as any, { onConflict: "application_id" })
       .select().maybeSingle();
     if (error) return json({ error: error.message }, 500);
 
