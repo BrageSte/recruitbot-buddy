@@ -166,6 +166,29 @@ const ApplicationDetail = () => {
         </TabsList>
 
         <TabsContent value="letter" className="space-y-4 mt-4">
+          {allCvs.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">CV-variant</CardTitle>
+                <p className="text-xs text-muted-foreground">Hvilken CV som ble brukt for denne søknaden. Bytt for å bruke en annen variant.</p>
+              </CardHeader>
+              <CardContent>
+                <select
+                  value={(app as any).cv_template_id ?? cvTpl?.id ?? ""}
+                  onChange={(e) => setCvVariant(e.target.value)}
+                  className="text-sm border border-input rounded-md px-3 py-2 bg-background w-full max-w-md"
+                >
+                  {allCvs.map((v: any) => (
+                    <option key={v.id} value={v.id}>
+                      {v.variant_name || "Standard"}
+                      {v.is_default ? " (standard)" : ""}
+                      {v.cv_style ? ` · ${v.cv_style}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">CV-stil (matcher søknadsbrevet)</CardTitle>
