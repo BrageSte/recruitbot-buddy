@@ -332,23 +332,10 @@ const HeaderBandLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
           {cv.intro}
         </p>
       )}
-      {!!cv.experiences?.length && <Section title="Yrkeserfaring" color={style.accent} divider={style.accentSoft}><Experience items={cv.experiences} style={style} /></Section>}
-      {!!cv.education?.length && <Section title="Utdanning" color={style.accent} divider={style.accentSoft}><Education items={cv.education} style={style} /></Section>}
-      {!!cv.skills?.length && <Section title="Kompetanse" color={style.accent} divider={style.accentSoft}><SkillsBlock groups={cv.skills} style={style} /></Section>}
-      {!!cv.languages?.length && (
-        <Section title="Språk" color={style.accent} divider={style.accentSoft}>
-          <div style={{ fontSize: 10.5 }}>{cv.languages.map((l) => `${l.name} (${l.level})`).join(" · ")}</div>
-        </Section>
-      )}
-      {!!cv.certifications?.length && (
-        <Section title="Sertifikater" color={style.accent} divider={style.accentSoft}>
-          <div style={{ fontSize: 10.5, lineHeight: 1.6 }}>
-            {cv.certifications.map((c, i) => (
-              <div key={i}><strong>{c.name}</strong> — {c.issuer}{c.date ? `, ${c.date}` : ""}</div>
-            ))}
-          </div>
-        </Section>
-      )}
+      {renderSections(cv, style, {
+        divider: style.accentSoft,
+        labels: { experiences: "Yrkeserfaring", skills: "Kompetanse" },
+      })}
     </div>
   </div>
 );
