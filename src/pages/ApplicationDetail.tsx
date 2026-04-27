@@ -52,8 +52,23 @@ const ApplicationDetail = () => {
     ]);
     setApp(a); setTweak(t); setText(a?.generated_text ?? "");
     if (a?.user_id) {
-      const { data: c } = await supabase.from("cv_templates").select("*").eq("user_id", a.user_id).eq("is_active", true).maybeSingle();
-      setCvTpl(c);
+      let cv: any = null;
+      if ((a as any).cv_template_id) {
+        const { data } = await supabase.from("cv_templates").select("*").eq("id", (a as any).cv_template_id).maybeSingle();
+        cv = data;
+      }
+      if (!cv) {
+        const { data } = await supabase
+          .from("cv_templates")
+          .select("*")
+          .eq("user_id", a.user_id)
+          .order("is_default", { ascending: false })
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        cv = data;
+      }
+      setCvTpl(cv);
     }
     setLoading(false);
   };
