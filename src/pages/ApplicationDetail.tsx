@@ -31,6 +31,7 @@ const ApplicationDetail = () => {
   const [app, setApp] = useState<any>(null);
   const [tweak, setTweak] = useState<any>(null);
   const [cvTpl, setCvTpl] = useState<any>(null);
+  const [allCvs, setAllCvs] = useState<any[]>([]);
   const [text, setText] = useState("");
   const [preview, setPreview] = useState(true);
   const [loading, setLoading] = useState(true);
