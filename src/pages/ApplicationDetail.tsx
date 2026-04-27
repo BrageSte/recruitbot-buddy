@@ -277,15 +277,34 @@ const ApplicationDetail = () => {
             </CardContent>
           </Card>
 
-          {cvTpl && (
+          {effectiveCv && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-base">CV (samme stil)</CardTitle>
-                <Button variant="outline" size="sm" onClick={exportCvPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
+                <div className="space-y-1">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    CV (samme stil)
+                    {isTailored && (
+                      <span className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 bg-primary/15 text-primary rounded">
+                        <Sparkles className="w-3 h-3" /> AI-tilpasset
+                      </span>
+                    )}
+                  </CardTitle>
+                  {isTailored && (
+                    <p className="text-xs text-muted-foreground">
+                      Snapshot av CV omstrukturert for denne stillingen. Eksporten bruker denne versjonen.
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {isTailored && (
+                    <Button variant="ghost" size="sm" onClick={resetTailoredCv}>Bruk original</Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={exportCvPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <SheetViewer>
-                  <div ref={cvRef}><CvDocument cv={cvTpl} styleId={styleId} /></div>
+                  <div ref={cvRef}><CvDocument cv={effectiveCv} styleId={styleId} /></div>
                 </SheetViewer>
               </CardContent>
             </Card>
