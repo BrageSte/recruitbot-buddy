@@ -664,126 +664,230 @@ const CvTemplate = () => {
         </CardContent>
       </Card>
 
-      {/* Experiences */}
-      <SectionList
-        title="Erfaring"
-        items={cv.experiences}
-        onChange={(items) => setCv({ ...cv, experiences: items })}
-        empty={{ title: "", company: "", location: "", start: "", end: "", current: false, description: "", bullets: [], technologies: [] }}
-        render={(item, set) => (
-          <>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Stillingstittel" value={item.title} onChange={(v) => set({ ...item, title: v })} />
-              <Field label="Selskap" value={item.company} onChange={(v) => set({ ...item, company: v })} />
-              <Field label="Sted" value={item.location ?? ""} onChange={(v) => set({ ...item, location: v })} />
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Fra" value={item.start} onChange={(v) => set({ ...item, start: v })} placeholder="2022-08" />
-                <Field label="Til" value={item.end ?? ""} onChange={(v) => set({ ...item, end: v })} placeholder="2024-03 / nå" />
-              </div>
-            </div>
-            <div className="space-y-2 mt-3">
-              <Label>Beskrivelse</Label>
-              <Textarea rows={2} value={item.description ?? ""} onChange={(e) => set({ ...item, description: e.target.value })} />
-            </div>
-            <ChipList label="Bullet points / oppgaver" items={item.bullets} onChange={(b) => set({ ...item, bullets: b })} />
-            <ChipList label="Teknologier" items={item.technologies} onChange={(t) => set({ ...item, technologies: t })} />
-          </>
-        )}
-        labelKey={(it) => `${it.title || "(uten tittel)"} – ${it.company || ""}`}
+      {/* Section order */}
+      <SectionOrderCard
+        order={cv.section_order}
+        onChange={(o) => setCv({ ...cv, section_order: o })}
       />
 
-      {/* Education */}
-      <SectionList
-        title="Utdanning"
-        items={cv.education}
-        onChange={(items) => setCv({ ...cv, education: items })}
-        empty={{ degree: "", institution: "", start: "", end: "", description: "" }}
-        render={(item, set) => (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Grad" value={item.degree} onChange={(v) => set({ ...item, degree: v })} />
-            <Field label="Institusjon" value={item.institution} onChange={(v) => set({ ...item, institution: v })} />
-            <Field label="Fra" value={item.start} onChange={(v) => set({ ...item, start: v })} placeholder="2018" />
-            <Field label="Til" value={item.end ?? ""} onChange={(v) => set({ ...item, end: v })} placeholder="2021" />
-            <div className="col-span-2 space-y-2">
-              <Label>Beskrivelse</Label>
-              <Textarea rows={2} value={item.description ?? ""} onChange={(e) => set({ ...item, description: e.target.value })} />
-            </div>
-          </div>
-        )}
-        labelKey={(it) => `${it.degree || "(uten grad)"} – ${it.institution || ""}`}
-      />
-
-      {/* Skills */}
-      <SectionList
-        title="Ferdigheter"
-        items={cv.skills}
-        onChange={(items) => setCv({ ...cv, skills: items })}
-        empty={{ category: "", items: [] }}
-        render={(item, set) => (
-          <>
-            <Field label="Kategori" value={item.category} onChange={(v) => set({ ...item, category: v })} placeholder="f.eks. Programmeringsspråk" />
-            <ChipList label="Ferdigheter" items={item.items} onChange={(it) => set({ ...item, items: it })} />
-          </>
-        )}
-        labelKey={(it) => it.category || "(uten kategori)"}
-      />
-
-      {/* Languages */}
-      <SectionList
-        title="Språk"
-        items={cv.languages}
-        onChange={(items) => setCv({ ...cv, languages: items })}
-        empty={{ name: "", level: "" }}
-        render={(item, set) => (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Språk" value={item.name} onChange={(v) => set({ ...item, name: v })} />
-            <Field label="Nivå" value={item.level} onChange={(v) => set({ ...item, level: v })} placeholder="morsmål / flytende / B2 …" />
-          </div>
-        )}
-        labelKey={(it) => `${it.name} (${it.level})`}
-      />
-
-      {/* Projects */}
-      <SectionList
-        title="Prosjekter"
-        items={cv.projects}
-        onChange={(items) => setCv({ ...cv, projects: items })}
-        empty={{ name: "", description: "", url: "", technologies: [] }}
-        render={(item, set) => (
-          <>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Navn" value={item.name} onChange={(v) => set({ ...item, name: v })} />
-              <Field label="URL" value={item.url ?? ""} onChange={(v) => set({ ...item, url: v })} />
-            </div>
-            <div className="space-y-2 mt-3">
-              <Label>Beskrivelse</Label>
-              <Textarea rows={2} value={item.description} onChange={(e) => set({ ...item, description: e.target.value })} />
-            </div>
-            <ChipList label="Teknologier" items={item.technologies} onChange={(t) => set({ ...item, technologies: t })} />
-          </>
-        )}
-        labelKey={(it) => it.name || "(uten navn)"}
-      />
-
-      {/* Certifications */}
-      <SectionList
-        title="Sertifikater"
-        items={cv.certifications}
-        onChange={(items) => setCv({ ...cv, certifications: items })}
-        empty={{ name: "", issuer: "", date: "", url: "" }}
-        render={(item, set) => (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Navn" value={item.name} onChange={(v) => set({ ...item, name: v })} />
-            <Field label="Utsteder" value={item.issuer} onChange={(v) => set({ ...item, issuer: v })} />
-            <Field label="Dato" value={item.date ?? ""} onChange={(v) => set({ ...item, date: v })} />
-            <Field label="URL" value={item.url ?? ""} onChange={(v) => set({ ...item, url: v })} />
-          </div>
-        )}
-        labelKey={(it) => `${it.name} – ${it.issuer}`}
-      />
+      {/* Dynamic sections in user-defined order */}
+      {cv.section_order.map((key) => renderEditorSection(key, cv, setCv))}
     </div>
   );
 };
+
+/* ---------- Section order card ---------- */
+
+const SectionOrderCard = ({
+  order,
+  onChange,
+}: {
+  order: CvSectionKey[];
+  onChange: (next: CvSectionKey[]) => void;
+}) => {
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= order.length) return;
+    const next = [...order];
+    const [it] = next.splice(from, 1);
+    next.splice(to, 0, it);
+    onChange(next);
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Rekkefølge på avsnitt</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Dra for å endre rekkefølgen — eller bruk pilene. Påvirker både forhåndsvisning og PDF.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <ul className="space-y-1.5">
+          {order.map((key, i) => (
+            <li
+              key={key}
+              draggable
+              onDragStart={() => setDragIdx(i)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragIdx === null || dragIdx === i) return;
+                move(dragIdx, i);
+                setDragIdx(null);
+              }}
+              onDragEnd={() => setDragIdx(null)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md border bg-background transition-colors ${
+                dragIdx === i ? "opacity-50 border-primary" : "hover:bg-accent"
+              }`}
+            >
+              <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
+              <span className="flex-1 text-sm font-medium">{i + 1}. {SECTION_LABELS[key]}</span>
+              <Button variant="ghost" size="icon" className="h-7 w-7" disabled={i === 0} onClick={() => move(i, i - 1)} aria-label="Flytt opp">
+                <ArrowUp className="w-3.5 h-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7" disabled={i === order.length - 1} onClick={() => move(i, i + 1)} aria-label="Flytt ned">
+                <ArrowDown className="w-3.5 h-3.5" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onChange([...DEFAULT_SECTION_ORDER])}
+          disabled={order.every((k, i) => k === DEFAULT_SECTION_ORDER[i])}
+        >
+          <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Tilbakestill rekkefølge
+        </Button>
+      </CardContent>
+    </Card>
+  );
+};
+
+/* ---------- Per-section editor renderer ---------- */
+
+function renderEditorSection(
+  key: CvSectionKey,
+  cv: CV,
+  setCv: (c: CV) => void,
+): React.ReactNode {
+  switch (key) {
+    case "experiences":
+      return (
+        <SectionList
+          key={key}
+          title="Erfaring"
+          items={cv.experiences}
+          onChange={(items) => setCv({ ...cv, experiences: items })}
+          empty={{ title: "", company: "", location: "", start: "", end: "", current: false, description: "", bullets: [], technologies: [] }}
+          render={(item, set) => (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Stillingstittel" value={item.title} onChange={(v) => set({ ...item, title: v })} />
+                <Field label="Selskap" value={item.company} onChange={(v) => set({ ...item, company: v })} />
+                <Field label="Sted" value={item.location ?? ""} onChange={(v) => set({ ...item, location: v })} />
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Fra" value={item.start} onChange={(v) => set({ ...item, start: v })} placeholder="2022-08" />
+                  <Field label="Til" value={item.end ?? ""} onChange={(v) => set({ ...item, end: v })} placeholder="2024-03 / nå" />
+                </div>
+              </div>
+              <div className="space-y-2 mt-3">
+                <Label>Beskrivelse</Label>
+                <Textarea rows={2} value={item.description ?? ""} onChange={(e) => set({ ...item, description: e.target.value })} />
+              </div>
+              <ChipList label="Bullet points / oppgaver" items={item.bullets} onChange={(b) => set({ ...item, bullets: b })} />
+              <ChipList label="Teknologier" items={item.technologies} onChange={(t) => set({ ...item, technologies: t })} />
+            </>
+          )}
+          labelKey={(it) => `${it.title || "(uten tittel)"} – ${it.company || ""}`}
+        />
+      );
+    case "education":
+      return (
+        <SectionList
+          key={key}
+          title="Utdanning"
+          items={cv.education}
+          onChange={(items) => setCv({ ...cv, education: items })}
+          empty={{ degree: "", institution: "", start: "", end: "", description: "" }}
+          render={(item, set) => (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Grad" value={item.degree} onChange={(v) => set({ ...item, degree: v })} />
+              <Field label="Institusjon" value={item.institution} onChange={(v) => set({ ...item, institution: v })} />
+              <Field label="Fra" value={item.start} onChange={(v) => set({ ...item, start: v })} placeholder="2018" />
+              <Field label="Til" value={item.end ?? ""} onChange={(v) => set({ ...item, end: v })} placeholder="2021" />
+              <div className="col-span-2 space-y-2">
+                <Label>Beskrivelse</Label>
+                <Textarea rows={2} value={item.description ?? ""} onChange={(e) => set({ ...item, description: e.target.value })} />
+              </div>
+            </div>
+          )}
+          labelKey={(it) => `${it.degree || "(uten grad)"} – ${it.institution || ""}`}
+        />
+      );
+    case "skills":
+      return (
+        <SectionList
+          key={key}
+          title="Ferdigheter"
+          items={cv.skills}
+          onChange={(items) => setCv({ ...cv, skills: items })}
+          empty={{ category: "", items: [] }}
+          render={(item, set) => (
+            <>
+              <Field label="Kategori" value={item.category} onChange={(v) => set({ ...item, category: v })} placeholder="f.eks. Programmeringsspråk" />
+              <ChipList label="Ferdigheter" items={item.items} onChange={(it) => set({ ...item, items: it })} />
+            </>
+          )}
+          labelKey={(it) => it.category || "(uten kategori)"}
+        />
+      );
+    case "languages":
+      return (
+        <SectionList
+          key={key}
+          title="Språk"
+          items={cv.languages}
+          onChange={(items) => setCv({ ...cv, languages: items })}
+          empty={{ name: "", level: "" }}
+          render={(item, set) => (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Språk" value={item.name} onChange={(v) => set({ ...item, name: v })} />
+              <Field label="Nivå" value={item.level} onChange={(v) => set({ ...item, level: v })} placeholder="morsmål / flytende / B2 …" />
+            </div>
+          )}
+          labelKey={(it) => `${it.name} (${it.level})`}
+        />
+      );
+    case "projects":
+      return (
+        <SectionList
+          key={key}
+          title="Prosjekter"
+          items={cv.projects}
+          onChange={(items) => setCv({ ...cv, projects: items })}
+          empty={{ name: "", description: "", url: "", technologies: [] }}
+          render={(item, set) => (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Navn" value={item.name} onChange={(v) => set({ ...item, name: v })} />
+                <Field label="URL" value={item.url ?? ""} onChange={(v) => set({ ...item, url: v })} />
+              </div>
+              <div className="space-y-2 mt-3">
+                <Label>Beskrivelse</Label>
+                <Textarea rows={2} value={item.description} onChange={(e) => set({ ...item, description: e.target.value })} />
+              </div>
+              <ChipList label="Teknologier" items={item.technologies} onChange={(t) => set({ ...item, technologies: t })} />
+            </>
+          )}
+          labelKey={(it) => it.name || "(uten navn)"}
+        />
+      );
+    case "certifications":
+      return (
+        <SectionList
+          key={key}
+          title="Sertifikater"
+          items={cv.certifications}
+          onChange={(items) => setCv({ ...cv, certifications: items })}
+          empty={{ name: "", issuer: "", date: "", url: "" }}
+          render={(item, set) => (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Navn" value={item.name} onChange={(v) => set({ ...item, name: v })} />
+              <Field label="Utsteder" value={item.issuer} onChange={(v) => set({ ...item, issuer: v })} />
+              <Field label="Dato" value={item.date ?? ""} onChange={(v) => set({ ...item, date: v })} />
+              <Field label="URL" value={item.url ?? ""} onChange={(v) => set({ ...item, url: v })} />
+            </div>
+          )}
+          labelKey={(it) => `${it.name} – ${it.issuer}`}
+        />
+      );
+    default:
+      return null;
+  }
+}
 
 const Field = ({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) => (
   <div className="space-y-2">
