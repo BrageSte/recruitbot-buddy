@@ -323,10 +323,22 @@ const ApplicationDetail = () => {
             <>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                  <CardTitle className="text-base">AI-anbefalinger</CardTitle>
-                  <Button variant="outline" size="sm" onClick={tailorCv} disabled={tailoring}>
-                    {tailoring ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />} Generer på nytt
-                  </Button>
+                  <div className="space-y-1">
+                    <CardTitle className="text-base">AI-anbefalinger</CardTitle>
+                    {isTailored && (
+                      <p className="text-xs text-muted-foreground">
+                        Snapshot av tilpasset CV er aktivt og brukes ved eksport.
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {isTailored && (
+                      <Button variant="ghost" size="sm" onClick={resetTailoredCv}>Bruk original mal</Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={tailorCv} disabled={tailoring}>
+                      {tailoring ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />} Generer på nytt
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {tweak.tailored_intro && (
@@ -353,6 +365,12 @@ const ApplicationDetail = () => {
                       <div className="flex flex-wrap gap-1.5">{tweak.prioritize_skills.map((e: string, i: number) => <span key={i} className="px-2 py-0.5 bg-primary/15 text-primary rounded text-xs">{e}</span>)}</div>
                     </div>
                   )}
+                  {tweak.section_order?.length > 0 && (
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Foreslått rekkefølge</div>
+                      <div className="flex flex-wrap gap-1.5">{tweak.section_order.map((e: string, i: number) => <span key={i} className="px-2 py-0.5 bg-muted rounded text-xs">{i + 1}. {e}</span>)}</div>
+                    </div>
+                  )}
                   {tweak.rephrase_suggestions?.length > 0 && (
                     <div>
                       <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Omformuleringer</div>
@@ -370,9 +388,24 @@ const ApplicationDetail = () => {
                   {tweak.notes && <div className="text-xs text-muted-foreground italic">{tweak.notes}</div>}
                 </CardContent>
               </Card>
-              {tweak.tailored_cv_markdown && (
+
+              {effectiveCv && isTailored && (
                 <Card>
-                  <CardHeader><CardTitle className="text-base">Komplett tilpasset CV</CardTitle></CardHeader>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                    <CardTitle className="text-base">Forhåndsvisning – tilpasset CV</CardTitle>
+                    <Button variant="outline" size="sm" onClick={exportCvPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
+                  </CardHeader>
+                  <CardContent>
+                    <SheetViewer>
+                      <CvDocument cv={effectiveCv} styleId={styleId} />
+                    </SheetViewer>
+                  </CardContent>
+                </Card>
+              )}
+
+              {tweak.tailored_cv_markdown && !isTailored && (
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Komplett tilpasset CV (markdown)</CardTitle></CardHeader>
                   <CardContent>
                     <div className="prose-app max-w-none border border-border rounded-md p-6 bg-card">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{tweak.tailored_cv_markdown}</ReactMarkdown>
