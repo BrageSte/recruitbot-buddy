@@ -325,6 +325,7 @@ export type Database = {
           phone: string | null
           photo_url: string | null
           projects: Json
+          section_order: string[]
           skills: Json
           updated_at: string
           user_id: string
@@ -351,6 +352,7 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           projects?: Json
+          section_order?: string[]
           skills?: Json
           updated_at?: string
           user_id: string
@@ -377,6 +379,7 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           projects?: Json
+          section_order?: string[]
           skills?: Json
           updated_at?: string
           user_id?: string
