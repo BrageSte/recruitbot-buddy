@@ -7,9 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useToast } from "@/hooks/use-toast";
-import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, Sparkles, ExternalLink, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, Sparkles, ExternalLink, Trash2, Wand2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+
+type CvVariant = { id: string; variant_name: string | null; variant_description: string | null; cv_style: string | null; is_default: boolean };
 
 const JobDetail = () => {
   const { id } = useParams();
@@ -19,6 +24,10 @@ const JobDetail = () => {
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [variants, setVariants] = useState<CvVariant[]>([]);
+  // "__ai__" means let AI choose; otherwise the cv_template_id.
+  const [chosen, setChosen] = useState<string>("__ai__");
 
   useEffect(() => { load(); }, [id]);
 
@@ -30,11 +39,38 @@ const JobDetail = () => {
     setLoading(false);
   };
 
-  const generateApplication = async () => {
+  const openPicker = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("cv_templates")
+      .select("id, variant_name, variant_description, cv_style, is_default")
+      .eq("user_id", user.id)
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: true });
+    const list = (data ?? []) as CvVariant[];
+    setVariants(list);
+    if (list.length === 0) {
+      toast({ title: "Ingen CV", description: "Opprett en CV først under CV-fanen.", variant: "destructive" });
+      return;
+    }
+    if (list.length === 1) {
+      // Skip the dialog — only one CV exists.
+      runGenerate(list[0].id, false);
+      return;
+    }
+    setChosen("__ai__");
+    setPickerOpen(true);
+  };
+
+  const runGenerate = async (cvTemplateId: string | null, letAiPick: boolean) => {
     if (!job || !user) return;
+    setPickerOpen(false);
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-application", { body: { jobId: job.id } });
+      const body: any = { jobId: job.id };
+      if (letAiPick) body.letAiPick = true;
+      else if (cvTemplateId) body.cvTemplateId = cvTemplateId;
+      const { data, error } = await supabase.functions.invoke("generate-application", { body });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
       toast({ title: "Søknad generert" });
@@ -44,6 +80,13 @@ const JobDetail = () => {
     } finally {
       setGenerating(false);
     }
+  };
+
+  const generateApplication = () => openPicker();
+
+  const confirmPick = () => {
+    if (chosen === "__ai__") runGenerate(null, true);
+    else runGenerate(chosen, false);
   };
 
   const remove = async () => {
