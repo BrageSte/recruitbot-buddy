@@ -430,26 +430,36 @@ const SidebarLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => (
         </div>
       </div>
 
-      {!!cv.skills?.length && (
-        <div style={{ marginTop: 18 }}>
-          <h3 style={{ fontSize: 9.5, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.8, margin: "0 0 6px" }}>Skills</h3>
-          {cv.skills.map((g, i) => (
-            <div key={i} style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 2 }}>{g.category}</div>
-              <div style={{ fontSize: 9.5, opacity: 0.85, lineHeight: 1.5 }}>{g.items.join(" · ")}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!!cv.languages?.length && (
-        <div style={{ marginTop: 18 }}>
-          <h3 style={{ fontSize: 9.5, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.8, margin: "0 0 6px" }}>Språk</h3>
-          <div style={{ fontSize: 10, lineHeight: 1.6 }}>
-            {cv.languages.map((l, i) => <div key={i}>{l.name} <span style={{ opacity: 0.7 }}>· {l.level}</span></div>)}
+      {(() => {
+        const skillGroups = (cv.skills ?? [])
+          .map((g) => ({ category: g?.category ?? "", items: Array.isArray(g?.items) ? g.items.filter((i) => typeof i === "string" && i.trim()) : [] }))
+          .filter((g) => g.category || g.items.length);
+        if (!skillGroups.length) return null;
+        return (
+          <div style={{ marginTop: 18 }}>
+            <h3 style={{ fontSize: 9.5, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.8, margin: "0 0 6px" }}>Skills</h3>
+            {skillGroups.map((g, i) => (
+              <div key={i} style={{ marginBottom: 8 }}>
+                {g.category && <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 2 }}>{g.category}</div>}
+                {!!g.items.length && <div style={{ fontSize: 9.5, opacity: 0.85, lineHeight: 1.5 }}>{g.items.join(" · ")}</div>}
+              </div>
+            ))}
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {(() => {
+        const langs = (cv.languages ?? []).filter((l) => l && (l.name || l.level));
+        if (!langs.length) return null;
+        return (
+          <div style={{ marginTop: 18 }}>
+            <h3 style={{ fontSize: 9.5, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.8, margin: "0 0 6px" }}>Språk</h3>
+            <div style={{ fontSize: 10, lineHeight: 1.6 }}>
+              {langs.map((l, i) => <div key={i}>{l.name ?? ""}{l.level ? <span style={{ opacity: 0.7 }}> · {l.level}</span> : null}</div>)}
+            </div>
+          </div>
+        );
+      })()}
     </aside>
 
     <main style={{ flex: 1, padding: "22mm 18mm", boxSizing: "border-box" }}>
