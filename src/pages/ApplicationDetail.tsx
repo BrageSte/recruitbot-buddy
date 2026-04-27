@@ -132,6 +132,20 @@ const ApplicationDetail = () => {
     finally { setTailoring(false); }
   };
 
+  const resetTailoredCv = async () => {
+    if (!confirm("Bruk original CV-mal igjen? Snapshotet av tilpasset CV slettes (anbefalingene beholdes ikke).")) return;
+    await supabase.from("application_cv_tweaks").delete().eq("application_id", app.id);
+    setTweak(null);
+    toast({ title: "Tilbake til original mal" });
+  };
+
+  // The CV that should be rendered in previews/PDFs.
+  // If AI has produced a tailored snapshot, use it — otherwise fall back to the template.
+  const effectiveCv = tweak?.tailored_cv
+    ? { ...cvTpl, ...tweak.tailored_cv, section_order: tweak.section_order ?? tweak.tailored_cv.section_order ?? cvTpl?.section_order }
+    : cvTpl;
+  const isTailored = !!tweak?.tailored_cv;
+
   const remove = async () => {
     if (!confirm("Slett søknaden?")) return;
     await supabase.from("applications").delete().eq("id", app.id);
