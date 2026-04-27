@@ -286,6 +286,7 @@ const CvTemplate = () => {
       phone: cv.phone, location: cv.location, linkedin_url: cv.linkedin_url, website_url: cv.website_url,
       photo_url: cv.photo_url,
       intro: cv.intro,
+      section_order: cv.section_order,
       experiences: cv.experiences as any, education: cv.education as any,
       skills: cv.skills as any, languages: cv.languages as any,
       projects: cv.projects as any, certifications: cv.certifications as any,
