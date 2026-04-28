@@ -126,12 +126,15 @@ const ContactLine = ({ cv, color, sep = "·" }: { cv: CvData; color: string; sep
 };
 
 const Section = ({ title, color, children, divider }: { title: string; color: string; children: any; divider?: string }) => (
-  <section style={{ marginTop: 18 }}>
-    <h2 style={{
-      fontSize: 11, letterSpacing: 2, textTransform: "uppercase",
-      color, margin: 0, marginBottom: 8, fontWeight: 600,
-      borderBottom: divider ? `1px solid ${divider}` : undefined, paddingBottom: divider ? 4 : 0,
-    }}>{title}</h2>
+  <section style={{ marginTop: 18 }} data-break="section">
+    <h2
+      data-break="header"
+      style={{
+        fontSize: 11, letterSpacing: 2, textTransform: "uppercase",
+        color, margin: 0, marginBottom: 8, fontWeight: 600,
+        borderBottom: divider ? `1px solid ${divider}` : undefined, paddingBottom: divider ? 4 : 0,
+      }}
+    >{title}</h2>
     {children}
   </section>
 );
@@ -145,8 +148,8 @@ const Experience = ({ items, style }: { items: NonNullable<CvData["experiences"]
         const bullets = Array.isArray(e.bullets) ? e.bullets.filter((b) => typeof b === "string" && b.trim()) : [];
         const techs = Array.isArray(e.technologies) ? e.technologies.filter((t) => typeof t === "string" && t.trim()) : [];
         return (
-          <div key={i}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+          <div key={i} data-break="item">
+            <div data-keep-together="true" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 11.5, color: style.ink }}>{e.title ?? ""}</div>
                 <div style={{ fontSize: 10.5, color: style.accent }}>
@@ -179,7 +182,7 @@ const Education = ({ items, style }: { items: NonNullable<CvData["education"]>; 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {valid.map((e, i) => (
-        <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+        <div key={i} data-break="item" style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
           <div>
             <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{e.degree ?? ""}</div>
             <div style={{ fontSize: 10.5, color: style.accent }}>{e.institution ?? ""}</div>
@@ -203,7 +206,7 @@ const SkillsBlock = ({ groups, style, vertical }: { groups: NonNullable<CvData["
   return (
     <div style={{ display: "flex", flexDirection: vertical ? "column" : "column", gap: 8 }}>
       {valid.map((g, i) => (
-        <div key={i}>
+        <div key={i} data-break="item">
           {g.category && <div style={{ fontSize: 10, fontWeight: 600, color: style.ink, marginBottom: 3 }}>{g.category}</div>}
           {!!g.items.length && (
             <div style={{ fontSize: 10, color: style.muted, lineHeight: 1.6 }}>{g.items.join(" · ")}</div>
@@ -287,7 +290,7 @@ const renderSections = (
           <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {projects.map((p, i) => (
-                <div key={i}>
+                <div key={i} data-break="item">
                   {p.name && <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{p.name}</div>}
                   {p.description && <div style={{ fontSize: 10.5, color: style.ink, lineHeight: 1.6 }}>{p.description}</div>}
                   {!!p.technologies?.length && (
@@ -306,7 +309,7 @@ const renderSections = (
           <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
             <div style={{ fontSize: 10.5, lineHeight: 1.6, color: style.ink }}>
               {certs.map((c, i) => (
-                <div key={i}><strong>{c.name ?? ""}</strong>{c.issuer ? ` — ${c.issuer}` : ""}{c.date ? `, ${c.date}` : ""}</div>
+                <div key={i} data-break="item"><strong>{c.name ?? ""}</strong>{c.issuer ? ` — ${c.issuer}` : ""}{c.date ? `, ${c.date}` : ""}</div>
               ))}
             </div>
           </Section>
