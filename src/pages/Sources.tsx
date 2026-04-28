@@ -10,7 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { buildFinnSearchUrl } from "@/lib/sourceSuggestions";
+import {
+  buildSourceSearchText,
+  buildSourceSearchUrl,
+  SOURCE_PROVIDER_LABEL,
+  type SourceSuggestionProvider,
+} from "@/lib/sourceSuggestions";
 import {
   Loader2,
   Plus,
@@ -25,6 +30,7 @@ import {
   Sparkles,
   Database,
   ExternalLink,
+  Copy,
   Wand2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -59,7 +65,7 @@ type AutoSearch = {
 
 type SourceSuggestion = {
   id: string;
-  provider: "finn";
+  provider: SourceSuggestionProvider;
   name: string;
   query: string;
   location: string | null;
@@ -164,7 +170,7 @@ const Sources = () => {
       const d: any = data;
       toast({
         title: "Kildeforslag oppdatert",
-        description: `${d.generated ?? 0} Finn-søkeforslag er klare.`,
+        description: `${d.generated ?? 0} søkeforslag er klare.`,
       });
       loadSuggestions(false);
     } catch (e: any) {
@@ -178,7 +184,8 @@ const Sources = () => {
     const next = sourceSuggestions.find((item) => item.id === id);
     const query = patch.query ?? next?.query ?? "";
     const location = patch.location ?? next?.location ?? null;
-    const searchUrl = buildFinnSearchUrl(query, location);
+    const provider = patch.provider ?? next?.provider ?? "finn";
+    const searchUrl = buildSourceSearchUrl(provider, query, location);
     setSourceSuggestions((items) => items.map((item) => (item.id === id ? { ...item, ...patch, search_url: searchUrl } : item)));
     const { error } = await supabase
       .from("source_suggestions")
@@ -193,6 +200,10 @@ const Sources = () => {
   };
 
   const connectSuggestionRss = async (suggestion: SourceSuggestion) => {
+    if (suggestion.provider !== "finn") {
+      toast({ title: "RSS gjelder bare Finn-forslag", variant: "destructive" });
+      return;
+    }
     if (!user || !suggestion.rss_url?.trim()) {
       toast({ title: "Lim inn RSS-lenke først", variant: "destructive" });
       return;
@@ -210,6 +221,12 @@ const Sources = () => {
     toast({ title: "RSS koblet" });
     loadSuggestions(false);
     loadRss();
+  };
+
+  const copySuggestionSearch = async (suggestion: SourceSuggestion) => {
+    const text = buildSourceSearchText(suggestion.query, suggestion.location);
+    await navigator.clipboard.writeText(text);
+    toast({ title: "Søketekst kopiert", description: text });
   };
 
   const loadCoverage = async () => {
@@ -431,12 +448,12 @@ const Sources = () => {
             Full-match dekning
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Delt jobb-cache for anbefalinger på tvers av egne søk. Arbeidsplassen hentes bredt fra NAV-feed; Finn krever API-tilgang eller RSS-fallback.
+            Bred cache brukes som bakgrunnsdekning. Første matcher bruker profilstyrte Arbeidsplassen-søk og Finn/RSS-treff.
           </p>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[
-            { key: "arbeidsplassen", label: "Arbeidsplassen", action: "Hent NAV-feed" },
+            { key: "arbeidsplassen", label: "Arbeidsplassen", action: "Oppdater bred NAV-cache" },
             { key: "finn", label: "Finn", action: "Hent RSS fallback" },
           ].map((s) => {
             const state = sourceStates.find((item) => item.provider === s.key);
@@ -480,10 +497,10 @@ const Sources = () => {
           <div>
             <CardTitle className="text-base flex items-center gap-2">
               <Wand2 className="w-4 h-4 text-primary" />
-              Automatiske Finn-søk
+              Profilstyrte søkeforslag
             </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Appen foreslår Finn-søk fra profil, CV, interesser og matcher. Forslagene ligger på automatisk og kan pauses eller endres.
+              Appen foreslår smale Finn- og Arbeidsplassen-søk fra profil, CV, interesser og matcher. Disse brukes først når jobbene matches.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -494,7 +511,7 @@ const Sources = () => {
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="text-xs text-muted-foreground">
-              {sourceSuggestions.length} forslag · åpne i Finn, lagre søket der, og lim inn RSS-lenken hvis du vil at appen skal hente treff automatisk.
+              {sourceSuggestions.length} forslag · åpne søket, eller kopier teksten og lim den inn i søkefeltet.
             </div>
             <Button variant="outline" size="sm" onClick={() => generateSuggestions(true)} disabled={suggestionsRunning || !suggestionsEnabled}>
               {suggestionsRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
@@ -527,12 +544,16 @@ const Sources = () => {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-sm">{suggestion.name}</span>
+                        <Badge variant="outline">{SOURCE_PROVIDER_LABEL[suggestion.provider]}</Badge>
                         <Badge variant="secondary">{suggestion.confidence}%</Badge>
-                        {suggestion.status === "active" && <Badge variant="outline">RSS koblet</Badge>}
+                        {suggestion.status === "active" && suggestion.provider === "finn" && <Badge variant="outline">RSS koblet</Badge>}
                       </div>
                       {suggestion.reason && <p className="text-xs text-muted-foreground mt-1">{suggestion.reason}</p>}
                     </div>
                     <div className="flex gap-1 shrink-0">
+                      <Button variant="ghost" size="sm" onClick={() => copySuggestionSearch(suggestion)} aria-label="Kopier søketekst">
+                        <Copy className="w-4 h-4" />
+                      </Button>
                       <Button variant="ghost" size="sm" asChild>
                         <a href={suggestion.search_url} target="_blank" rel="noreferrer">
                           <ExternalLink className="w-4 h-4" />
@@ -553,19 +574,29 @@ const Sources = () => {
                       <Label className="text-[11px]">Sted</Label>
                       <Input value={suggestion.location ?? ""} onChange={(e) => updateSuggestion(suggestion.id, { location: e.target.value || null })} />
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-[11px]">RSS fra lagret Finn-søk</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={suggestion.rss_url ?? ""}
-                          onChange={(e) => updateSuggestion(suggestion.id, { rss_url: e.target.value || null })}
-                          placeholder="https://..."
-                        />
-                        <Button variant="outline" onClick={() => connectSuggestionRss(suggestion)}>
-                          Koble
+                    {suggestion.provider === "finn" ? (
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">RSS fra lagret Finn-søk</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            value={suggestion.rss_url ?? ""}
+                            onChange={(e) => updateSuggestion(suggestion.id, { rss_url: e.target.value || null })}
+                            placeholder="https://..."
+                          />
+                          <Button variant="outline" onClick={() => connectSuggestionRss(suggestion)}>
+                            Koble
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Kopier til Arbeidsplassen</Label>
+                        <Button variant="outline" className="w-full justify-start min-w-0" onClick={() => copySuggestionSearch(suggestion)}>
+                          <Copy className="w-4 h-4 mr-2" />
+                          <span className="truncate">{buildSourceSearchText(suggestion.query, suggestion.location)}</span>
                         </Button>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               ))}

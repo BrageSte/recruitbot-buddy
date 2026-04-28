@@ -1306,7 +1306,7 @@ export type Database = {
         | "application"
         | "swipe"
         | "ai_suggested"
-      source_suggestion_provider: "finn"
+      source_suggestion_provider: "finn" | "arbeidsplassen"
       source_suggestion_status: "suggested" | "active" | "paused" | "dismissed"
       user_job_match_status: "new" | "saved" | "dismissed" | "archived"
     }
@@ -1505,7 +1505,7 @@ export const Constants = {
         "swipe",
         "ai_suggested",
       ],
-      source_suggestion_provider: ["finn"],
+      source_suggestion_provider: ["finn", "arbeidsplassen"],
       source_suggestion_status: ["suggested", "active", "paused", "dismissed"],
       user_job_match_status: ["new", "saved", "dismissed", "archived"],
     },

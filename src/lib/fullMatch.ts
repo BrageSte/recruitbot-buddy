@@ -6,6 +6,7 @@ export type MatchableExternalJob = {
   company?: string | null;
   location?: string | null;
   description?: string | null;
+  raw_data?: any;
 };
 
 export type InterestSignal = {
@@ -72,9 +73,37 @@ export const rankExternalJobCandidate = (
   job: MatchableExternalJob,
   positiveTerms: string[],
   negativeTerms: string[] = [],
+  requiredTerms: string[] = [],
 ) => {
-  const haystack = `${job.title} ${job.company ?? ""} ${job.location ?? ""} ${job.description ?? ""}`.toLowerCase();
-  const positiveScore = positiveTerms.reduce((score, term) => score + (haystack.includes(term.toLowerCase()) ? 2 : 0), 0);
-  const negativeScore = negativeTerms.reduce((score, term) => score + (haystack.includes(term.toLowerCase()) ? 8 : 0), 0);
-  return positiveScore - negativeScore;
+  const raw = job.raw_data ?? {};
+  const properties = raw.properties ?? raw.ad_content?.properties ?? {};
+  const tags = [
+    ...(properties.searchtagsai ?? []),
+    ...(properties.searchtags ?? []).map((tag: any) => tag?.label ?? tag?.name ?? ""),
+    ...(raw.categoryList ?? raw.ad_content?.categoryList ?? []).map((cat: any) => cat?.name ?? ""),
+    ...(raw.occupationList ?? raw.ad_content?.occupationList ?? []).map((occ: any) => `${occ?.level1 ?? ""} ${occ?.level2 ?? ""}`),
+  ].join(" ");
+  const titleHaystack = `${job.title} ${properties.jobtitle ?? ""} ${tags}`.toLowerCase();
+  const bodyHaystack = `${job.company ?? ""} ${job.location ?? ""} ${job.description ?? ""}`.toLowerCase();
+  const profileSearchBoost = raw.discovery?.source === "profile_search" ? 30 : 0;
+
+  const requiredHit = requiredTerms.length === 0 || requiredTerms.some((term) => {
+    const normalized = term.toLowerCase();
+    return titleHaystack.includes(normalized) || bodyHaystack.includes(normalized);
+  });
+  if (job.provider === "arbeidsplassen" && requiredTerms.length > 0 && !requiredHit) return -1000;
+
+  const positiveScore = positiveTerms.reduce((score, term) => {
+    const normalized = term.toLowerCase();
+    const titleHit = titleHaystack.includes(normalized);
+    const bodyHit = bodyHaystack.includes(normalized);
+    return score + (titleHit ? 8 : 0) + (bodyHit ? 1 : 0);
+  }, 0);
+  const negativeScore = negativeTerms.reduce((score, term) => {
+    const normalized = term.toLowerCase();
+    const titleHit = titleHaystack.includes(normalized);
+    const bodyHit = bodyHaystack.includes(normalized);
+    return score + (titleHit ? 18 : 0) + (bodyHit ? 12 : 0);
+  }, 0);
+  return positiveScore + profileSearchBoost - negativeScore;
 };

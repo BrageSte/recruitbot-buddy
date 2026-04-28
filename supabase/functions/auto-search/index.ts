@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { aiParse, fetchJobText, weightedScore } from "./enrich.ts";
+import { searchArbeidsplassenJobs } from "../_shared/nav-search.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,49 +38,20 @@ function blockedHint(source: Source, query: string, location: string | null): st
   }
 }
 
-// New NAV endpoint (Elasticsearch-style). Old /public-feed/api/v1/ads now requires bearer token.
 async function searchArbeidsplassen(query: string, location: string | null): Promise<SearchResult> {
   try {
-    const params = new URLSearchParams({ q: query, size: "25" });
-    const url = `https://arbeidsplassen.nav.no/stillinger/api/search?${params}`;
-    const resp = await fetch(url, {
-      headers: { "User-Agent": UA, Accept: "application/json" },
-    });
-    if (resp.status === 403 || resp.status === 429) {
-      return { ok: false, status: "blocked", error: `HTTP ${resp.status}`, hint: blockedHint("arbeidsplassen", query, location) };
-    }
-    if (!resp.ok) return { ok: false, status: "error", error: `HTTP ${resp.status}` };
-    const data = await resp.json();
-    const hitsRaw = (data?.hits?.hits ?? []) as any[];
-    const wantedLoc = location?.trim().toLowerCase() ?? "";
-    // Treat country-level filters as "no filter"
-    const skipFilter = !wantedLoc || ["norge", "norway", "no", "hele norge"].includes(wantedLoc);
-
-    const hits: Hit[] = [];
-    for (const h of hitsRaw) {
-      const src = h._source ?? {};
-      const uuid = src.uuid ?? h._id ?? crypto.randomUUID();
-      const locArr = (src.locationList ?? []) as any[];
-      const city = locArr[0]?.city ?? locArr[0]?.municipal ?? null;
-      const county = locArr[0]?.county ?? null;
-      const locStr = [city, county].filter(Boolean).join(", ") || null;
-
-      if (!skipFilter) {
-        const hay = locArr.map((l) => `${l.city ?? ""} ${l.county ?? ""} ${l.municipal ?? ""} ${l.country ?? ""}`).join(" ").toLowerCase();
-        if (!hay.includes(wantedLoc)) continue;
-      }
-
-      hits.push({
-        external_id: `nav-${uuid}`,
-        url: `https://arbeidsplassen.nav.no/stillinger/stilling/${uuid}`,
-        title: src.title ?? "Uten tittel",
-        company: src.employer?.name ?? src.businessName ?? null,
-        location: locStr,
-        description: null,
-      });
-      if (hits.length >= 20) break;
-    }
-    return { ok: true, hits };
+    const hits = await searchArbeidsplassenJobs(query, location, 25);
+    return {
+      ok: true,
+      hits: hits.slice(0, 20).map((hit) => ({
+        external_id: hit.external_id,
+        url: hit.source_url,
+        title: hit.title,
+        company: hit.company,
+        location: hit.location,
+        description: hit.description,
+      })),
+    };
   } catch (e) {
     return { ok: false, status: "error", error: (e as Error).message };
   }

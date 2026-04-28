@@ -7,14 +7,18 @@ import {
   evaluateMatchVisibility,
   ExternalJobRow,
   json,
+  profileSearchQueries,
   rankCandidate,
   scoreExternalJob,
+  strongSearchTermsFromSignals,
   visibilityRuleRankBoost,
 } from "../_shared/full-match.ts";
+import { searchArbeidsplassenJobs } from "../_shared/nav-search.ts";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
 const CANDIDATE_POOL = 700;
+const PROFILE_SEARCH_HITS_PER_QUERY = 12;
 
 function clampLimit(value: unknown) {
   const n = Number(value);
@@ -123,6 +127,149 @@ async function dismissMatch(admin: any, userId: string, matchId: string, note?: 
   });
 }
 
+async function loadArbeidsplassenSuggestions(admin: any, userId: string, signals: any[], cv: any) {
+  const { data } = await admin
+    .from("source_suggestions")
+    .select("id,name,query,location,confidence")
+    .eq("user_id", userId)
+    .eq("provider", "arbeidsplassen")
+    .eq("is_active", true)
+    .neq("status", "dismissed")
+    .order("confidence", { ascending: false })
+    .limit(8);
+
+  if ((data ?? []).length > 0) return data ?? [];
+  return profileSearchQueries(signals, cv, 6).map((item) => ({
+    id: null,
+    name: `NAV - ${item.query}${item.location ? ` ${item.location}` : ""}`,
+    query: item.query,
+    location: item.location,
+    confidence: 70,
+  }));
+}
+
+async function upsertArbeidsplassenProfileHits(admin: any, suggestions: any[]) {
+  const ids = new Set<string>();
+  let searches = 0;
+  let found = 0;
+  let errors = 0;
+  const searchedAt = new Date().toISOString();
+
+  for (const suggestion of suggestions) {
+    try {
+      const hits = await searchArbeidsplassenJobs(suggestion.query, suggestion.location ?? null, PROFILE_SEARCH_HITS_PER_QUERY);
+      searches++;
+      found += hits.length;
+      for (const hit of hits) {
+        const discovery = {
+          source: "profile_search",
+          provider: "arbeidsplassen",
+          suggestionId: suggestion.id ?? null,
+          suggestionName: suggestion.name ?? null,
+          query: suggestion.query,
+          location: suggestion.location ?? null,
+          navScore: hit.nav_score,
+          searchedAt,
+        };
+        const { data: saved, error } = await admin
+          .from("external_jobs")
+          .upsert(
+            {
+              provider: "arbeidsplassen",
+              external_id: hit.external_id,
+              source_url: hit.source_url,
+              title: hit.title,
+              company: hit.company,
+              location: hit.location,
+              description: hit.description,
+              deadline: hit.deadline,
+              status: "active",
+              raw_data: { ...hit.raw_data, discovery },
+              provider_updated_at: (hit.raw_data as any).published ?? null,
+              fetched_at: searchedAt,
+              last_seen_at: searchedAt,
+            },
+            { onConflict: "provider,external_id" },
+          )
+          .select("id")
+          .maybeSingle();
+        if (!error && saved?.id) ids.add(saved.id);
+      }
+    } catch (e) {
+      errors++;
+      console.error("Arbeidsplassen profile search failed", suggestion.query, (e as Error).message);
+    }
+  }
+
+  return { ids, searches, found, errors };
+}
+
+async function archiveBroadArbeidsplassenMatches(admin: any, userId: string) {
+  const { data } = await admin
+    .from("user_job_matches")
+    .select("id, status, external_jobs(provider, raw_data)")
+    .eq("user_id", userId)
+    .eq("status", "new");
+
+  const ids = (data ?? [])
+    .filter((match: any) => {
+      const external = match.external_jobs;
+      return external?.provider === "arbeidsplassen" && external?.raw_data?.discovery?.source !== "profile_search";
+    })
+    .map((match: any) => match.id);
+
+  if (ids.length > 0) {
+    await admin.from("user_job_matches").update({ status: "archived" }).in("id", ids).eq("user_id", userId);
+  }
+  return ids.length;
+}
+
+async function loadCandidateJobs(admin: any, provider: string | null, profileSearchIds: Set<string>, includeBroadCache: boolean) {
+  const jobs: ExternalJobRow[] = [];
+
+  if (!provider || provider === "finn") {
+    const { data, error } = await admin
+      .from("external_jobs")
+      .select("*")
+      .eq("status", "active")
+      .eq("provider", "finn")
+      .order("provider_updated_at", { ascending: false, nullsFirst: false })
+      .limit(Math.ceil(CANDIDATE_POOL / 2));
+    if (error) throw error;
+    jobs.push(...((data ?? []) as ExternalJobRow[]));
+  }
+
+  if (!provider || provider === "arbeidsplassen") {
+    if (profileSearchIds.size > 0) {
+      const { data, error } = await admin
+        .from("external_jobs")
+        .select("*")
+        .in("id", Array.from(profileSearchIds));
+      if (error) throw error;
+      jobs.push(...((data ?? []) as ExternalJobRow[]));
+    }
+
+    if (includeBroadCache) {
+      const { data, error } = await admin
+        .from("external_jobs")
+        .select("*")
+        .eq("status", "active")
+        .eq("provider", "arbeidsplassen")
+        .order("provider_updated_at", { ascending: false, nullsFirst: false })
+        .limit(Math.ceil(CANDIDATE_POOL / 2));
+      if (error) throw error;
+      jobs.push(...((data ?? []) as ExternalJobRow[]));
+    }
+  }
+
+  const seen = new Set<string>();
+  return jobs.filter((job) => {
+    if (seen.has(job.id)) return false;
+    seen.add(job.id);
+    return true;
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -156,9 +303,11 @@ serve(async (req) => {
 
     const limit = clampLimit(body.limit);
     const refresh = Boolean(body.refresh);
+    const includeBroadCache = Boolean(body.includeBroadCache);
+    const enableProfileSearch = body.profileSearch !== false;
     const provider = body.provider === "arbeidsplassen" || body.provider === "finn" ? body.provider : null;
 
-    const [{ data: profile }, { data: cv }, { data: signals }, { data: feedback }, { data: existingMatches }, { data: visibilityRules }] =
+    const [{ data: profile }, { data: cv }, { data: signals }, { data: feedback }, { data: visibilityRules }] =
       await Promise.all([
         admin.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
         admin.from("cv_templates").select("*").eq("user_id", user.id).order("is_default", { ascending: false }).order("created_at", { ascending: true }).limit(1).maybeSingle(),
@@ -169,7 +318,6 @@ serve(async (req) => {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(80),
-        admin.from("user_job_matches").select("*").eq("user_id", user.id),
         admin
           .from("match_visibility_rules")
           .select("*")
@@ -178,17 +326,23 @@ serve(async (req) => {
       ]);
 
     const { positiveTerms, negativeTerms } = buildProfileTerms(profile, cv, signals ?? [], feedback ?? []);
+    const strongTerms = strongSearchTermsFromSignals(signals ?? []);
     const minVisibleScore = clampVisibleScore(body.minVisibleScore, profile?.match_min_visible_score ?? 65);
-    let externalQ = admin
-      .from("external_jobs")
-      .select("*")
-      .eq("status", "active")
-      .order("provider_updated_at", { ascending: false, nullsFirst: false })
-      .limit(CANDIDATE_POOL);
-    if (provider) externalQ = externalQ.eq("provider", provider);
+    const profileSuggestions = enableProfileSearch && provider !== "finn"
+      ? await loadArbeidsplassenSuggestions(admin, user.id, signals ?? [], cv)
+      : [];
+    const profileSearch = profileSuggestions.length > 0
+      ? await upsertArbeidsplassenProfileHits(admin, profileSuggestions)
+      : { ids: new Set<string>(), searches: 0, found: 0, errors: 0 };
 
-    const { data: externalJobs, error: jobsErr } = await externalQ;
-    if (jobsErr) throw jobsErr;
+    const archivedBroadMatches = enableProfileSearch && !includeBroadCache && provider !== "finn"
+      ? await archiveBroadArbeidsplassenMatches(admin, user.id)
+      : 0;
+
+    const [{ data: existingMatches }, externalJobs] = await Promise.all([
+      admin.from("user_job_matches").select("*").eq("user_id", user.id),
+      loadCandidateJobs(admin, provider, profileSearch.ids, includeBroadCache),
+    ]);
 
     const existingByExternal = new Map<string, any>();
     for (const m of existingMatches ?? []) existingByExternal.set(m.external_job_id, m);
@@ -207,7 +361,10 @@ serve(async (req) => {
           job,
           rank: isExcluded
             ? 1000
-            : rankCandidate(job, positiveTerms, negativeTerms) + visibilityRuleRankBoost(job, visibilityRules ?? []),
+            : rankCandidate(job, positiveTerms, negativeTerms, {
+                requiredTerms: strongTerms,
+                requireStrongMatch: job.provider === "arbeidsplassen" && !preVisibility.includeRuleName,
+              }) + visibilityRuleRankBoost(job, visibilityRules ?? []),
           existing,
           preVisibility,
         };
@@ -216,7 +373,12 @@ serve(async (req) => {
         if (refresh || !existing || existing.status === "new") return true;
         return Boolean(preVisibility.excludeRuleName && existing.status !== "saved" && existing.status !== "dismissed");
       })
-      .filter(({ rank, existing, preVisibility }) => refresh || preVisibility.excludeRuleName || rank > -10 || !existing)
+      .filter(({ job, rank, existing, preVisibility }) =>
+        refresh ||
+        preVisibility.excludeRuleName ||
+        rank > 0 ||
+        (job.provider === "finn" && !existing)
+      )
       .sort((a, b) => b.rank - a.rank)
       .slice(0, limit);
 
@@ -230,7 +392,9 @@ serve(async (req) => {
 
     for (const candidate of ranked) {
       const existing = candidate.existing;
-      if (!refresh && existing?.computed_at) {
+      const discovery = (candidate.job.raw_data as any)?.discovery ?? null;
+      const shouldRefreshProfileSearch = discovery?.source === "profile_search" && existing?.match_reasoning?.discovery?.source !== "profile_search";
+      if (!refresh && existing?.computed_at && !shouldRefreshProfileSearch) {
         skipped++;
         continue;
       }
@@ -253,6 +417,7 @@ serve(async (req) => {
               match_reasoning: {
                 ...(existing?.match_reasoning ?? {}),
                 lexical_rank: candidate.rank,
+                discovery,
                 visibility: preVisibility,
               },
               risk_flags: existing?.risk_flags ?? [],
@@ -315,6 +480,7 @@ serve(async (req) => {
               ...match.match_reasoning,
               ai_summary: match.ai_summary,
               lexical_rank: candidate.rank,
+              discovery,
               visibility: matchVisibility,
             },
             risk_flags: match.risk_flags,
@@ -356,6 +522,10 @@ serve(async (req) => {
       profileSignals: signals?.length ?? 0,
       minVisibleScore,
       positiveTerms: positiveTerms.slice(0, 12),
+      profileSearches: profileSearch.searches,
+      profileSearchFound: profileSearch.found,
+      profileSearchErrors: profileSearch.errors,
+      archivedBroadMatches,
     });
   } catch (e) {
     console.error("match-user-jobs error", e);

@@ -247,13 +247,13 @@ const Matches = () => {
           </div>
           <h1 className="text-2xl md:text-3xl font-semibold">Matcher</h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            Anbefalinger fra den delte jobb-cachen, scoret mot CV, profil, interesser og feedback.
+            Anbefalinger fra Finn/RSS og profilstyrte Arbeidsplassen-søk, scoret mot CV, profil, interesser og feedback.
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={runArbeidsplassenIngest} disabled={ingesting !== null}>
             {ingesting === "arbeidsplassen" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Database className="w-4 h-4 mr-2" />}
-            Hent Arbeidsplassen
+            Oppdater bred NAV-cache
           </Button>
           <Button variant="outline" onClick={runFinnFallback} disabled={ingesting !== null}>
             {ingesting === "finn" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
@@ -335,7 +335,7 @@ const Matches = () => {
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
               {activeMatches.length > 0
                 ? "Senk min score, legg til en inkluder-regel, eller kjør matching på nytt etter at profilen er justert."
-                : "Hent Arbeidsplassen-data først, fyll ut interesseprofilen, og kjør deretter matching."}
+                : "Fyll ut interesseprofilen, la appen lage søkeforslag, og kjør deretter matching."}
             </p>
           </CardContent>
         </Card>
@@ -372,6 +372,7 @@ const MatchItem = ({
 }) => {
   const job = match.external_jobs;
   const reasoning = match.match_reasoning ?? {};
+  const discovery = reasoning.discovery ?? job?.raw_data?.discovery ?? null;
   const provider = (job?.provider ?? "arbeidsplassen") as Provider;
   const strengths = Array.isArray(reasoning.strengths) ? reasoning.strengths : [];
   const concerns = Array.isArray(reasoning.concerns) ? reasoning.concerns : [];
@@ -389,6 +390,9 @@ const MatchItem = ({
               {match.status === "saved" && <Badge variant="secondary">Lagret</Badge>}
               {visibility.includeRuleName && (
                 <Badge variant="outline">Sluppet gjennom av regel: {visibility.includeRuleName}</Badge>
+              )}
+              {discovery?.source === "profile_search" && (
+                <Badge variant="outline">Funnet via: {[discovery.query, discovery.location].filter(Boolean).join(" ")}</Badge>
               )}
               {job?.deadline && <span className="text-xs text-muted-foreground">Frist {new Date(job.deadline).toLocaleDateString("nb-NO")}</span>}
             </div>

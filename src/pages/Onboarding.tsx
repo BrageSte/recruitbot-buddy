@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { ScoreBadge } from "@/components/ScoreBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,8 +15,10 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
   ArrowRight,
+  Briefcase,
   Check,
   CheckCircle2,
+  ExternalLink,
   FileText,
   Loader2,
   LogOut,
@@ -95,6 +98,22 @@ type OnboardingChatMessage = {
 
 type SetupState = Record<string, { status: "pending" | "running" | "done" | "error"; detail?: string }>;
 
+type SetupMatchPreview = {
+  id: string;
+  match_score: number | null;
+  status: string | null;
+  match_reasoning?: any;
+  external_jobs?: {
+    title?: string | null;
+    company?: string | null;
+    location?: string | null;
+    provider?: string | null;
+    source_url?: string | null;
+    deadline?: string | null;
+    raw_data?: any;
+  } | null;
+};
+
 const steps: { key: StepKey; label: string }[] = [
   { key: "cv", label: "CV" },
   { key: "questions", label: "Spørsmål" },
@@ -122,6 +141,10 @@ const setupLabels: Record<string, string> = {
   arbeidsplassen: "Henter Arbeidsplassen",
   matching: "Matcher jobber",
 };
+
+const INITIAL_SETUP_MATCH_LIMIT = 6;
+const BACKGROUND_SETUP_MATCH_LIMIT = 30;
+const SETUP_MATCH_PREVIEW_LIMIT = 6;
 
 const emptySetupState: SetupState = {
   cv: { status: "pending" },
@@ -257,10 +280,37 @@ const Onboarding = () => {
   const [saving, setSaving] = useState(false);
   const [setupState, setSetupState] = useState<SetupState>(freshSetupState);
   const [setupDone, setSetupDone] = useState(false);
+  const [setupMatches, setSetupMatches] = useState<SetupMatchPreview[]>([]);
+  const [continuingMatching, setContinuingMatching] = useState(false);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const mountedRef = useRef(true);
 
   const currentStepIndex = steps.findIndex((step) => step.key === currentStep);
   const progress = Math.round(((currentStepIndex + 1) / steps.length) * 100);
+  const setupMatchingStatus = setupState.matching?.status ?? "pending";
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const loadSetupMatches = useCallback(async () => {
+    if (!user) return [];
+    const { data, error } = await (supabase as any)
+      .from("user_job_matches")
+      .select("id, match_score, status, match_reasoning, external_jobs(title, company, location, provider, source_url, deadline, raw_data)")
+      .eq("user_id", user.id)
+      .neq("status", "dismissed")
+      .neq("status", "archived")
+      .order("match_score", { ascending: false, nullsFirst: false })
+      .limit(SETUP_MATCH_PREVIEW_LIMIT);
+
+    if (error) return [];
+    const rows = ((data ?? []) as SetupMatchPreview[]).filter((match) => typeof match.match_score === "number");
+    if (mountedRef.current) setSetupMatches(rows);
+    return rows;
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -274,6 +324,23 @@ const Onboarding = () => {
       chatEndRef.current?.scrollIntoView({ block: "end" });
     }
   }, [chatMessages.length, currentStep, refiningDraft]);
+
+  useEffect(() => {
+    if (!user || currentStep !== "setup") return;
+    let cancelled = false;
+    const refreshMatches = async () => {
+      if (!cancelled) await loadSetupMatches();
+    };
+
+    void refreshMatches();
+    if (setupMatchingStatus !== "running" && !continuingMatching) return;
+
+    const interval = window.setInterval(refreshMatches, 1800);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [user, currentStep, setupMatchingStatus, continuingMatching, loadSetupMatches]);
 
   const persistRun = async (patch: Record<string, unknown>) => {
     if (!user) return null;
@@ -579,6 +646,7 @@ const Onboarding = () => {
   };
 
   const setSetupItem = (key: string, status: SetupState[string]["status"], detail?: string) => {
+    if (!mountedRef.current) return;
     setSetupState((prev) => ({ ...prev, [key]: { status, detail } }));
   };
 
@@ -695,6 +763,8 @@ const Onboarding = () => {
     setSaving(true);
     setSetupState(freshSetupState());
     setSetupDone(false);
+    setSetupMatches([]);
+    setContinuingMatching(false);
     await updateStep("setup", "applying");
 
     try {
@@ -719,17 +789,60 @@ const Onboarding = () => {
         setSetupItem("arbeidsplassen", "error", e.message);
       }
 
+      let firstMatchingOk = false;
       setSetupItem("matching", "running");
       try {
-        const { data, error } = await supabase.functions.invoke("match-user-jobs", { body: { limit: 20 } });
+        const { data, error } = await supabase.functions.invoke("match-user-jobs", {
+          body: { limit: INITIAL_SETUP_MATCH_LIMIT },
+        });
         if (error) throw error;
-        setSetupItem("matching", "done", `${(data as any)?.scored ?? 0} jobber scoret`);
+        const firstMatches = await loadSetupMatches();
+        setSetupItem(
+          "matching",
+          "done",
+          firstMatches.length > 0
+            ? `${firstMatches.length} matcher klare nå`
+            : `${(data as any)?.scored ?? 0} jobber scoret`,
+        );
+        firstMatchingOk = true;
       } catch (e: any) {
         setSetupItem("matching", "error", e.message);
       }
 
       setSetupDone(true);
-      toast({ title: "Interesseprofilen er klar" });
+      toast({
+        title: firstMatchingOk ? "De første matchene er klare" : "Interesseprofilen er klar",
+        description: firstMatchingOk ? "Vi fortsetter å finne flere i bakgrunnen." : "Du kan prøve matching igjen fra matcher-siden.",
+      });
+
+      const continueMatching = async () => {
+        if (!mountedRef.current) return;
+        setContinuingMatching(true);
+        setSetupItem(
+          "matching",
+          "running",
+          "Vi finner flere jobber til deg. De kommer fortløpende her.",
+        );
+        try {
+          const { data, error } = await supabase.functions.invoke("match-user-jobs", {
+            body: { limit: BACKGROUND_SETUP_MATCH_LIMIT },
+          });
+          if (error) throw error;
+          const latestMatches = await loadSetupMatches();
+          setSetupItem(
+            "matching",
+            "done",
+            latestMatches.length > 0
+              ? `${latestMatches.length} matcher vises, flere ligger i matcher-siden`
+              : `${(data as any)?.scored ?? 0} nye jobber scoret`,
+          );
+        } catch (e: any) {
+          setSetupItem("matching", "error", e.message);
+        } finally {
+          if (mountedRef.current) setContinuingMatching(false);
+        }
+      };
+      if (firstMatchingOk) void continueMatching();
     } catch (e: any) {
       toast({ title: "Kunne ikke lagre onboarding", description: e.message, variant: "destructive" });
     } finally {
@@ -762,6 +875,8 @@ const Onboarding = () => {
     await signOut();
     navigate("/auth", { replace: true });
   };
+
+  const canOpenMatches = setupDone || setupMatches.length > 0;
 
   if (loading) {
     return (
@@ -1185,11 +1300,50 @@ const Onboarding = () => {
                   ))}
                 </div>
 
+                {(setupMatches.length > 0 || setupMatchingStatus === "running" || continuingMatching) && (
+                  <div className="rounded-md border border-border bg-background p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold flex items-center gap-2">
+                          <Briefcase className="w-4 h-4 text-primary" />
+                          Første matcher
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {setupMatches.length > 0
+                            ? "Vi finner flere jobber til deg. De kommer fortløpende her."
+                            : "Ser gjennom de første jobbene som passer profilen din."}
+                        </p>
+                      </div>
+                      {(setupMatchingStatus === "running" || continuingMatching) && (
+                        <Badge variant="secondary" className="shrink-0">
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          Søker videre
+                        </Badge>
+                      )}
+                    </div>
+
+                    {setupMatches.length > 0 ? (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                        {setupMatches.map((match) => (
+                          <SetupMatchCard key={match.id} match={match} />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Første treff dukker opp her når de er scoret.
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {setupDone && (
                   <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-4">
                     <div className="font-medium text-sm">Klar til å se matcher</div>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Interesseprofilen er lagret, kildeforslag er forsøkt opprettet, og første matchrunde er kjørt.
+                      {continuingMatching || setupMatchingStatus === "running"
+                        ? "De første matchene er klare. Vi leter videre, og nye treff kommer inn fortløpende."
+                        : "Interesseprofilen er lagret, kildeforslag er forsøkt opprettet, og første matchrunde er kjørt."}
                     </p>
                   </div>
                 )}
@@ -1198,11 +1352,17 @@ const Onboarding = () => {
                   <Button variant="outline" asChild>
                     <Link to="/">Dashboard</Link>
                   </Button>
-                  <Button asChild disabled={!setupDone}>
-                    <Link to="/matches">
+                  {canOpenMatches ? (
+                    <Button asChild>
+                      <Link to="/matches">
+                        Se matcher <ArrowRight className="w-4 h-4 ml-2" />
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button disabled>
                       Se matcher <ArrowRight className="w-4 h-4 ml-2" />
-                    </Link>
-                  </Button>
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1364,6 +1524,56 @@ const CvSummary = ({ cv }: { cv: CvDraft }) => {
           ))}
         </div>
       )}
+    </div>
+  );
+};
+
+const SetupMatchCard = ({ match }: { match: SetupMatchPreview }) => {
+  const job = match.external_jobs;
+  const summary = String(match.match_reasoning?.ai_summary ?? match.match_reasoning?.summary ?? "").trim();
+  const discovery = match.match_reasoning?.discovery ?? job?.raw_data?.discovery ?? null;
+  const provider = job?.provider === "finn" ? "Finn" : "Arbeidsplassen";
+
+  return (
+    <div className="rounded-md border border-border bg-card p-3 min-w-0">
+      <div className="flex items-start gap-3">
+        <ScoreBadge score={match.match_score} className="shrink-0 mt-0.5" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <Badge variant="outline" className="shrink-0">
+              {provider}
+            </Badge>
+            {discovery?.source === "profile_search" && (
+              <span className="text-xs text-muted-foreground truncate">
+                via {[discovery.query, discovery.location].filter(Boolean).join(" ")}
+              </span>
+            )}
+            {job?.deadline && (
+              <span className="text-xs text-muted-foreground truncate">
+                Frist {new Date(job.deadline).toLocaleDateString("nb-NO")}
+              </span>
+            )}
+          </div>
+          <div className="font-medium text-sm mt-2 leading-snug line-clamp-2">
+            {job?.title ?? "Ukjent stilling"}
+          </div>
+          <div className="text-xs text-muted-foreground mt-1 truncate">
+            {[job?.company, job?.location].filter(Boolean).join(" · ") || "Aktiv annonse"}
+          </div>
+          {summary && <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{summary}</p>}
+        </div>
+        {job?.source_url && (
+          <a
+            href={job.source_url}
+            target="_blank"
+            rel="noreferrer"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground shrink-0"
+            aria-label="Åpne kilde"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        )}
+      </div>
     </div>
   );
 };

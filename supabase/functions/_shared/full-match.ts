@@ -189,23 +189,102 @@ export function tokenize(text: string): string[] {
     .slice(0, 120);
 }
 
-export function rankCandidate(job: ExternalJobRow, terms: string[], negativeTerms: string[] = []): number {
-  const hay = `${job.title} ${job.company ?? ""} ${job.location ?? ""} ${job.description ?? ""}`.toLowerCase();
+function valuesFromArray(items: unknown, picker: (item: any) => string | null | undefined): string[] {
+  if (!Array.isArray(items)) return [];
+  return items.map(picker).filter(Boolean).map(String);
+}
+
+function jobWeightedText(job: ExternalJobRow) {
+  const raw: any = job.raw_data ?? {};
+  const ad = raw.ad_content ?? {};
+  const properties = raw.properties ?? ad.properties ?? {};
+  const searchTags = [
+    ...valuesFromArray(properties.searchtagsai, (item) => item),
+    ...valuesFromArray(properties.searchtags, (item) => item?.label ?? item?.name),
+    ...valuesFromArray(raw.categoryList ?? ad.categoryList, (item) => item?.name),
+    ...valuesFromArray(raw.occupationList ?? ad.occupationList, (item) => `${item?.level1 ?? ""} ${item?.level2 ?? ""}`.trim()),
+  ].join(" ");
+  return {
+    title: [
+      job.title,
+      properties.jobtitle,
+      raw.jobtitle,
+      searchTags,
+    ].filter(Boolean).join(" ").toLowerCase(),
+    body: [
+      job.company,
+      job.location,
+      job.description,
+      raw.generatedSearchMetadata?.shortSummary,
+      ad.generatedSearchMetadata?.shortSummary,
+    ].filter(Boolean).join(" ").toLowerCase(),
+  };
+}
+
+export function strongSearchTermsFromSignals(signals: any[] = []): string[] {
+  const strongCategories = new Set(["role", "industry", "task", "skill"]);
+  return Array.from(new Set(
+    signals
+      .filter((signal) => (signal.weight ?? 0) >= 45 && strongCategories.has(signal.category))
+      .flatMap((signal) => tokenize(signal.label ?? "")),
+  )).slice(0, 30);
+}
+
+export function profileSearchQueries(signals: any[] = [], cv: any = null, max = 6) {
+  const location = signals.find((s) => s.category === "location" && (s.weight ?? 0) >= 0)?.label ?? cv?.location ?? null;
+  const seen = new Set<string>();
+  return signals
+    .filter((signal) => (signal.weight ?? 0) >= 45 && ["role", "industry", "task", "skill"].includes(signal.category))
+    .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
+    .flatMap((signal) => {
+      const query = String(signal.label ?? "").trim().replace(/\s+/g, " ");
+      if (!query || query.length < 3) return [];
+      return [{ query: query.slice(0, 120), location: location ? String(location).slice(0, 80) : null }];
+    })
+    .filter((item) => {
+      const key = `${item.query.toLowerCase()}|${item.location?.toLowerCase() ?? ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, max);
+}
+
+export function rankCandidate(
+  job: ExternalJobRow,
+  terms: string[],
+  negativeTerms: string[] = [],
+  options: { requiredTerms?: string[]; requireStrongMatch?: boolean } = {},
+): number {
+  const weighted = jobWeightedText(job);
+  const discovery = (job.raw_data as any)?.discovery ?? {};
+  const requiredTerms = options.requiredTerms ?? [];
+  const strongHit = requiredTerms.length === 0 || requiredTerms.some((term) => {
+    const normalized = term.toLowerCase();
+    return weighted.title.includes(normalized) || weighted.body.includes(normalized);
+  });
+  if (options.requireStrongMatch && !strongHit) return -1000;
+
   let score = 0;
   for (const term of terms) {
     if (!term) continue;
-    if (hay.includes(term.toLowerCase())) score += term.length > 8 ? 4 : 2;
+    const normalized = term.toLowerCase();
+    if (weighted.title.includes(normalized)) score += term.length > 8 ? 10 : 7;
+    if (weighted.body.includes(normalized)) score += 1;
   }
   for (const term of negativeTerms) {
     if (!term) continue;
-    if (hay.includes(term.toLowerCase())) score -= 8;
+    const normalized = term.toLowerCase();
+    if (weighted.title.includes(normalized)) score -= 18;
+    if (weighted.body.includes(normalized)) score -= 12;
   }
   if (job.deadline) {
     const days = (new Date(job.deadline).getTime() - Date.now()) / 86400000;
     if (days >= 0 && days <= 30) score += 3;
     if (days < 0) score -= 20;
   }
-  if (job.provider === "arbeidsplassen") score += 1;
+  if (discovery.source === "profile_search") score += 35;
+  if (typeof discovery.navScore === "number") score += Math.min(12, Math.max(0, discovery.navScore / 4));
   return score;
 }
 

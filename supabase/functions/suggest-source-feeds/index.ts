@@ -1,8 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { buildProfileTerms, buildSignalText, corsHeaders, json, tokenize } from "../_shared/full-match.ts";
+import { buildProfileTerms, buildSignalText, corsHeaders, json, profileSearchQueries, tokenize } from "../_shared/full-match.ts";
 
+type Provider = "finn" | "arbeidsplassen";
 type Suggestion = {
+  provider: Provider;
   name: string;
   query: string;
   location?: string | null;
@@ -10,8 +12,17 @@ type Suggestion = {
   confidence: number;
 };
 
-function finnSearchUrl(query: string, location?: string | null) {
+function searchText(query: string, location?: string | null) {
+  return [query.trim(), location?.trim()].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+}
+
+function searchUrl(provider: Provider, query: string, location?: string | null) {
   const params = new URLSearchParams();
+  if (provider === "arbeidsplassen") {
+    params.set("q", searchText(query, location));
+    params.set("v", "5");
+    return `https://arbeidsplassen.nav.no/stillinger?${params.toString()}`;
+  }
   params.set("q", query.trim());
   if (location?.trim()) params.set("location", location.trim());
   return `https://www.finn.no/job/search?${params.toString()}`;
@@ -20,8 +31,10 @@ function finnSearchUrl(query: string, location?: string | null) {
 function normalizeSuggestion(s: Suggestion): Suggestion {
   const query = s.query.trim().replace(/\s+/g, " ").slice(0, 120);
   const location = s.location?.trim() ? s.location.trim().slice(0, 80) : null;
+  const provider = s.provider === "arbeidsplassen" ? "arbeidsplassen" : "finn";
   return {
-    name: (s.name?.trim() || `Finn - ${query}`).slice(0, 120),
+    provider,
+    name: (s.name?.trim() || `${provider === "arbeidsplassen" ? "NAV" : "Finn"} - ${query}`).slice(0, 120),
     query,
     location,
     reason: (s.reason?.trim() || "Foreslått fra profil og interesser.").slice(0, 500),
@@ -35,12 +48,17 @@ function uniqSuggestions(items: Suggestion[]) {
   for (const raw of items) {
     const item = normalizeSuggestion(raw);
     if (!item.query || item.query.length < 3) continue;
-    const key = `${item.query.toLowerCase()}|${item.location?.toLowerCase() ?? ""}`;
+    const key = `${item.provider}|${item.query.toLowerCase()}|${item.location?.toLowerCase() ?? ""}`;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(item);
   }
-  return out.slice(0, 12);
+  return out
+    .sort((a, b) => {
+      if (a.provider !== b.provider) return a.provider === "arbeidsplassen" ? -1 : 1;
+      return b.confidence - a.confidence;
+    })
+    .slice(0, 12);
 }
 
 function fallbackSuggestions(profile: any, cv: any, signals: any[], feedback: any[], matches: any[]): Suggestion[] {
@@ -73,22 +91,39 @@ function fallbackSuggestions(profile: any, cv: any, signals: any[], feedback: an
 
   const pairs: Suggestion[] = [];
   for (const term of terms.slice(0, 6)) {
-    pairs.push({
-      name: `Finn - ${term}${defaultLocation ? ` ${defaultLocation}` : ""}`,
-      query: term,
-      location: defaultLocation,
-      reason: "Laget automatisk fra interesseprofil, CV og tidligere matcher.",
-      confidence: 58,
-    });
+    for (const provider of ["arbeidsplassen", "finn"] as Provider[]) {
+      pairs.push({
+        provider,
+        name: `${provider === "arbeidsplassen" ? "NAV" : "Finn"} - ${term}${defaultLocation ? ` ${defaultLocation}` : ""}`,
+        query: term,
+        location: defaultLocation,
+        reason: "Laget automatisk fra interesseprofil, CV og tidligere matcher.",
+        confidence: provider === "arbeidsplassen" ? 66 : 58,
+      });
+    }
   }
 
   if (terms.length >= 2) {
+    for (const provider of ["arbeidsplassen", "finn"] as Provider[]) {
+      pairs.unshift({
+        provider,
+        name: `${provider === "arbeidsplassen" ? "NAV" : "Finn"} - ${terms[0]} + ${terms[1]}`,
+        query: `${terms[0]} ${terms[1]}`,
+        location: defaultLocation,
+        reason: "Kombinerer de sterkeste signalene for å gi et smalere søk.",
+        confidence: provider === "arbeidsplassen" ? 78 : 72,
+      });
+    }
+  }
+
+  for (const item of profileSearchQueries(signals, cv, 6)) {
     pairs.unshift({
-      name: `Finn - ${terms[0]} + ${terms[1]}`,
-      query: `${terms[0]} ${terms[1]}`,
-      location: defaultLocation,
-      reason: "Kombinerer de sterkeste signalene for å gi et smalere Finn-søk.",
-      confidence: 72,
+      provider: "arbeidsplassen",
+      name: `NAV - ${item.query}${item.location ? ` ${item.location}` : ""}`,
+      query: item.query,
+      location: item.location,
+      reason: "Sterkt profilsignal som brukes direkte i Arbeidsplassen-søk.",
+      confidence: 82,
     });
   }
 
@@ -112,13 +147,14 @@ async function aiSuggestions(profile: any, cv: any, signals: any[], feedback: an
             items: {
               type: "object",
               properties: {
+                provider: { type: "string", enum: ["finn", "arbeidsplassen"] },
                 name: { type: "string" },
                 query: { type: "string" },
                 location: { type: "string" },
                 reason: { type: "string" },
                 confidence: { type: "integer", minimum: 0, maximum: 100 },
               },
-              required: ["name", "query", "reason", "confidence"],
+              required: ["provider", "name", "query", "reason", "confidence"],
             },
           },
         },
@@ -132,7 +168,7 @@ async function aiSuggestions(profile: any, cv: any, signals: any[], feedback: an
     .map((m) => `- ${m.match_score ?? "?"}: ${m.external_jobs?.title ?? ""} ${m.external_jobs?.company ?? ""}`)
     .join("\n");
 
-  const prompt = `Lag 6-10 FINN Jobb-søk som brukeren burde følge. Dette skal være søk, ikke scraping. Hold query kort og robust.
+  const prompt = `Lag 4-6 Finn Jobb-søk og 4-6 Arbeidsplassen/NAV-søk som brukeren burde følge. Dette skal være søk, ikke scraping. Hold query kort og robust.
 
 MASTERPROFIL:
 ${profile?.master_profile ?? "(tom)"}
@@ -152,7 +188,7 @@ ${negativeTerms.slice(0, 20).join(", ")}
 STERKE MATCHER:
 ${matchLines || "(ingen ennå)"}
 
-Returner søk med søkeord og valgfritt sted. Ikke lag for brede søk som "jobb" eller "Oslo". Ikke inkluder negative/dealbreaker-termer.`;
+Returner søk med provider, søkeord og valgfritt sted. Ikke lag for brede søk som "jobb" eller "Oslo". Ikke inkluder negative/dealbreaker-termer. Bruk provider "arbeidsplassen" for NAV-søk.`;
 
   try {
     const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -161,7 +197,7 @@ Returner søk med søkeord og valgfritt sted. Ikke lag for brede søk som "jobb"
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: "Du lager konkrete, lovlige kildesøk for FINN Jobb basert på kandidatprofil." },
+          { role: "system", content: "Du lager konkrete, lovlige kildesøk for Finn Jobb og Arbeidsplassen basert på kandidatprofil." },
           { role: "user", content: prompt },
         ],
         tools: [tool],
@@ -207,7 +243,7 @@ serve(async (req) => {
       admin.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
       admin
         .from("source_suggestions")
-        .select("id,status")
+        .select("id,status,provider")
         .eq("user_id", user.id)
         .neq("status", "dismissed"),
     ]);
@@ -216,7 +252,8 @@ serve(async (req) => {
       return json({ ok: true, skipped: true, reason: "auto_source_suggestions_disabled", generated: 0 });
     }
 
-    if (!force && (existing?.length ?? 0) > 0) {
+    const existingProviders = new Set((existing ?? []).map((item: any) => item.provider));
+    if (!force && existingProviders.has("finn") && existingProviders.has("arbeidsplassen")) {
       return json({ ok: true, skipped: true, reason: "suggestions_exist", generated: 0 });
     }
 
@@ -239,16 +276,19 @@ serve(async (req) => {
     for (const suggestion of suggestions) {
       const row = {
         user_id: user.id,
-        provider: "finn",
+        provider: suggestion.provider,
         name: suggestion.name,
         query: suggestion.query,
         location: suggestion.location ?? null,
-        search_url: finnSearchUrl(suggestion.query, suggestion.location),
+        search_url: searchUrl(suggestion.provider, suggestion.query, suggestion.location),
         reason: suggestion.reason,
         confidence: suggestion.confidence,
         status: "suggested",
         is_active: true,
-        metadata: { generated_by: ai?.length ? "ai" : "fallback" },
+        metadata: {
+          generated_by: ai?.length ? "ai" : "fallback",
+          copy_text: searchText(suggestion.query, suggestion.location),
+        },
         last_generated_at: new Date().toISOString(),
       };
       const { error } = await admin.from("source_suggestions").upsert(row, { onConflict: "user_id,provider,query,location" });
