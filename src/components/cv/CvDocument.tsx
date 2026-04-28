@@ -126,12 +126,15 @@ const ContactLine = ({ cv, color, sep = "·" }: { cv: CvData; color: string; sep
 };
 
 const Section = ({ title, color, children, divider }: { title: string; color: string; children: any; divider?: string }) => (
-  <section style={{ marginTop: 18 }}>
-    <h2 style={{
-      fontSize: 11, letterSpacing: 2, textTransform: "uppercase",
-      color, margin: 0, marginBottom: 8, fontWeight: 600,
-      borderBottom: divider ? `1px solid ${divider}` : undefined, paddingBottom: divider ? 4 : 0,
-    }}>{title}</h2>
+  <section style={{ marginTop: 18 }} data-break="section">
+    <h2
+      data-break="header"
+      style={{
+        fontSize: 11, letterSpacing: 2, textTransform: "uppercase",
+        color, margin: 0, marginBottom: 8, fontWeight: 600,
+        borderBottom: divider ? `1px solid ${divider}` : undefined, paddingBottom: divider ? 4 : 0,
+      }}
+    >{title}</h2>
     {children}
   </section>
 );
