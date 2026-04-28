@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useToast } from "@/hooks/use-toast";
+import { evaluateMatchVisibility, type MatchVisibilityRule } from "@/lib/matchVisibility";
 import { Plus, Loader2, Sparkles, ExternalLink, Filter, Bookmark, Trash2, X, Send, ChevronDown, Layers, ArrowUpDown, Archive, ArchiveRestore, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 
@@ -61,6 +62,8 @@ const Jobs = () => {
   const { toast } = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filters, setFilters] = useState<SavedFilter[]>([]);
+  const [visibilityRules, setVisibilityRules] = useState<MatchVisibilityRule[]>([]);
+  const [profileMinScore, setProfileMinScore] = useState(65);
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState<FilterConfig>({});
   const [showFilters, setShowFilters] = useState(false);
@@ -77,12 +80,22 @@ const Jobs = () => {
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    const [j, f] = await Promise.all([
+    const [j, f, p, r] = await Promise.all([
       supabase.from("jobs").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("saved_filters").select("*").eq("user_id", user.id).order("sort_order"),
+      supabase.from("profiles").select("match_min_visible_score").eq("user_id", user.id).maybeSingle(),
+      supabase
+        .from("match_visibility_rules")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_active", true),
     ]);
     setJobs(j.data ?? []);
     setFilters((f.data ?? []) as any);
+    setVisibilityRules((r.data ?? []) as any);
+    const nextMinScore = (p.data as any)?.match_min_visible_score ?? 65;
+    setProfileMinScore(nextMinScore);
+    setConfig((current) => (Object.keys(current).length === 0 ? { minScore: nextMinScore } : current));
     setLoading(false);
   };
 
@@ -92,7 +105,20 @@ const Jobs = () => {
       if (!showArchived && j.status === "archived" && !config.status?.includes("archived")) return false;
       if (config.status?.length && !config.status.includes(j.status)) return false;
       if (config.sources?.length && !config.sources.includes(j.source)) return false;
-      if (config.minScore != null && (j.match_score ?? 0) < config.minScore) return false;
+      const visibility = evaluateMatchVisibility(
+        {
+          title: j.title,
+          company: j.company,
+          location: j.location,
+          description: j.description,
+          source: j.source,
+        },
+        j.match_score,
+        config.minScore ?? profileMinScore,
+        visibilityRules,
+      );
+      if (["discovered", "considering"].includes(j.status) && visibility.excludeRuleName) return false;
+      if (config.minScore != null && (j.match_score ?? 0) < config.minScore && !visibility.includeRuleName) return false;
       if (config.maxScore != null && (j.match_score ?? 100) > config.maxScore) return false;
       if (config.hasRisks === true && !(j.risk_flags?.length > 0)) return false;
       if (config.hasRisks === false && j.risk_flags?.length > 0) return false;
@@ -131,7 +157,7 @@ const Jobs = () => {
       }
     });
     return sorted;
-  }, [jobs, config, sortBy, showArchived]);
+  }, [jobs, config, sortBy, showArchived, profileMinScore, visibilityRules]);
 
   const archivedCount = useMemo(() => jobs.filter((j) => j.status === "archived").length, [jobs]);
   const unscoredCount = useMemo(
@@ -344,7 +370,7 @@ const Jobs = () => {
               <Button variant="outline" size="sm" onClick={saveFilter} disabled={!saveName.trim()}>
                 <Bookmark className="w-4 h-4 mr-1" /> Lagre filter
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => setConfig({})}>Nullstill</Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfig({ minScore: profileMinScore })}>Nullstill</Button>
             </div>
           </CardContent>
         </Card>
@@ -353,11 +379,55 @@ const Jobs = () => {
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Laster…</div>
       ) : filtered.length === 0 ? (
-        <Card><CardContent className="p-12 text-center text-muted-foreground">Ingen jobber matcher.</CardContent></Card>
+        <Card>
+          <CardContent className="p-12 text-center space-y-2">
+            <div className="font-medium">Ingen jobber over filteret</div>
+            <p className="text-sm text-muted-foreground">Senk min score, vis arkiverte, eller nullstill filteret.</p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-2">
           {filtered.map((j) => (
-            <Link key={j.id} to={`/jobs/${j.id}`} className="block">
+            <JobListItem
+              key={j.id}
+              job={j}
+              minScore={config.minScore ?? profileMinScore}
+              visibilityRules={visibilityRules}
+              updateStatus={updateStatus}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const JobListItem = ({
+  job: j,
+  minScore,
+  visibilityRules,
+  updateStatus,
+}: {
+  job: Job;
+  minScore: number;
+  visibilityRules: MatchVisibilityRule[];
+  updateStatus: (id: string, status: string) => void;
+}) => {
+  const visibility = evaluateMatchVisibility(
+    {
+      title: j.title,
+      company: j.company,
+      location: j.location,
+      description: j.description,
+      source: j.source,
+    },
+    j.match_score,
+    minScore,
+    visibilityRules,
+  );
+
+  return (
+    <Link to={`/jobs/${j.id}`} className="block">
               <Card className="hover:shadow-elevated transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-start gap-4">
@@ -371,6 +441,11 @@ const Jobs = () => {
                       {j.ai_summary && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{j.ai_summary}</p>}
                       <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground flex-wrap">
                         <span className="px-1.5 py-0.5 bg-muted rounded">{STATUSES.find((s) => s.v === j.status)?.label}</span>
+                        {visibility.includeRuleName && (
+                          <span className="px-1.5 py-0.5 bg-primary/10 text-primary rounded">
+                            Regel: {visibility.includeRuleName}
+                          </span>
+                        )}
                         {j.interest_level && j.interest_level !== "none" && INTEREST_META[j.interest_level] && (
                           <span className={`px-1.5 py-0.5 rounded ${INTEREST_META[j.interest_level].cls}`}>
                             {INTEREST_META[j.interest_level].label}
@@ -427,10 +502,6 @@ const Jobs = () => {
                 </CardContent>
               </Card>
             </Link>
-          ))}
-        </div>
-      )}
-    </div>
   );
 };
 

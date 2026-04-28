@@ -6,7 +6,10 @@ import { ScoreBadge } from "@/components/ScoreBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { evaluateMatchVisibility, type MatchVisibilityRule, type MatchVisibilityResult } from "@/lib/matchVisibility";
 import {
   AlertTriangle,
   ArrowRight,
@@ -43,6 +46,9 @@ const Matches = () => {
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [states, setStates] = useState<any[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [visibilityRules, setVisibilityRules] = useState<MatchVisibilityRule[]>([]);
+  const [profileMinScore, setProfileMinScore] = useState(65);
+  const [minScore, setMinScore] = useState(65);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [ingesting, setIngesting] = useState<Provider | null>(null);
@@ -55,7 +61,7 @@ const Matches = () => {
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    const [matchRes, stateRes, arbeidsplassenCount, finnCount] = await Promise.all([
+    const [matchRes, stateRes, arbeidsplassenCount, finnCount, profileRes, rulesRes] = await Promise.all([
       supabase
         .from("user_job_matches")
         .select("*, external_jobs(*)")
@@ -74,9 +80,19 @@ const Matches = () => {
         .select("id", { count: "exact", head: true })
         .eq("provider", "finn" as any)
         .eq("status", "active" as any),
+      supabase.from("profiles").select("match_min_visible_score").eq("user_id", user.id).maybeSingle(),
+      supabase
+        .from("match_visibility_rules")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_active", true),
     ]);
     setMatches((matchRes.data ?? []) as any[]);
     setStates(stateRes.data ?? []);
+    setVisibilityRules((rulesRes.data ?? []) as any[]);
+    const nextMinScore = (profileRes.data as any)?.match_min_visible_score ?? 65;
+    setProfileMinScore(nextMinScore);
+    setMinScore((current) => (current === 65 ? nextMinScore : current));
     setCounts({
       arbeidsplassen: arbeidsplassenCount.count ?? 0,
       finn: finnCount.count ?? 0,
@@ -84,9 +100,42 @@ const Matches = () => {
     setLoading(false);
   };
 
+  const decoratedMatches = useMemo(
+    () =>
+      matches.map((match) => {
+        const job = match.external_jobs ?? {};
+        const liveVisibility = evaluateMatchVisibility(
+          {
+            title: job.title,
+            company: job.company,
+            location: job.location,
+            description: job.description,
+            provider: job.provider,
+          },
+          match.match_score,
+          minScore,
+          visibilityRules,
+        );
+        const storedVisibility = match.match_reasoning?.visibility ?? {};
+        const visibility: MatchVisibilityResult = {
+          ...liveVisibility,
+          includeRuleName: liveVisibility.includeRuleName ?? storedVisibility.includeRuleName ?? null,
+          excludeRuleName: liveVisibility.excludeRuleName ?? storedVisibility.excludeRuleName ?? null,
+        };
+        const passesFilter = visibility.visible && !visibility.excludeRuleName && match.status !== "archived";
+        return { ...match, _visibility: visibility, _passesFilter: passesFilter };
+      }),
+    [matches, minScore, visibilityRules],
+  );
+
+  const activeMatches = useMemo(
+    () => decoratedMatches.filter((m) => m.status !== "archived"),
+    [decoratedMatches],
+  );
+
   const topMatches = useMemo(
-    () => matches.filter((m) => m.status !== "archived").slice(0, 30),
-    [matches],
+    () => activeMatches.filter((m) => m._passesFilter).slice(0, 30),
+    [activeMatches],
   );
 
   const runArbeidsplassenIngest = async () => {
@@ -133,13 +182,13 @@ const Matches = () => {
     setRunning(true);
     try {
       const { data, error } = await supabase.functions.invoke("match-user-jobs", {
-        body: { limit: 25 },
+        body: { limit: 25, minVisibleScore: minScore },
       });
       if (error) throw error;
       const d: any = data;
       toast({
         title: "Matcher oppdatert",
-        description: `${d.scored ?? 0} jobber scoret mot profilen din.`,
+        description: `${d.visible ?? 0} synlige av ${d.scored ?? 0} scorede jobber.`,
       });
       await load();
     } catch (e: any) {
@@ -249,6 +298,31 @@ const Matches = () => {
         </div>
       </section>
 
+      <section className="border border-border rounded-md bg-card p-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <div className="font-medium">Synlighetsfilter</div>
+          <p className="text-xs text-muted-foreground mt-1">
+            {topMatches.length} synlige av {activeMatches.length} aktive matcher. Inkluder-regler kan slippe gjennom treff under grensen.
+          </p>
+        </div>
+        <div className="flex items-end gap-2">
+          <div className="space-y-2">
+            <Label className="text-xs">Min score</Label>
+            <Input
+              className="w-24"
+              type="number"
+              min={0}
+              max={100}
+              value={minScore}
+              onChange={(e) => setMinScore(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
+            />
+          </div>
+          <Button variant="outline" onClick={() => setMinScore(profileMinScore)}>
+            Standard {profileMinScore}
+          </Button>
+        </div>
+      </section>
+
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="w-4 h-4 animate-spin" /> Laster matcher...
@@ -257,9 +331,11 @@ const Matches = () => {
         <Card>
           <CardContent className="p-10 text-center space-y-3">
             <Sparkles className="w-8 h-8 mx-auto text-muted-foreground" />
-            <div className="font-medium">Ingen matcher ennå</div>
+            <div className="font-medium">{activeMatches.length > 0 ? "Ingen matcher over filteret" : "Ingen matcher ennå"}</div>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Hent Arbeidsplassen-data først, fyll ut interesseprofilen, og kjør deretter matching.
+              {activeMatches.length > 0
+                ? "Senk min score, legg til en inkluder-regel, eller kjør matching på nytt etter at profilen er justert."
+                : "Hent Arbeidsplassen-data først, fyll ut interesseprofilen, og kjør deretter matching."}
             </p>
           </CardContent>
         </Card>
@@ -269,6 +345,7 @@ const Matches = () => {
             <MatchItem
               key={match.id}
               match={match}
+              visibility={match._visibility}
               saving={savingId === match.id}
               onSave={() => saveMatch(match.id)}
               onDismiss={() => dismissMatch(match.id)}
@@ -282,11 +359,13 @@ const Matches = () => {
 
 const MatchItem = ({
   match,
+  visibility,
   saving,
   onSave,
   onDismiss,
 }: {
   match: MatchRow;
+  visibility: MatchVisibilityResult;
   saving: boolean;
   onSave: () => void;
   onDismiss: () => void;
@@ -308,6 +387,9 @@ const MatchItem = ({
                 {PROVIDER_LABEL[provider]}
               </Badge>
               {match.status === "saved" && <Badge variant="secondary">Lagret</Badge>}
+              {visibility.includeRuleName && (
+                <Badge variant="outline">Sluppet gjennom av regel: {visibility.includeRuleName}</Badge>
+              )}
               {job?.deadline && <span className="text-xs text-muted-foreground">Frist {new Date(job.deadline).toLocaleDateString("nb-NO")}</span>}
             </div>
             <h2 className="font-semibold text-base md:text-lg leading-snug">{job?.title ?? "Ukjent stilling"}</h2>

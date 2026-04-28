@@ -2,11 +2,14 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   buildProfileTerms,
+  clampVisibleScore,
   corsHeaders,
+  evaluateMatchVisibility,
   ExternalJobRow,
   json,
   rankCandidate,
   scoreExternalJob,
+  visibilityRuleRankBoost,
 } from "../_shared/full-match.ts";
 
 const DEFAULT_LIMIT = 20;
@@ -155,7 +158,7 @@ serve(async (req) => {
     const refresh = Boolean(body.refresh);
     const provider = body.provider === "arbeidsplassen" || body.provider === "finn" ? body.provider : null;
 
-    const [{ data: profile }, { data: cv }, { data: signals }, { data: feedback }, { data: existingMatches }] =
+    const [{ data: profile }, { data: cv }, { data: signals }, { data: feedback }, { data: existingMatches }, { data: visibilityRules }] =
       await Promise.all([
         admin.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
         admin.from("cv_templates").select("*").eq("user_id", user.id).order("is_default", { ascending: false }).order("created_at", { ascending: true }).limit(1).maybeSingle(),
@@ -167,9 +170,15 @@ serve(async (req) => {
           .order("created_at", { ascending: false })
           .limit(80),
         admin.from("user_job_matches").select("*").eq("user_id", user.id),
+        admin
+          .from("match_visibility_rules")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("is_active", true),
       ]);
 
     const { positiveTerms, negativeTerms } = buildProfileTerms(profile, cv, signals ?? [], feedback ?? []);
+    const minVisibleScore = clampVisibleScore(body.minVisibleScore, profile?.match_min_visible_score ?? 65);
     let externalQ = admin
       .from("external_jobs")
       .select("*")
@@ -185,24 +194,88 @@ serve(async (req) => {
     for (const m of existingMatches ?? []) existingByExternal.set(m.external_job_id, m);
 
     const ranked = ((externalJobs ?? []) as ExternalJobRow[])
-      .map((job) => ({
-        job,
-        rank: rankCandidate(job, positiveTerms, negativeTerms),
-        existing: existingByExternal.get(job.id),
-      }))
-      .filter(({ existing }) => refresh || !existing || existing.status === "new")
-      .filter(({ rank, existing }) => refresh || rank > -10 || !existing)
+      .map((job) => {
+        const existing = existingByExternal.get(job.id);
+        const preVisibility = evaluateMatchVisibility(
+          job,
+          existing?.match_score ?? null,
+          minVisibleScore,
+          visibilityRules ?? [],
+        );
+        const isExcluded = Boolean(preVisibility.excludeRuleName);
+        return {
+          job,
+          rank: isExcluded
+            ? 1000
+            : rankCandidate(job, positiveTerms, negativeTerms) + visibilityRuleRankBoost(job, visibilityRules ?? []),
+          existing,
+          preVisibility,
+        };
+      })
+      .filter(({ existing, preVisibility }) => {
+        if (refresh || !existing || existing.status === "new") return true;
+        return Boolean(preVisibility.excludeRuleName && existing.status !== "saved" && existing.status !== "dismissed");
+      })
+      .filter(({ rank, existing, preVisibility }) => refresh || preVisibility.excludeRuleName || rank > -10 || !existing)
       .sort((a, b) => b.rank - a.rank)
       .slice(0, limit);
 
     let scored = 0;
     let skipped = 0;
+    let visible = 0;
+    let hiddenBelowThreshold = 0;
+    let includedByRule = 0;
+    let excludedByRule = 0;
     const results: any[] = [];
 
     for (const candidate of ranked) {
       const existing = candidate.existing;
       if (!refresh && existing?.computed_at) {
         skipped++;
+        continue;
+      }
+
+      const preVisibility = candidate.preVisibility;
+      const existingStatus = existing?.status as string | undefined;
+      if (preVisibility.excludeRuleName && existingStatus !== "saved" && existingStatus !== "dismissed") {
+        const { data: saved, error: saveErr } = await admin
+          .from("user_job_matches")
+          .upsert(
+            {
+              user_id: user.id,
+              external_job_id: candidate.job.id,
+              job_id: existing?.job_id ?? null,
+              match_score: existing?.match_score ?? null,
+              score_professional: existing?.score_professional ?? null,
+              score_culture: existing?.score_culture ?? null,
+              score_practical: existing?.score_practical ?? null,
+              score_enthusiasm: existing?.score_enthusiasm ?? null,
+              match_reasoning: {
+                ...(existing?.match_reasoning ?? {}),
+                lexical_rank: candidate.rank,
+                visibility: preVisibility,
+              },
+              risk_flags: existing?.risk_flags ?? [],
+              status: "archived",
+              computed_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id,external_job_id" },
+          )
+          .select("id")
+          .maybeSingle();
+        if (saveErr) {
+          skipped++;
+          console.error("match exclude save failed", candidate.job.id, saveErr.message);
+        } else {
+          excludedByRule++;
+          results.push({
+            id: saved?.id,
+            externalJobId: candidate.job.id,
+            score: existing?.match_score ?? null,
+            title: candidate.job.title,
+            visibility: preVisibility,
+          });
+        }
         continue;
       }
 
@@ -214,6 +287,16 @@ serve(async (req) => {
         feedback ?? [],
         candidate.rank,
       );
+
+      const matchVisibility = evaluateMatchVisibility(
+        candidate.job,
+        match.match_score,
+        minVisibleScore,
+        visibilityRules ?? [],
+      );
+      if (matchVisibility.visible) visible++;
+      if (matchVisibility.hiddenBelowThreshold) hiddenBelowThreshold++;
+      if (matchVisibility.includeRuleName) includedByRule++;
 
       const status = existing?.status && existing.status !== "new" ? existing.status : statusForDecision("none");
       const { data: saved, error: saveErr } = await admin
@@ -232,6 +315,7 @@ serve(async (req) => {
               ...match.match_reasoning,
               ai_summary: match.ai_summary,
               lexical_rank: candidate.rank,
+              visibility: matchVisibility,
             },
             risk_flags: match.risk_flags,
             status,
@@ -247,7 +331,13 @@ serve(async (req) => {
         console.error("match save failed", candidate.job.id, saveErr.message);
       } else {
         scored++;
-        results.push({ id: saved?.id, externalJobId: candidate.job.id, score: match.match_score, title: candidate.job.title });
+        results.push({
+          id: saved?.id,
+          externalJobId: candidate.job.id,
+          score: match.match_score,
+          title: candidate.job.title,
+          visibility: matchVisibility,
+        });
       }
 
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -257,9 +347,14 @@ serve(async (req) => {
       ok: true,
       candidates: ranked.length,
       scored,
+      visible,
+      hiddenBelowThreshold,
+      includedByRule,
+      excludedByRule,
       skipped,
       results,
       profileSignals: signals?.length ?? 0,
+      minVisibleScore,
       positiveTerms: positiveTerms.slice(0, 12),
     });
   } catch (e) {

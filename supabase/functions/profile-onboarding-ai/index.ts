@@ -126,6 +126,19 @@ function answerText(questions: Question[], answers: Record<string, string>) {
     .join("\n");
 }
 
+function compactChatMessages(messages: unknown) {
+  if (!Array.isArray(messages)) return "";
+  return messages
+    .slice(-10)
+    .map((message: any) => {
+      const role = message?.role === "user" ? "Bruker" : "Recruiter";
+      const content = String(message?.content ?? "").trim();
+      return content ? `${role}: ${content.slice(0, 1200)}` : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
 function normalizeQuestions(value: any, cv: any): Question[] {
   const questions = Array.isArray(value?.questions) ? value.questions : Array.isArray(value) ? value : [];
   const normalized = questions.flatMap((q: any, index: number) => {
@@ -380,6 +393,81 @@ ${previousProfile ? JSON.stringify(previousProfile, null, 2).slice(0, 2500) : "(
       ]);
 
       return json({ draft: normalizeDraft(parsed, cv, questions, answers) });
+    }
+
+    if (action === "refine_profile_draft") {
+      const questions = normalizeQuestions(body.questions, cv);
+      const answers = body.answers && typeof body.answers === "object" ? body.answers : {};
+      const currentDraft = normalizeDraft(body.draft, cv, questions, answers);
+      const userMessage = String(body.user_message ?? "").trim();
+      if (!userMessage) return json({ error: "Mangler melding" }, 400);
+
+      const parsed = await callAi([
+        {
+          role: "system",
+          content:
+            "Du er en norsk recruiter og karrierecoach som hjelper en jobbsøker å avklare retning etter CV-onboarding. Svar kort, konkret og rolig. Oppdater profilen når brukeren korrigerer, legger til preferanser eller presiserer hva de vil. Ikke finn på arbeidserfaring, arbeidsgivere, utdanning, datoer, sertifiseringer eller ferdigheter som fakta. Nye opplysninger fra brukeren skal behandles som brukeroppgitte preferanser, ønsker, arbeidsstil, rammer eller selvbeskrivelse.",
+        },
+        {
+          role: "user",
+          content: `Oppdater interesseprofilen basert på siste melding i recruiter-chatten.
+Returner KUN JSON med denne formen:
+{
+  "reply": "Kort norsk svar til brukeren som forklarer hva du justerte og eventuelt ett konkret oppfølgingsspørsmål.",
+  "draft": {
+    "sections": {
+      "about_me": "...",
+      "looking_for": "...",
+      "interests": "...",
+      "constraints": "...",
+      "dealbreakers": "...",
+      "writing_style": "..."
+    },
+    "master_profile": "Markdown med overskriftene Om meg, Hva jeg ser etter, Interesser og sterke signaler, Rammer, Dealbreakers",
+    "style_guide": "...",
+    "rules_green": "...",
+    "rules_yellow": "...",
+    "rules_red": "...",
+    "weights": { "professional": 40, "culture": 20, "practical": 20, "enthusiasm": 20 },
+    "signals": [
+      { "label": "...", "category": "role|industry|task|skill|value|work_style|location|dealbreaker|other", "weight": 70, "confidence": 0.8, "reason": "..." }
+    ]
+  }
+}
+
+Siste melding:
+${userMessage}
+
+Tidligere chat:
+${compactChatMessages(body.messages) || "(ingen tidligere chat)"}
+
+Nåværende profilutkast:
+${JSON.stringify(currentDraft, null, 2).slice(0, 10000)}
+
+CV:
+${cv ? JSON.stringify(cv, null, 2).slice(0, 7000) : "(ingen CV lastet opp)"}
+
+Spørsmål og svar fra onboarding:
+${answerText(questions, answers) || "(ingen svar)"}
+
+Eksisterende lagret profil:
+${previousProfile ? JSON.stringify(previousProfile, null, 2).slice(0, 2000) : "(tom)"}`,
+        },
+      ]);
+
+      if (!parsed) throw new Error("AI svarte ikke");
+      const rawDraftValue = parsed?.draft ?? parsed;
+      const rawDraft = rawDraftValue && typeof rawDraftValue === "object" ? rawDraftValue : {};
+      const mergedDraft = {
+        ...currentDraft,
+        ...rawDraft,
+        sections: { ...currentDraft.sections, ...(rawDraft?.sections ?? {}) },
+        weights: { ...currentDraft.weights, ...(rawDraft?.weights ?? {}) },
+        signals: Array.isArray(rawDraft?.signals) ? rawDraft.signals : currentDraft.signals,
+      };
+      const reply = String(parsed?.reply ?? "Jeg har oppdatert kartleggingen. Se over oppsummeringen før vi setter opp jobbsøket.").slice(0, 1200);
+
+      return json({ reply, draft: normalizeDraft(mergedDraft, cv, questions, answers) });
     }
 
     return json({ error: "Ukjent action" }, 400);

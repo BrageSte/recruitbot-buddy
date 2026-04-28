@@ -664,6 +664,51 @@ export type Database = {
           },
         ]
       }
+      match_visibility_rules: {
+        Row: {
+          action: Database["public"]["Enums"]["match_visibility_rule_action"]
+          company_terms: string[]
+          created_at: string
+          description_terms: string[]
+          id: string
+          is_active: boolean
+          location_terms: string[]
+          name: string
+          source_terms: string[]
+          title_terms: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action?: Database["public"]["Enums"]["match_visibility_rule_action"]
+          company_terms?: string[]
+          created_at?: string
+          description_terms?: string[]
+          id?: string
+          is_active?: boolean
+          location_terms?: string[]
+          name: string
+          source_terms?: string[]
+          title_terms?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["match_visibility_rule_action"]
+          company_terms?: string[]
+          created_at?: string
+          description_terms?: string[]
+          id?: string
+          is_active?: boolean
+          location_terms?: string[]
+          name?: string
+          source_terms?: string[]
+          title_terms?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           application_id: string | null
@@ -745,6 +790,7 @@ export type Database = {
       profile_onboarding_runs: {
         Row: {
           answers: Json
+          chat_messages: Json
           completed_at: string | null
           created_at: string
           current_step: string
@@ -757,6 +803,7 @@ export type Database = {
         }
         Insert: {
           answers?: Json
+          chat_messages?: Json
           completed_at?: string | null
           created_at?: string
           current_step?: string
@@ -769,6 +816,7 @@ export type Database = {
         }
         Update: {
           answers?: Json
+          chat_messages?: Json
           completed_at?: string | null
           created_at?: string
           current_step?: string
@@ -789,6 +837,7 @@ export type Database = {
           email: string | null
           id: string
           linkedin_url: string | null
+          match_min_visible_score: number
           master_profile: string | null
           notify_email: boolean
           notify_high_match_min_score: number
@@ -814,6 +863,7 @@ export type Database = {
           email?: string | null
           id?: string
           linkedin_url?: string | null
+          match_min_visible_score?: number
           master_profile?: string | null
           notify_email?: boolean
           notify_high_match_min_score?: number
@@ -839,6 +889,7 @@ export type Database = {
           email?: string | null
           id?: string
           linkedin_url?: string | null
+          match_min_visible_score?: number
           master_profile?: string | null
           notify_email?: boolean
           notify_high_match_min_score?: number
@@ -1238,6 +1289,7 @@ export type Database = {
         | "deadline_soon"
         | "interview_reminder"
         | "system"
+      match_visibility_rule_action: "include" | "exclude"
       profile_signal_category:
         | "role"
         | "industry"
@@ -1434,6 +1486,7 @@ export const Constants = {
         "interview_reminder",
         "system",
       ],
+      match_visibility_rule_action: ["include", "exclude"],
       profile_signal_category: [
         "role",
         "industry",

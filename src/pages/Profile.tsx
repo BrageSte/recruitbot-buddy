@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Save, Upload, FileText, Trash2, Zap, Plus, Sparkles, Wand2 } from "lucide-react";
+import type { MatchVisibilityRule, MatchVisibilityRuleAction } from "@/lib/matchVisibility";
 
 type Profile = {
   display_name: string | null;
@@ -19,6 +20,7 @@ type Profile = {
   master_profile: string | null;
   style_guide: string | null;
   linkedin_url: string | null;
+  match_min_visible_score: number;
   weight_professional: number;
   weight_culture: number;
   weight_practical: number;
@@ -105,27 +107,37 @@ const Profile = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [signals, setSignals] = useState<InterestSignal[]>([]);
+  const [visibilityRules, setVisibilityRules] = useState<MatchVisibilityRule[]>([]);
   const [auto, setAuto] = useState<AutoApply>(defaultAuto);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [signalLabel, setSignalLabel] = useState("");
   const [signalCategory, setSignalCategory] = useState("task");
   const [signalWeight, setSignalWeight] = useState(70);
+  const [ruleName, setRuleName] = useState("");
+  const [ruleAction, setRuleAction] = useState<MatchVisibilityRuleAction>("include");
+  const [ruleTitleTerms, setRuleTitleTerms] = useState("");
+  const [ruleCompanyTerms, setRuleCompanyTerms] = useState("");
+  const [ruleLocationTerms, setRuleLocationTerms] = useState("");
+  const [ruleDescriptionTerms, setRuleDescriptionTerms] = useState("");
+  const [ruleSourceTerms, setRuleSourceTerms] = useState("");
 
   useEffect(() => { loadAll(); }, [user]);
 
   const loadAll = async () => {
     if (!user) return;
     setLoading(true);
-    const [{ data: prof }, { data: fls }, { data: au }, { data: sig }] = await Promise.all([
+    const [{ data: prof }, { data: fls }, { data: au }, { data: sig }, { data: rules }] = await Promise.all([
       supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
       supabase.from("uploaded_files").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("auto_apply_settings").select("*").eq("user_id", user.id).maybeSingle(),
       supabase.from("profile_interest_signals").select("*").eq("user_id", user.id).order("weight", { ascending: false }),
+      supabase.from("match_visibility_rules").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
     ]);
     if (prof) setProfile(prof as any);
     if (fls) setFiles(fls as any);
     if (sig) setSignals(sig as any);
+    if (rules) setVisibilityRules(rules as any);
     if (au) setAuto({
       is_enabled: au.is_enabled,
       min_score: au.min_score,
@@ -144,6 +156,7 @@ const Profile = () => {
       master_profile: profile.master_profile,
       style_guide: profile.style_guide,
       linkedin_url: profile.linkedin_url,
+      match_min_visible_score: profile.match_min_visible_score,
       weight_professional: profile.weight_professional,
       weight_culture: profile.weight_culture,
       weight_practical: profile.weight_practical,
@@ -217,6 +230,66 @@ const Profile = () => {
   const deleteSignal = async (id: string) => {
     await supabase.from("profile_interest_signals").delete().eq("id", id);
     setSignals((items) => items.filter((s) => s.id !== id));
+  };
+
+  const parseTerms = (value: string) =>
+    value
+      .split(/[,\n]/)
+      .map((term) => term.trim())
+      .filter(Boolean);
+
+  const resetRuleForm = () => {
+    setRuleName("");
+    setRuleAction("include");
+    setRuleTitleTerms("");
+    setRuleCompanyTerms("");
+    setRuleLocationTerms("");
+    setRuleDescriptionTerms("");
+    setRuleSourceTerms("");
+  };
+
+  const addVisibilityRule = async () => {
+    if (!user || !ruleName.trim()) return;
+    const payload = {
+      user_id: user.id,
+      name: ruleName.trim(),
+      action: ruleAction,
+      title_terms: parseTerms(ruleTitleTerms),
+      company_terms: parseTerms(ruleCompanyTerms),
+      location_terms: parseTerms(ruleLocationTerms),
+      description_terms: parseTerms(ruleDescriptionTerms),
+      source_terms: parseTerms(ruleSourceTerms),
+      is_active: true,
+    };
+    const hasTerms = [
+      payload.title_terms,
+      payload.company_terms,
+      payload.location_terms,
+      payload.description_terms,
+      payload.source_terms,
+    ].some((terms) => terms.length > 0);
+    if (!hasTerms) {
+      toast({ title: "Legg inn minst ett søkeord", variant: "destructive" });
+      return;
+    }
+    const { error } = await supabase.from("match_visibility_rules").insert(payload as any);
+    if (error) {
+      toast({ title: "Kunne ikke lagre regel", description: error.message, variant: "destructive" });
+      return;
+    }
+    resetRuleForm();
+    loadAll();
+  };
+
+  const toggleVisibilityRule = async (rule: MatchVisibilityRule) => {
+    setVisibilityRules((items) => items.map((item) => (item.id === rule.id ? { ...item, is_active: !rule.is_active } : item)));
+    await supabase.from("match_visibility_rules").update({ is_active: !rule.is_active }).eq("id", rule.id!);
+  };
+
+  const deleteVisibilityRule = async (id?: string) => {
+    if (!id) return;
+    await supabase.from("match_visibility_rules").delete().eq("id", id);
+    setVisibilityRules((items) => items.filter((rule) => rule.id !== id));
   };
 
   const totalWeight = (profile?.weight_professional ?? 0) + (profile?.weight_culture ?? 0) + (profile?.weight_practical ?? 0) + (profile?.weight_enthusiasm ?? 0);
@@ -373,6 +446,112 @@ const Profile = () => {
               <Input type="number" min={0} value={profile.weekly_goal} onChange={(e) => setProfile({ ...profile, weekly_goal: parseInt(e.target.value) || 0 })} />
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Synlighet og regler</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Styr hvilke matcher som vises som anbefalinger. Regler endrer ikke selve scoren.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4 items-start">
+            <div className="space-y-2">
+              <Label>Min synlig score</Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={profile.match_min_visible_score}
+                onChange={(e) => setProfile({ ...profile, match_min_visible_score: Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) })}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground pt-1">
+              Matcher under denne scoren skjules i anbefalingslisten, men kan vises igjen hvis du senker filteret eller en inkluder-regel treffer.
+            </p>
+          </div>
+
+          <div className="rounded-md border border-border p-4 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_160px] gap-3">
+              <div className="space-y-2">
+                <Label>Regelnavn</Label>
+                <Input value={ruleName} onChange={(e) => setRuleName(e.target.value)} placeholder="f.eks. Klatrejobber hos Ditt og Datt" />
+              </div>
+              <div className="space-y-2">
+                <Label>Handling</Label>
+                <Select value={ruleAction} onValueChange={(value) => setRuleAction(value as MatchVisibilityRuleAction)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="include">Slipp gjennom</SelectItem>
+                    <SelectItem value="exclude">Skjul</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Tittel inneholder</Label>
+                <Input value={ruleTitleTerms} onChange={(e) => setRuleTitleTerms(e.target.value)} placeholder="klatre, instruktør" />
+              </div>
+              <div className="space-y-2">
+                <Label>Selskap inneholder</Label>
+                <Input value={ruleCompanyTerms} onChange={(e) => setRuleCompanyTerms(e.target.value)} placeholder="Ditt og Datt" />
+              </div>
+              <div className="space-y-2">
+                <Label>Sted inneholder</Label>
+                <Input value={ruleLocationTerms} onChange={(e) => setRuleLocationTerms(e.target.value)} placeholder="Oslo, Bergen" />
+              </div>
+              <div className="space-y-2">
+                <Label>Kilde inneholder</Label>
+                <Input value={ruleSourceTerms} onChange={(e) => setRuleSourceTerms(e.target.value)} placeholder="finn, arbeidsplassen" />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label>Beskrivelse inneholder</Label>
+                <Input value={ruleDescriptionTerms} onChange={(e) => setRuleDescriptionTerms(e.target.value)} placeholder="friluft, rute, sikkerhet" />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={addVisibilityRule} disabled={!ruleName.trim()}>
+                <Plus className="w-4 h-4 mr-2" />
+                Legg til regel
+              </Button>
+            </div>
+          </div>
+
+          {visibilityRules.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Ingen synlighetsregler ennå.</p>
+          ) : (
+            <div className="space-y-2">
+              {visibilityRules.map((rule) => (
+                <div key={rule.id} className="flex items-start gap-3 border border-border rounded-md p-3 bg-card">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium">{rule.name}</span>
+                      <Badge variant={rule.action === "include" ? "secondary" : "destructive"}>
+                        {rule.action === "include" ? "Slipp gjennom" : "Skjul"}
+                      </Badge>
+                      {rule.is_active === false && <Badge variant="outline">Pauset</Badge>}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                      {[
+                        rule.title_terms?.length ? `Tittel: ${rule.title_terms.join(", ")}` : "",
+                        rule.company_terms?.length ? `Selskap: ${rule.company_terms.join(", ")}` : "",
+                        rule.location_terms?.length ? `Sted: ${rule.location_terms.join(", ")}` : "",
+                        rule.source_terms?.length ? `Kilde: ${rule.source_terms.join(", ")}` : "",
+                        rule.description_terms?.length ? `Beskrivelse: ${rule.description_terms.join(", ")}` : "",
+                      ].filter(Boolean).join(" · ")}
+                    </div>
+                  </div>
+                  <Switch checked={rule.is_active !== false} onCheckedChange={() => toggleVisibilityRule(rule)} />
+                  <Button variant="ghost" size="icon" onClick={() => deleteVisibilityRule(rule.id)}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,7 +19,9 @@ import {
   FileText,
   Loader2,
   LogOut,
+  MessageSquare,
   Plus,
+  Send,
   Sparkles,
   Target,
   Trash2,
@@ -28,7 +30,7 @@ import {
   X,
 } from "lucide-react";
 
-type StepKey = "cv" | "questions" | "review" | "setup";
+type StepKey = "cv" | "questions" | "review" | "chat" | "setup";
 
 type CvDraft = {
   id?: string;
@@ -83,12 +85,21 @@ type ProfileDraft = {
   signals: SignalDraft[];
 };
 
+type OnboardingChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+  change_summary?: string;
+};
+
 type SetupState = Record<string, { status: "pending" | "running" | "done" | "error"; detail?: string }>;
 
 const steps: { key: StepKey; label: string }[] = [
   { key: "cv", label: "CV" },
   { key: "questions", label: "Spørsmål" },
   { key: "review", label: "Profilutkast" },
+  { key: "chat", label: "Kartlegging" },
   { key: "setup", label: "Jobbsøk" },
 ];
 
@@ -154,6 +165,39 @@ const parseAnswerPayload = (payload: any): { questions: Question[]; answers: Rec
   answers: payload?.values && typeof payload.values === "object" ? payload.values : {},
 });
 
+const chatMessageId = () =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const createChatMessage = (
+  role: OnboardingChatMessage["role"],
+  content: string,
+  change_summary?: string,
+): OnboardingChatMessage => ({
+  id: chatMessageId(),
+  role,
+  content,
+  created_at: new Date().toISOString(),
+  ...(change_summary ? { change_summary } : {}),
+});
+
+const normalizeChatMessages = (messages: any): OnboardingChatMessage[] => {
+  if (!Array.isArray(messages)) return [];
+  return messages
+    .flatMap((message: any) => {
+      const role = message?.role === "user" || message?.role === "assistant" ? message.role : null;
+      const content = String(message?.content ?? "").trim();
+      if (!role || !content) return [];
+      return [{
+        id: String(message.id ?? chatMessageId()),
+        role,
+        content,
+        created_at: String(message.created_at ?? new Date().toISOString()),
+        change_summary: message.change_summary ? String(message.change_summary) : undefined,
+      }];
+    })
+    .slice(-40);
+};
+
 const normalizeCv = (cv: any): CvDraft => ({
   ...cv,
   intro: cv?.intro ?? "",
@@ -205,11 +249,15 @@ const Onboarding = () => {
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [draft, setDraft] = useState<ProfileDraft | null>(null);
+  const [chatMessages, setChatMessages] = useState<OnboardingChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [refiningDraft, setRefiningDraft] = useState(false);
   const [newSignalLabel, setNewSignalLabel] = useState("");
   const [newSignalCategory, setNewSignalCategory] = useState<SignalDraft["category"]>("skill");
   const [saving, setSaving] = useState(false);
   const [setupState, setSetupState] = useState<SetupState>(freshSetupState);
   const [setupDone, setSetupDone] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   const currentStepIndex = steps.findIndex((step) => step.key === currentStep);
   const progress = Math.round(((currentStepIndex + 1) / steps.length) * 100);
@@ -220,6 +268,12 @@ const Onboarding = () => {
     // The initial loader intentionally runs once per user/rerun mode.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, rerun]);
+
+  useEffect(() => {
+    if (currentStep === "chat") {
+      chatEndRef.current?.scrollIntoView({ block: "end" });
+    }
+  }, [chatMessages.length, currentStep, refiningDraft]);
 
   const persistRun = async (patch: Record<string, unknown>) => {
     if (!user) return null;
@@ -279,11 +333,13 @@ const Onboarding = () => {
       setQuestions(payload.questions);
       setAnswers(payload.answers);
       setDraft(Object.keys(runRes.data.profile_draft ?? {}).length ? runRes.data.profile_draft : null);
+      setChatMessages(normalizeChatMessages(runRes.data.chat_messages));
       setLoading(false);
       return;
     }
 
     setCvDraft(existingCv);
+    setChatMessages([]);
     const { data, error } = await (supabase as any)
       .from("profile_onboarding_runs")
       .insert({
@@ -291,6 +347,7 @@ const Onboarding = () => {
         current_step: "cv",
         status: "draft",
         cv_draft: existingCv ?? {},
+        chat_messages: [],
       })
       .select("id")
       .maybeSingle();
@@ -388,7 +445,8 @@ const Onboarding = () => {
       if (error) throw error;
       const next = (data as any)?.draft as ProfileDraft;
       setDraft(next);
-      await persistRun({ profile_draft: next, current_step: "review", status: "review" });
+      setChatMessages([]);
+      await persistRun({ profile_draft: next, chat_messages: [], current_step: "review", status: "review" });
       setCurrentStep("review");
     } catch (e: any) {
       toast({ title: "Kunne ikke lage profilutkast", description: e.message, variant: "destructive" });
@@ -407,6 +465,89 @@ const Onboarding = () => {
   const updateDraftWeight = (key: keyof ProfileDraft["weights"], value: number) => {
     if (!draft) return;
     updateDraft({ weights: { ...draft.weights, [key]: value } });
+  };
+
+  const startRecruiterChat = async () => {
+    if (!draft) return;
+    const nextMessages = chatMessages.length
+      ? chatMessages
+      : [
+          createChatMessage(
+            "assistant",
+            "Jeg har laget en første kartlegging. Skriv hva som ikke stemmer, hva du vil legge til, eller hvilke jobber du egentlig vil mot. Så oppdaterer jeg profilen før vi setter opp matchene.",
+          ),
+        ];
+    setChatMessages(nextMessages);
+    setCurrentStep("chat");
+    try {
+      await persistRun({
+        current_step: "chat",
+        status: "review",
+        profile_draft: draft,
+        chat_messages: nextMessages,
+      });
+    } catch (e: any) {
+      toast({ title: "Kunne ikke lagre chat-steget", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const sendChatMessage = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (!draft || refiningDraft) return;
+    const content = chatInput.trim();
+    if (!content) return;
+
+    const userMessage = createChatMessage("user", content);
+    const nextMessages = [...chatMessages, userMessage];
+    setChatInput("");
+    setChatMessages(nextMessages);
+    setRefiningDraft(true);
+
+    try {
+      await persistRun({
+        current_step: "chat",
+        status: "review",
+        profile_draft: draft,
+        chat_messages: nextMessages,
+      });
+
+      const { data, error } = await supabase.functions.invoke("profile-onboarding-ai", {
+        body: {
+          action: "refine_profile_draft",
+          cv: cvDraft,
+          profile,
+          questions,
+          answers,
+          draft,
+          messages: chatMessages,
+          user_message: content,
+        },
+      });
+      if (error) throw error;
+
+      const nextDraft = (data as any)?.draft as ProfileDraft | undefined;
+      const reply = String((data as any)?.reply ?? "").trim();
+      if (!nextDraft || !reply) throw new Error("AI svarte uten oppdatert kartlegging");
+
+      const assistantMessage = createChatMessage("assistant", reply, (data as any)?.change_summary);
+      const updatedMessages = [...nextMessages, assistantMessage];
+      setDraft(nextDraft);
+      setChatMessages(updatedMessages);
+      await persistRun({
+        current_step: "chat",
+        status: "review",
+        profile_draft: nextDraft,
+        chat_messages: updatedMessages,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Kunne ikke oppdatere kartleggingen",
+        description: e.message ?? "Prøv igjen om litt. Utkastet ditt er ikke overskrevet.",
+        variant: "destructive",
+      });
+    } finally {
+      setRefiningDraft(false);
+    }
   };
 
   const updateSignal = (index: number, patch: Partial<SignalDraft>) => {
@@ -539,7 +680,13 @@ const Onboarding = () => {
       if (signalsError) throw signalsError;
     }
 
-    await persistRun({ status: "completed", current_step: "setup", profile_draft: draft, completed_at: now });
+    await persistRun({
+      status: "completed",
+      current_step: "setup",
+      profile_draft: draft,
+      chat_messages: chatMessages,
+      completed_at: now,
+    });
     setSetupItem("profile", "done");
   };
 
@@ -925,7 +1072,87 @@ const Onboarding = () => {
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Tilbake
                   </Button>
-                  <Button onClick={approveAndSetup} disabled={saving}>
+                  <Button onClick={startRecruiterChat}>
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    Fortsett til kartlegging
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {currentStep === "chat" && draft && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-primary" />
+                  Recruiter-kartlegging
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Sjekk oppsummeringen og bruk chatten til å korrigere retning, rammer og hva du faktisk vil søke etter.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-5 items-start">
+                  <RecruiterSummary draft={draft} />
+
+                  <div className="rounded-md border border-border bg-background min-h-[520px] xl:h-[640px] xl:max-h-[calc(100vh-220px)] flex flex-col overflow-hidden">
+                    <div className="border-b border-border p-4">
+                      <div className="text-sm font-semibold">Samtale</div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Skriv som du ville svart i et kort møte med en recruiter.
+                      </p>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                      {chatMessages.length === 0 && (
+                        <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+                          Skriv hva som mangler, hva som er feil, eller hvilken retning du vil spisse profilen mot.
+                        </div>
+                      )}
+                      {chatMessages.map((message) => (
+                        <ChatBubble key={message.id} message={message} />
+                      ))}
+                      {refiningDraft && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Oppdaterer kartleggingen...
+                        </div>
+                      )}
+                      <div ref={chatEndRef} />
+                    </div>
+
+                    <form onSubmit={sendChatMessage} className="border-t border-border p-3 space-y-3">
+                      <Textarea
+                        rows={3}
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            void sendChatMessage();
+                          }
+                        }}
+                        placeholder="f.eks. Jeg vil heller jobbe med produkt og kundebehov enn ren utvikling..."
+                        disabled={refiningDraft || saving}
+                      />
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs text-muted-foreground">Enter sender. Shift + Enter gir ny linje.</span>
+                        <Button type="submit" size="sm" disabled={!chatInput.trim() || refiningDraft || saving}>
+                          {refiningDraft ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                          Send
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
+                  <Button variant="ghost" onClick={() => updateStep("review", "review")} disabled={saving || refiningDraft}>
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Tilbake
+                  </Button>
+                  <Button onClick={approveAndSetup} disabled={saving || refiningDraft}>
                     {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
                     Godkjenn og sett opp jobbsøk
                   </Button>
@@ -982,6 +1209,129 @@ const Onboarding = () => {
           )}
         </section>
       </main>
+    </div>
+  );
+};
+
+const extractMarkdownSection = (markdown: string | undefined, title: string) => {
+  if (!markdown) return "";
+  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^#{1,3}\\s+${escaped}\\s*$([\\s\\S]*?)(?=^#{1,3}\\s+|\\s*$)`, "im");
+  return markdown.match(re)?.[1]?.trim() ?? "";
+};
+
+const draftSection = (draft: ProfileDraft, key: string, title: string) =>
+  draft.sections?.[key]?.trim() || extractMarkdownSection(draft.master_profile, title);
+
+const RecruiterSummary = ({ draft }: { draft: ProfileDraft }) => {
+  const positiveSignals = draft.signals
+    .filter((signal) => signal.weight > 0 && signal.category !== "dealbreaker")
+    .sort((a, b) => b.weight - a.weight);
+  const searchSignals = positiveSignals
+    .filter((signal) => ["role", "industry", "task", "skill"].includes(signal.category))
+    .slice(0, 10);
+  const dealbreakerSignals = draft.signals
+    .filter((signal) => signal.category === "dealbreaker" || signal.weight < 0)
+    .sort((a, b) => a.weight - b.weight)
+    .slice(0, 8);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-md border border-border bg-muted/20 p-4">
+        <div className="text-xs font-medium uppercase text-muted-foreground">Oppsummering</div>
+        <h2 className="text-xl font-semibold mt-2">Hvem du er og hvor du vil</h2>
+        <p className="text-sm text-muted-foreground mt-2">
+          Dette er profilen appen bruker når den foreslår søk, scorer jobber og lager søknadsutkast.
+        </p>
+      </div>
+
+      <SummaryBlock title="Hvem du er" value={draftSection(draft, "about_me", "Om meg")} />
+      <SummaryBlock title="Hva du vil" value={draftSection(draft, "looking_for", "Hva jeg ser etter")} />
+      <SummaryBlock title="Hva du bør søke etter" value={draftSection(draft, "interests", "Interesser og sterke signaler")}>
+        {searchSignals.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {searchSignals.map((signal) => (
+              <Badge key={`${signal.category}-${signal.label}`} variant="secondary">
+                {signal.label}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </SummaryBlock>
+      <SummaryBlock title="Rammer" value={draftSection(draft, "constraints", "Rammer")} />
+      <SummaryBlock title="Dealbreakers" value={draftSection(draft, "dealbreakers", "Dealbreakers")}>
+        {dealbreakerSignals.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {dealbreakerSignals.map((signal) => (
+              <Badge key={`${signal.category}-${signal.label}`} variant="destructive">
+                {signal.label}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </SummaryBlock>
+
+      <div className="rounded-md border border-border bg-card p-4 space-y-3">
+        <div>
+          <div className="text-sm font-semibold">Hvordan AI bør matche deg</div>
+          <p className="text-sm text-muted-foreground mt-1 whitespace-pre-line">
+            {draft.rules_green || "Treff på ønsket rolle, arbeidsoppgaver, ferdigheter og praktiske rammer."}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <MiniStat label="Fag" value={draft.weights.professional} />
+          <MiniStat label="Kultur" value={draft.weights.culture} />
+          <MiniStat label="Praktisk" value={draft.weights.practical} />
+          <MiniStat label="Entusiasme" value={draft.weights.enthusiasm} />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+          <div className="rounded-md bg-muted/50 p-3">
+            <div className="text-xs font-medium text-muted-foreground">Vurder nærmere</div>
+            <p className="mt-1 whitespace-pre-line">{draft.rules_yellow || "Uklare krav, ansvar, sted eller arbeidsform."}</p>
+          </div>
+          <div className="rounded-md bg-muted/50 p-3">
+            <div className="text-xs font-medium text-muted-foreground">Unngå</div>
+            <p className="mt-1 whitespace-pre-line">{draft.rules_red || "Jobber som bryter med dealbreakers."}</p>
+          </div>
+        </div>
+      </div>
+
+      {positiveSignals.length > 0 && (
+        <div className="rounded-md border border-border bg-card p-4">
+          <div className="text-sm font-semibold">Interesse-tags</div>
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {positiveSignals.slice(0, 16).map((signal) => (
+              <Badge key={`${signal.category}-${signal.label}`} variant="outline">
+                {categoryLabels[signal.category]}: {signal.label}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SummaryBlock = ({ title, value, children }: { title: string; value: string; children?: ReactNode }) => (
+  <div className="rounded-md border border-border bg-card p-4">
+    <div className="text-sm font-semibold">{title}</div>
+    <p className="text-sm text-muted-foreground mt-2 whitespace-pre-line">
+      {value || "Ikke avklart ennå."}
+    </p>
+    {children}
+  </div>
+);
+
+const ChatBubble = ({ message }: { message: OnboardingChatMessage }) => {
+  const isUser = message.role === "user";
+  return (
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div className={`max-w-[88%] rounded-md px-3 py-2 text-sm ${isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
+        <div className={`text-[11px] font-medium mb-1 ${isUser ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+          {isUser ? "Du" : "Recruiter"}
+        </div>
+        <div className="whitespace-pre-line leading-relaxed">{message.content}</div>
+      </div>
     </div>
   );
 };

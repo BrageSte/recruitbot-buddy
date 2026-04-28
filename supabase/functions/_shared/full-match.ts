@@ -41,6 +41,26 @@ export type MatchResult = {
   };
 };
 
+export type MatchVisibilityRule = {
+  id?: string;
+  name: string;
+  action: "include" | "exclude";
+  title_terms?: string[] | null;
+  company_terms?: string[] | null;
+  location_terms?: string[] | null;
+  description_terms?: string[] | null;
+  source_terms?: string[] | null;
+  is_active?: boolean | null;
+};
+
+export type MatchVisibilityResult = {
+  minVisibleScore: number;
+  visible: boolean;
+  includeRuleName: string | null;
+  excludeRuleName: string | null;
+  hiddenBelowThreshold: boolean;
+};
+
 export function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -85,6 +105,72 @@ export function clampScore(value: unknown): number {
   const n = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(n)) return 0;
   return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+export function clampVisibleScore(value: unknown, fallback = 65): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function normalizeRuleTerm(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function normalizeRuleTerms(terms: string[] | null | undefined): string[] {
+  return (terms ?? []).map(normalizeRuleTerm).filter(Boolean);
+}
+
+function ruleFieldMatches(value: unknown, terms: string[] | null | undefined): boolean {
+  const normalized = normalizeRuleTerms(terms);
+  if (normalized.length === 0) return true;
+  const hay = normalizeRuleTerm(value);
+  if (!hay) return false;
+  return normalized.some((term) => hay.includes(term));
+}
+
+export function matchVisibilityRule(job: ExternalJobRow, rule: MatchVisibilityRule): boolean {
+  if (rule.is_active === false) return false;
+  const source = [job.provider].filter(Boolean).join(" ");
+  return (
+    ruleFieldMatches(job.title, rule.title_terms) &&
+    ruleFieldMatches(job.company, rule.company_terms) &&
+    ruleFieldMatches(job.location, rule.location_terms) &&
+    ruleFieldMatches(job.description, rule.description_terms) &&
+    ruleFieldMatches(source, rule.source_terms)
+  );
+}
+
+export function findMatchingVisibilityRule(
+  job: ExternalJobRow,
+  rules: MatchVisibilityRule[],
+  action: "include" | "exclude",
+): MatchVisibilityRule | null {
+  return rules.find((rule) => rule.action === action && matchVisibilityRule(job, rule)) ?? null;
+}
+
+export function evaluateMatchVisibility(
+  job: ExternalJobRow,
+  score: number | null | undefined,
+  minVisibleScore: number,
+  rules: MatchVisibilityRule[],
+): MatchVisibilityResult {
+  const exclude = findMatchingVisibilityRule(job, rules, "exclude");
+  const include = findMatchingVisibilityRule(job, rules, "include");
+  const scoreVisible = typeof score === "number" && score >= minVisibleScore;
+  const visible = !exclude && (scoreVisible || Boolean(include));
+  return {
+    minVisibleScore,
+    visible,
+    includeRuleName: include?.name ?? null,
+    excludeRuleName: exclude?.name ?? null,
+    hiddenBelowThreshold: !visible && !exclude && !scoreVisible,
+  };
+}
+
+export function visibilityRuleRankBoost(job: ExternalJobRow, rules: MatchVisibilityRule[]): number {
+  if (findMatchingVisibilityRule(job, rules, "exclude")) return -1000;
+  return findMatchingVisibilityRule(job, rules, "include") ? 100 : 0;
 }
 
 export function tokenize(text: string): string[] {
