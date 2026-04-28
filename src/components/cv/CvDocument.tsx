@@ -182,7 +182,7 @@ const Education = ({ items, style }: { items: NonNullable<CvData["education"]>; 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {valid.map((e, i) => (
-        <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+        <div key={i} data-break="item" style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
           <div>
             <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{e.degree ?? ""}</div>
             <div style={{ fontSize: 10.5, color: style.accent }}>{e.institution ?? ""}</div>
