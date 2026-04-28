@@ -309,7 +309,7 @@ const renderSections = (
           <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
             <div style={{ fontSize: 10.5, lineHeight: 1.6, color: style.ink }}>
               {certs.map((c, i) => (
-                <div key={i}><strong>{c.name ?? ""}</strong>{c.issuer ? ` — ${c.issuer}` : ""}{c.date ? `, ${c.date}` : ""}</div>
+                <div key={i} data-break="item"><strong>{c.name ?? ""}</strong>{c.issuer ? ` — ${c.issuer}` : ""}{c.date ? `, ${c.date}` : ""}</div>
               ))}
             </div>
           </Section>
