@@ -206,7 +206,7 @@ const SkillsBlock = ({ groups, style, vertical }: { groups: NonNullable<CvData["
   return (
     <div style={{ display: "flex", flexDirection: vertical ? "column" : "column", gap: 8 }}>
       {valid.map((g, i) => (
-        <div key={i}>
+        <div key={i} data-break="item">
           {g.category && <div style={{ fontSize: 10, fontWeight: 600, color: style.ink, marginBottom: 3 }}>{g.category}</div>}
           {!!g.items.length && (
             <div style={{ fontSize: 10, color: style.muted, lineHeight: 1.6 }}>{g.items.join(" · ")}</div>
