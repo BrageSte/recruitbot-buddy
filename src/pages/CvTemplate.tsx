@@ -9,13 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Loader2, Save, Plus, Trash2, GripVertical, Upload, Sparkles, FileText, Download, Star, Copy, Pencil, ArrowUp, ArrowDown, RotateCcw } from "lucide-react";
-import { CvDocument } from "@/components/cv/CvDocument";
-import { DEFAULT_SECTION_ORDER, SECTION_LABELS, type CvSectionKey } from "@/components/cv/CvDocument";
+import { DEFAULT_SECTION_ORDER, SECTION_LABELS, type CvSectionKey } from "@/components/cv/types";
 import { CvStylePicker } from "@/components/cv/CvStylePicker";
-import { SheetViewer } from "@/components/cv/SheetViewer";
-import { exportNodeToPdf } from "@/components/cv/exportPdf";
+import { CvPdfPreview } from "@/components/cv/pdf/CvPdfPreview";
+import { CvPdfDocument } from "@/components/cv/pdf/CvPdfDocument";
+import { downloadPdfDocument } from "@/components/cv/exportPdf";
 import { CvStyleId } from "@/components/cv/cvStyles";
-import { useRef } from "react";
 
 type Experience = {
   title: string; company: string; location?: string;
@@ -381,10 +380,11 @@ const CvTemplate = () => {
     }
   };
 
-  const previewRef = useRef<HTMLDivElement>(null);
   const exportPdf = async () => {
-    if (!previewRef.current) return;
-    await exportNodeToPdf(previewRef.current, `CV-${(cv.full_name || "uten-navn").replace(/\s+/g, "-")}.pdf`);
+    await downloadPdfDocument(
+      <CvPdfDocument cv={cv as any} styleId={cv.cv_style} />,
+      `CV-${(cv.full_name || "uten-navn").replace(/\s+/g, "-")}.pdf`
+    );
   };
 
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -539,9 +539,7 @@ const CvTemplate = () => {
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">Forhåndsvisning</CardTitle></CardHeader>
         <CardContent>
-          <SheetViewer>
-            <div ref={previewRef}><CvDocument cv={cv as any} styleId={cv.cv_style} /></div>
-          </SheetViewer>
+          <CvPdfPreview cv={cv as any} styleId={cv.cv_style} />
         </CardContent>
       </Card>
 

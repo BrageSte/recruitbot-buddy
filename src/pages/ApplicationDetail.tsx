@@ -9,11 +9,11 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Save, Send, Trash2, Sparkles, FileText, Download } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { LetterDocument } from "@/components/cv/LetterDocument";
-import { CvDocument } from "@/components/cv/CvDocument";
 import { CvStylePicker } from "@/components/cv/CvStylePicker";
-import { SheetViewer } from "@/components/cv/SheetViewer";
-import { exportNodeToPdf } from "@/components/cv/exportPdf";
+import { CvPdfPreview, LetterPdfPreview } from "@/components/cv/pdf/CvPdfPreview";
+import { CvPdfDocument } from "@/components/cv/pdf/CvPdfDocument";
+import { LetterPdfDocument } from "@/components/cv/pdf/LetterPdfDocument";
+import { downloadPdfDocument } from "@/components/cv/exportPdf";
 import { CvStyleId } from "@/components/cv/cvStyles";
 import { ApplicationChatEditor } from "@/components/cv/ApplicationChatEditor";
 import { JobContextCard } from "@/components/JobContextCard";
@@ -39,9 +39,7 @@ const ApplicationDetail = () => {
   const [saving, setSaving] = useState(false);
   const [tailoring, setTailoring] = useState(false);
   const [selection, setSelection] = useState("");
-  const letterRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
-  const cvRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { load(); }, [id]);
 
@@ -94,13 +92,32 @@ const ApplicationDetail = () => {
     setApp({ ...app, cv_template_id: cvTemplateId, cv_style: (cv as any)?.cv_style ?? app.cv_style });
     toast({ title: "CV byttet", description: (cv as any)?.variant_name ?? "" });
   };
+
+  // The CV that should be rendered in previews/PDFs.
+  // If AI has produced a tailored snapshot, use it — otherwise fall back to the template.
+  const effectiveCv = tweak?.tailored_cv
+    ? { ...cvTpl, ...tweak.tailored_cv, section_order: tweak.section_order ?? tweak.tailored_cv.section_order ?? cvTpl?.section_order }
+    : cvTpl;
+  const isTailored = !!tweak?.tailored_cv;
+
   const exportLetterPdf = async () => {
-    if (!letterRef.current) return;
-    await exportNodeToPdf(letterRef.current, `Soknad-${app?.jobs?.company || "selskap"}.pdf`);
+    await downloadPdfDocument(
+      <LetterPdfDocument
+        cv={cvTpl ?? {}}
+        text={text}
+        jobTitle={app?.jobs?.title}
+        company={app?.jobs?.company}
+        styleId={styleId}
+      />,
+      `Soknad-${app?.jobs?.company || "selskap"}.pdf`
+    );
   };
   const exportCvPdf = async () => {
-    if (!cvRef.current) return;
-    await exportNodeToPdf(cvRef.current, `CV-${cvTpl?.full_name || "uten-navn"}.pdf`);
+    if (!effectiveCv) return;
+    await downloadPdfDocument(
+      <CvPdfDocument cv={effectiveCv} styleId={styleId} />,
+      `CV-${cvTpl?.full_name || "uten-navn"}.pdf`
+    );
   };
 
 
@@ -138,13 +155,6 @@ const ApplicationDetail = () => {
     setTweak(null);
     toast({ title: "Tilbake til original mal" });
   };
-
-  // The CV that should be rendered in previews/PDFs.
-  // If AI has produced a tailored snapshot, use it — otherwise fall back to the template.
-  const effectiveCv = tweak?.tailored_cv
-    ? { ...cvTpl, ...tweak.tailored_cv, section_order: tweak.section_order ?? tweak.tailored_cv.section_order ?? cvTpl?.section_order }
-    : cvTpl;
-  const isTailored = !!tweak?.tailored_cv;
 
   const remove = async () => {
     if (!confirm("Slett søknaden?")) return;
@@ -230,17 +240,13 @@ const ApplicationDetail = () => {
               <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4">
                 <div className="min-w-0">
                   {preview ? (
-                    <SheetViewer>
-                      <div ref={letterRef}>
-                        <LetterDocument
-                          cv={cvTpl ?? {}}
-                          text={text}
-                          jobTitle={app.jobs?.title}
-                          company={app.jobs?.company}
-                          styleId={styleId}
-                        />
-                      </div>
-                    </SheetViewer>
+                    <LetterPdfPreview
+                      cv={cvTpl ?? {}}
+                      text={text}
+                      jobTitle={app.jobs?.title}
+                      company={app.jobs?.company}
+                      styleId={styleId}
+                    />
                   ) : (
                     <Textarea
                       ref={editorRef}
@@ -303,9 +309,7 @@ const ApplicationDetail = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <SheetViewer>
-                  <div ref={cvRef}><CvDocument cv={effectiveCv} styleId={styleId} /></div>
-                </SheetViewer>
+                <CvPdfPreview cv={effectiveCv} styleId={styleId} />
               </CardContent>
             </Card>
           )}
@@ -396,9 +400,7 @@ const ApplicationDetail = () => {
                     <Button variant="outline" size="sm" onClick={exportCvPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
                   </CardHeader>
                   <CardContent>
-                    <SheetViewer>
-                      <CvDocument cv={effectiveCv} styleId={styleId} />
-                    </SheetViewer>
+                    <CvPdfPreview cv={effectiveCv} styleId={styleId} />
                   </CardContent>
                 </Card>
               )}
