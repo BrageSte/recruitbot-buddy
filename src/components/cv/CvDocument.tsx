@@ -290,7 +290,7 @@ const renderSections = (
           <Section key={key} title={label(key)} color={style.accent} divider={opts?.divider}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {projects.map((p, i) => (
-                <div key={i}>
+                <div key={i} data-break="item">
                   {p.name && <div style={{ fontWeight: 600, fontSize: 11, color: style.ink }}>{p.name}</div>}
                   {p.description && <div style={{ fontSize: 10.5, color: style.ink, lineHeight: 1.6 }}>{p.description}</div>}
                   {!!p.technologies?.length && (
