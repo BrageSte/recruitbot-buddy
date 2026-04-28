@@ -148,8 +148,8 @@ const Experience = ({ items, style }: { items: NonNullable<CvData["experiences"]
         const bullets = Array.isArray(e.bullets) ? e.bullets.filter((b) => typeof b === "string" && b.trim()) : [];
         const techs = Array.isArray(e.technologies) ? e.technologies.filter((t) => typeof t === "string" && t.trim()) : [];
         return (
-          <div key={i}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+          <div key={i} data-break="item">
+            <div data-keep-together="true" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 11.5, color: style.ink }}>{e.title ?? ""}</div>
                 <div style={{ fontSize: 10.5, color: style.accent }}>
