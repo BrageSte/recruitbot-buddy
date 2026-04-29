@@ -33,7 +33,7 @@ import {
   validCertifications,
   validLanguages,
 } from "./blocks";
-import { ContinuationStrip, SidebarContinuation } from "./ContinuationHeader";
+import { ContinuationStrip } from "./ContinuationHeader";
 
 ensureFontsRegistered();
 
@@ -164,10 +164,12 @@ const HeaderBandLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => {
   const s = buildBaseStyles(style);
   return (
     <Document>
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={[s.page, { paddingTop: 60 }]}>
         <ContinuationStrip cv={cv} style={style} s={s} />
 
-        <View style={{ backgroundColor: style.accent, paddingHorizontal: 56, paddingTop: 56, paddingBottom: 40, flexDirection: "row", alignItems: "center", gap: 16 }}>
+        {/* marginTop: -60 pulls the header band up to y=0 on page 1, counteracting
+            the page paddingTop that reserves space for the continuation strip on page 2+ */}
+        <View style={{ backgroundColor: style.accent, marginTop: -60, paddingHorizontal: 56, paddingTop: 56, paddingBottom: 40, flexDirection: "row", alignItems: "center", gap: 16 }}>
           {cv.photo_url ? <Avatar url={cv.photo_url} size={68} ring="rgba(255,255,255,0.5)" shape="square" s={s} /> : null}
           <View style={{ flex: 1 }}>
             <Text style={[s.h1, { color: "#fff", letterSpacing: 0.2 }]}>{cv.full_name || "Navn Navnesen"}</Text>
@@ -243,12 +245,25 @@ const SidebarLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => {
           },
         ]}
       >
-        <SidebarContinuation cv={cv} style={style} s={s} />
-
+        {/* Single fixed sidebar: accent background always visible, content switches
+            between full profile on page 1 and slim name header on page 2+ */}
         <View
           fixed
-          style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "33%", padding: 24, backgroundColor: style.accent }}
-          render={({ pageNumber }) => (pageNumber === 1 ? <SidebarPage1 cv={cv} style={style} s={s} /> : null)}
+          style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "33%", backgroundColor: style.accent }}
+          render={({ pageNumber }) =>
+            pageNumber === 1 ? (
+              <View style={{ padding: 24 }}>
+                <SidebarPage1 cv={cv} style={style} s={s} />
+              </View>
+            ) : (
+              <View style={{ padding: 18 }}>
+                <Text style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>{cv.full_name || ""}</Text>
+                {cv.headline ? (
+                  <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 9, marginTop: 3 }}>{cv.headline}</Text>
+                ) : null}
+              </View>
+            )
+          }
         />
 
         {cv.intro ? (
@@ -330,10 +345,11 @@ const SplitLayout = ({ cv, style }: { cv: CvData; style: CvStyleDef }) => {
   const s = buildBaseStyles(style);
   return (
     <Document>
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={[s.page, { paddingTop: 60 }]}>
         <ContinuationStrip cv={cv} style={style} s={s} />
 
-        <View style={{ flexDirection: "row" }}>
+        {/* marginTop: -60 pulls the split header up to y=0 on page 1 */}
+        <View style={{ flexDirection: "row", marginTop: -60 }}>
           <View style={{ width: "45%", backgroundColor: style.accent, paddingHorizontal: 40, paddingVertical: 50, flexDirection: "row", alignItems: "center", gap: 12 }}>
             {cv.photo_url ? <Avatar url={cv.photo_url} size={68} ring="rgba(255,255,255,0.4)" shape="square" s={s} /> : null}
             <View style={{ flex: 1 }}>

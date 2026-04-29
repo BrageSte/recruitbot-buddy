@@ -178,8 +178,7 @@ export const ContactInline = ({
     <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
       {parts.map((p, i) => (
         <Text key={i} style={{ fontSize, color }}>
-          {i > 0 ? <Text style={{ marginHorizontal: 4 }}>{` ${sep} `}</Text> : null}
-          {p}
+          {i > 0 ? `  ${sep}  ` : ""}{p}
         </Text>
       ))}
     </View>

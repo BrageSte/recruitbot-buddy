@@ -151,11 +151,15 @@ export const buildBaseStyles = (style: CvStyleDef) => {
       fontWeight: 500,
     },
     // Slim continuation header that appears on page 2+
+    // Outer view: only positioning (no background — background lives inside the
+    // render prop so it never bleeds onto page 1).
     continuation: {
       position: "absolute",
       top: 0,
       left: 0,
       right: 0,
+    },
+    continuationInner: {
       backgroundColor: style.accent,
       paddingVertical: 6,
       paddingHorizontal: 22,
