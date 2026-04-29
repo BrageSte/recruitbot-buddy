@@ -1,9 +1,8 @@
 // Stable vector-PDF CV renderer.
 //
-// The CV export intentionally uses one conservative print layout across all
-// style presets. The selected style only influences a small accent color and
-// font family; the document structure stays classic, readable, and predictable
-// across page breaks.
+// The content flow stays conservative and page-break safe, but each preset has
+// its own restrained visual profile so the CV can feel polished without
+// becoming a decorative layout.
 
 import { ReactNode } from "react";
 import { Document, Page, View, Text, Image } from "@react-pdf/renderer";
@@ -68,18 +67,42 @@ export const CvPdfDocument = ({ cv, styleId }: Props) => {
 
 type ClassicStyles = ReturnType<typeof classicStyles>;
 
+type HeaderMode = "classic" | "band" | "centered" | "panel" | "rail";
+type IntroMode = "rail" | "panel" | "plain" | "quote";
+type SectionMode = "rule" | "bar" | "plain" | "pill" | "block";
+
+type VisualProfile = {
+  headerMode: HeaderMode;
+  introMode: IntroMode;
+  sectionMode: SectionMode;
+  pageBackground: string;
+  surfaceBackground: string;
+  headerBackground: string;
+  headerText: string;
+  headerMuted: string;
+  headerBorder: string;
+  sectionBackground: string;
+  sectionBorder: string;
+  dateBackground: string;
+  skillBackground: string;
+  itemBorderWidth: number;
+  bodyInset: number;
+  pagePaddingTop: number;
+};
+
 const classicStyles = (style: CvStyleDef) => {
   const font = fontFor(style);
   const accent = mutedAccent(style);
+  const profile = visualProfile(style, accent);
 
   return {
     page: {
       fontFamily: font,
-      backgroundColor: "#ffffff",
+      backgroundColor: profile.pageBackground,
       color: "#161a1d",
       fontSize: 9.8,
       lineHeight: 1.42,
-      paddingTop: 44,
+      paddingTop: profile.pagePaddingTop,
       paddingRight: 54,
       paddingBottom: 48,
       paddingLeft: 54,
@@ -87,49 +110,71 @@ const classicStyles = (style: CvStyleDef) => {
     header: {
       flexDirection: "row" as const,
       alignItems: "flex-start" as const,
-      borderBottomWidth: 1,
-      borderBottomColor: "#d7dce2",
-      paddingBottom: 12,
-      marginBottom: 12,
+      backgroundColor: profile.headerBackground,
+      borderBottomWidth: profile.headerMode === "centered" || profile.headerMode === "classic" ? 1 : 0,
+      borderBottomColor: profile.headerBorder,
+      borderLeftWidth: profile.headerMode === "rail" ? 4 : 0,
+      borderLeftColor: accent,
+      paddingTop: profile.headerMode === "band" ? 22 : profile.headerMode === "panel" ? 18 : 0,
+      paddingRight: profile.headerMode === "band" || profile.headerMode === "panel" || profile.headerMode === "rail" ? 20 : 0,
+      paddingBottom: profile.headerMode === "band" ? 24 : profile.headerMode === "panel" ? 18 : 12,
+      paddingLeft: profile.headerMode === "band" || profile.headerMode === "panel" ? 20 : profile.headerMode === "rail" ? 16 : 0,
+      marginBottom: 14,
     },
     headerText: {
       flex: 1,
       paddingRight: 16,
+      alignItems: profile.headerMode === "centered" ? "center" as const : "flex-start" as const,
     },
     name: {
       fontFamily: font,
-      fontSize: 23,
+      fontSize: profile.headerMode === "band" ? 24 : profile.headerMode === "centered" ? 21 : 23,
       fontWeight: 700,
-      color: "#111827",
+      color: profile.headerText,
       lineHeight: 1.12,
       letterSpacing: 0,
+      textAlign: profile.headerMode === "centered" ? "center" as const : "left" as const,
     },
     headline: {
       fontSize: 10.5,
       fontWeight: 500,
-      color: accent,
+      color: profile.headerMode === "band" ? profile.headerMuted : accent,
       marginTop: 4,
       lineHeight: 1.35,
+      textAlign: profile.headerMode === "centered" ? "center" as const : "left" as const,
     },
     contact: {
       fontSize: 8.6,
-      color: "#4b5563",
+      color: profile.headerMuted,
       marginTop: 7,
       lineHeight: 1.45,
+      textAlign: profile.headerMode === "centered" ? "center" as const : "left" as const,
     },
     introBlock: {
-      borderLeftWidth: 2,
+      backgroundColor: profile.introMode === "panel" ? profile.surfaceBackground : "transparent",
+      borderLeftWidth: profile.introMode === "plain" ? 0 : profile.introMode === "quote" ? 1 : 3,
       borderLeftColor: accent,
-      paddingLeft: 10,
+      borderTopWidth: profile.introMode === "quote" ? 1 : 0,
+      borderBottomWidth: profile.introMode === "quote" ? 1 : 0,
+      borderTopColor: profile.sectionBorder,
+      borderBottomColor: profile.sectionBorder,
+      paddingTop: profile.introMode === "panel" || profile.introMode === "quote" ? 10 : 0,
+      paddingRight: profile.introMode === "panel" ? 12 : 0,
+      paddingBottom: profile.introMode === "panel" || profile.introMode === "quote" ? 10 : 0,
+      paddingLeft: profile.introMode === "plain" ? 0 : 12,
       marginBottom: 2,
     },
     intro: {
       fontSize: 10,
       color: "#1f2937",
       lineHeight: 1.52,
+      fontStyle: profile.introMode === "quote" ? "italic" as const : "normal" as const,
     },
     section: {
       marginTop: 14,
+      paddingLeft: profile.bodyInset,
+      borderLeftWidth: profile.itemBorderWidth,
+      borderLeftColor: profile.sectionBorder,
     },
     sectionTitle: {
       fontSize: 9.2,
@@ -137,13 +182,19 @@ const classicStyles = (style: CvStyleDef) => {
       color: accent,
       textTransform: "uppercase" as const,
       letterSpacing: 0,
-      borderBottomWidth: 1,
-      borderBottomColor: "#e5e7eb",
-      paddingBottom: 3,
-      marginBottom: 3,
+      backgroundColor: profile.sectionMode === "pill" || profile.sectionMode === "block" ? profile.sectionBackground : "transparent",
+      borderBottomWidth: profile.sectionMode === "plain" ? 0.5 : profile.sectionMode === "bar" || profile.sectionMode === "rule" ? 1 : 0,
+      borderBottomColor: profile.sectionBorder,
+      borderLeftWidth: profile.sectionMode === "bar" ? 3 : 0,
+      borderLeftColor: accent,
+      paddingTop: profile.sectionMode === "pill" || profile.sectionMode === "block" ? 4 : 0,
+      paddingRight: profile.sectionMode === "pill" || profile.sectionMode === "block" ? 8 : 0,
+      paddingBottom: profile.sectionMode === "pill" || profile.sectionMode === "block" ? 4 : 3,
+      paddingLeft: profile.sectionMode === "bar" ? 7 : profile.sectionMode === "pill" || profile.sectionMode === "block" ? 8 : 0,
+      marginBottom: 4,
     },
     item: {
-      marginTop: 7,
+      marginTop: profile.sectionMode === "plain" ? 6 : 7,
     },
     itemHeader: {
       flexDirection: "row" as const,
@@ -157,7 +208,7 @@ const classicStyles = (style: CvStyleDef) => {
     itemTitle: {
       fontSize: 10.3,
       fontWeight: 700,
-      color: "#111827",
+      color: style.ink,
       lineHeight: 1.28,
     },
     itemMeta: {
@@ -170,8 +221,12 @@ const classicStyles = (style: CvStyleDef) => {
       width: 92,
       textAlign: "right" as const,
       fontSize: 8.7,
-      color: "#6b7280",
+      color: profile.sectionMode === "plain" ? "#6b7280" : accent,
       lineHeight: 1.35,
+      backgroundColor: profile.dateBackground,
+      paddingTop: profile.dateBackground === "transparent" ? 0 : 2,
+      paddingBottom: profile.dateBackground === "transparent" ? 0 : 2,
+      paddingRight: profile.dateBackground === "transparent" ? 0 : 4,
     },
     description: {
       fontSize: 9.7,
@@ -196,12 +251,17 @@ const classicStyles = (style: CvStyleDef) => {
     },
     smallLine: {
       fontSize: 8.8,
-      color: "#6b7280",
+      color: style.muted,
       marginTop: 3,
       lineHeight: 1.38,
     },
     skillRow: {
       marginTop: 5,
+      backgroundColor: profile.skillBackground,
+      paddingTop: profile.skillBackground === "transparent" ? 0 : 4,
+      paddingRight: profile.skillBackground === "transparent" ? 0 : 7,
+      paddingBottom: profile.skillBackground === "transparent" ? 0 : 4,
+      paddingLeft: profile.skillBackground === "transparent" ? 0 : 7,
     },
     skillText: {
       fontSize: 9.7,
@@ -225,9 +285,10 @@ const classicStyles = (style: CvStyleDef) => {
       borderRadius: 29,
       objectFit: "cover" as const,
       borderWidth: 1,
-      borderColor: accent,
+      borderColor: profile.headerMode === "band" ? "rgba(255,255,255,0.72)" : accent,
       backgroundColor: "#f3f4f6",
     },
+    showHeaderPhoto: profile.headerMode !== "centered",
   };
 };
 
@@ -236,6 +297,107 @@ const mutedAccent = (style: CvStyleDef) => {
   if (style.id === "bold") return "#991b1b";
   if (style.id === "akademisk") return "#51406f";
   return style.accent;
+};
+
+const visualProfile = (style: CvStyleDef, accent: string): VisualProfile => {
+  switch (style.id) {
+    case "korporat":
+      return {
+        headerMode: "band",
+        introMode: "rail",
+        sectionMode: "bar",
+        pageBackground: "#ffffff",
+        surfaceBackground: style.accentSoft,
+        headerBackground: accent,
+        headerText: "#ffffff",
+        headerMuted: "rgba(255,255,255,0.86)",
+        headerBorder: style.accentSoft,
+        sectionBackground: style.accentSoft,
+        sectionBorder: "#d2ddeb",
+        dateBackground: style.accentSoft,
+        skillBackground: "transparent",
+        itemBorderWidth: 0,
+        bodyInset: 0,
+        pagePaddingTop: 44,
+      };
+    case "akademisk":
+      return {
+        headerMode: "centered",
+        introMode: "plain",
+        sectionMode: "plain",
+        pageBackground: "#ffffff",
+        surfaceBackground: "#ffffff",
+        headerBackground: "transparent",
+        headerText: style.ink,
+        headerMuted: style.muted,
+        headerBorder: "#ddd8e8",
+        sectionBackground: "transparent",
+        sectionBorder: "#e7e2ef",
+        dateBackground: "transparent",
+        skillBackground: "transparent",
+        itemBorderWidth: 0,
+        bodyInset: 0,
+        pagePaddingTop: 48,
+      };
+    case "startup":
+      return {
+        headerMode: "panel",
+        introMode: "panel",
+        sectionMode: "pill",
+        pageBackground: style.background,
+        surfaceBackground: style.accentSoft,
+        headerBackground: "#f4efff",
+        headerText: style.ink,
+        headerMuted: style.muted,
+        headerBorder: "#ded2ff",
+        sectionBackground: "#f4efff",
+        sectionBorder: "#ded2ff",
+        dateBackground: "#f4efff",
+        skillBackground: "#f8f5ff",
+        itemBorderWidth: 2,
+        bodyInset: 10,
+        pagePaddingTop: 42,
+      };
+    case "bold":
+      return {
+        headerMode: "rail",
+        introMode: "quote",
+        sectionMode: "block",
+        pageBackground: "#fffafa",
+        surfaceBackground: style.accentSoft,
+        headerBackground: "#fff1f1",
+        headerText: style.ink,
+        headerMuted: style.muted,
+        headerBorder: "#f4c7c7",
+        sectionBackground: "#fff1f1",
+        sectionBorder: "#f1c5c5",
+        dateBackground: "#fff1f1",
+        skillBackground: "transparent",
+        itemBorderWidth: 0,
+        bodyInset: 0,
+        pagePaddingTop: 42,
+      };
+    case "skandinavisk":
+    default:
+      return {
+        headerMode: "classic",
+        introMode: "panel",
+        sectionMode: "rule",
+        pageBackground: style.background,
+        surfaceBackground: style.accentSoft,
+        headerBackground: "transparent",
+        headerText: style.ink,
+        headerMuted: style.muted,
+        headerBorder: "#cbd8d0",
+        sectionBackground: "transparent",
+        sectionBorder: "#cadbd2",
+        dateBackground: "transparent",
+        skillBackground: "transparent",
+        itemBorderWidth: 2,
+        bodyInset: 10,
+        pagePaddingTop: 46,
+      };
+  }
 };
 
 const renderSections = (
@@ -360,7 +522,7 @@ const CvHeader = ({
           <Text style={s.contact}>{contacts.join(" | ")}</Text>
         ) : null}
       </View>
-      {cv.photo_url ? (
+      {cv.photo_url && s.showHeaderPhoto ? (
         <Image src={cv.photo_url} style={s.photo} />
       ) : null}
     </View>

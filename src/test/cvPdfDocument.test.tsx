@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { pdf } from "@react-pdf/renderer";
 import { CvPdfDocument } from "@/components/cv/pdf/CvPdfDocument";
 import { CvData } from "@/components/cv/types";
+import { CV_STYLE_LIST } from "@/components/cv/cvStyles";
 
 const longBullet =
   "Ledet strukturert arbeid med krav, prioritering, interessenter og leveranser på tvers av team, med tydelig dokumentasjon og ukentlig oppfølging.";
@@ -65,19 +66,19 @@ const sampleCv: CvData = {
 };
 
 describe("CvPdfDocument", () => {
-  it("renders a long classic CV PDF without throwing", async () => {
-    const blob = await pdf(<CvPdfDocument cv={sampleCv} styleId="startup" />).toBlob();
+  it.each(CV_STYLE_LIST.map((style) => style.id))("renders a long %s CV PDF without throwing", async (styleId) => {
+    const blob = await pdf(<CvPdfDocument cv={sampleCv} styleId={styleId} />).toBlob();
 
     expect(blob.size).toBeGreaterThan(5_000);
 
     if (process.env.WRITE_CV_PDF_FIXTURE === "1") {
-      const stream = await pdf(<CvPdfDocument cv={sampleCv} styleId="startup" />).toBuffer();
+      const stream = await pdf(<CvPdfDocument cv={sampleCv} styleId={styleId} />).toBuffer();
       const chunks: Buffer[] = [];
       for await (const chunk of stream) {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       }
       await mkdir("tmp/pdfs", { recursive: true });
-      await writeFile("tmp/pdfs/cv-classic-render-check.pdf", Buffer.concat(chunks));
+      await writeFile(`tmp/pdfs/cv-${styleId}-render-check.pdf`, Buffer.concat(chunks));
     }
   }, 30000);
 });
