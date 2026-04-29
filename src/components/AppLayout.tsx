@@ -32,8 +32,8 @@ const SidebarContent = ({ email, onSignOut, onNavigate }: SidebarContentProps) =
           <Sparkles className="w-4 h-4 text-primary-foreground" />
         </div>
         <div className="min-w-0">
-          <div className="font-semibold text-sm leading-tight">JobHunter</div>
-          <div className="text-[11px] text-muted-foreground leading-tight">AI</div>
+          <div className="font-semibold text-sm leading-tight">Jobbhjelpen</div>
+          <div className="text-[11px] text-muted-foreground leading-tight">Assistent</div>
         </div>
       </div>
       <NotificationBell />
@@ -78,7 +78,7 @@ export const AppLayout = () => {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate("/auth", { replace: true });
+    navigate("/start", { replace: true });
   };
 
   return (
@@ -94,7 +94,7 @@ export const AppLayout = () => {
           <div className="w-7 h-7 rounded-lg bg-gradient-primary flex items-center justify-center shadow-elevated">
             <Sparkles className="w-3.5 h-3.5 text-primary-foreground" />
           </div>
-          <div className="font-semibold text-sm">JobHunter AI</div>
+          <div className="font-semibold text-sm">Jobbhjelpen</div>
         </div>
         <div className="flex items-center gap-1">
           <NotificationBell />

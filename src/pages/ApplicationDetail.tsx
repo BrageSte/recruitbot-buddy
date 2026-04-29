@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Save, Send, Trash2, Sparkles, FileText, Download } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Send, Trash2, Sparkles, FileText, Download, PanelRightClose, PanelRightOpen, RefreshCw, History, Undo2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CvStylePicker } from "@/components/cv/CvStylePicker";
@@ -33,12 +33,16 @@ const ApplicationDetail = () => {
   const [tweak, setTweak] = useState<any>(null);
   const [cvTpl, setCvTpl] = useState<any>(null);
   const [allCvs, setAllCvs] = useState<any[]>([]);
+  const [revisions, setRevisions] = useState<any[]>([]);
   const [text, setText] = useState("");
   const [preview, setPreview] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tailoring, setTailoring] = useState(false);
   const [selection, setSelection] = useState("");
+  const [regenerateInstruction, setRegenerateInstruction] = useState("");
+  const [regenerating, setRegenerating] = useState(false);
+  const [showTextTools, setShowTextTools] = useState(true);
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { load(); }, [id]);
@@ -46,11 +50,18 @@ const ApplicationDetail = () => {
   const load = async () => {
     if (!id) return;
     setLoading(true);
-    const [{ data: a }, { data: t }] = await Promise.all([
+    const [{ data: a }, { data: t }, { data: r }] = await Promise.all([
       supabase.from("applications").select("*, jobs(*)").eq("id", id).maybeSingle(),
       supabase.from("application_cv_tweaks").select("*").eq("application_id", id).maybeSingle(),
+      (supabase as any)
+        .from("application_revisions")
+        .select("id, instruction, source, previous_text, next_text, created_at")
+        .eq("application_id", id)
+        .order("created_at", { ascending: false })
+        .limit(8),
     ]);
     setApp(a); setTweak(t); setText(a?.generated_text ?? "");
+    setRevisions(r ?? []);
     if (a?.user_id) {
       let cv: any = null;
       if ((a as any).cv_template_id) {
@@ -80,6 +91,17 @@ const ApplicationDetail = () => {
     setLoading(false);
   };
 
+  const refreshRevisions = async () => {
+    if (!id) return;
+    const { data } = await (supabase as any)
+      .from("application_revisions")
+      .select("id, instruction, source, previous_text, next_text, created_at")
+      .eq("application_id", id)
+      .order("created_at", { ascending: false })
+      .limit(8);
+    setRevisions(data ?? []);
+  };
+
   const styleId: CvStyleId = (app?.cv_style ?? cvTpl?.cv_style ?? "skandinavisk") as CvStyleId;
   const setStyle = async (id: CvStyleId) => {
     setApp({ ...app, cv_style: id });
@@ -94,7 +116,7 @@ const ApplicationDetail = () => {
   };
 
   // The CV that should be rendered in previews/PDFs.
-  // If AI has produced a tailored snapshot, use it — otherwise fall back to the template.
+  // If a tailored snapshot exists, use it; otherwise fall back to the template.
   const effectiveCv = tweak?.tailored_cv
     ? { ...cvTpl, ...tweak.tailored_cv, section_order: tweak.section_order ?? tweak.tailored_cv.section_order ?? cvTpl?.section_order }
     : cvTpl;
@@ -147,6 +169,39 @@ const ApplicationDetail = () => {
       toast({ title: "CV tilpasset" }); load();
     } catch (e: any) { toast({ title: "Feilet", description: e.message, variant: "destructive" }); }
     finally { setTailoring(false); }
+  };
+
+  const regenerateApplication = async () => {
+    if (!app) return;
+    setRegenerating(true);
+    try {
+      const { error } = await supabase.functions.invoke("generate-application", {
+        body: {
+          applicationId: app.id,
+          instruction: regenerateInstruction || "Lag et nytt, mer konkret og arbeidsgiverrettet utkast.",
+          cvTemplateId: (app as any).cv_template_id ?? cvTpl?.id ?? undefined,
+        },
+      });
+      if (error) throw error;
+      toast({ title: "Nytt forslag klart", description: "Forrige versjon er lagret i revisjonshistorikken." });
+      setRegenerateInstruction("");
+      await load();
+    } catch (e: any) {
+      toast({ title: "Kunne ikke lage nytt forslag", description: e.message, variant: "destructive" });
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const restoreRevision = async (revision: any) => {
+    if (!app) return;
+    const previousText = String(revision.previous_text ?? "");
+    if (!previousText.trim()) return;
+    await supabase.from("applications").update({ generated_text: previousText }).eq("id", app.id);
+    setText(previousText);
+    setApp({ ...app, generated_text: previousText });
+    toast({ title: "Tidligere versjon gjenopprettet" });
+    await load();
   };
 
   const resetTailoredCv = async () => {
@@ -219,7 +274,7 @@ const ApplicationDetail = () => {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">CV-stil (matcher søknadsbrevet)</CardTitle>
-              <p className="text-xs text-muted-foreground">AI valgte stilen automatisk – endre om du vil.</p>
+              <p className="text-xs text-muted-foreground">Stilen ble valgt automatisk – endre om du vil.</p>
             </CardHeader>
             <CardContent>
               <CvStylePicker value={styleId} onChange={setStyle} size="sm" />
@@ -231,13 +286,60 @@ const ApplicationDetail = () => {
               <CardTitle className="text-base">Søknadsbrev</CardTitle>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => setPreview(!preview)}>{preview ? "Rediger" : "Forhåndsvis"}</Button>
+                <Button variant="outline" size="sm" onClick={() => setShowTextTools((value) => !value)}>
+                  {showTextTools ? <PanelRightClose className="w-4 h-4 mr-2" /> : <PanelRightOpen className="w-4 h-4 mr-2" />}
+                  Tekstverktøy
+                </Button>
                 <Button variant="outline" size="sm" onClick={exportLetterPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
                 <Button size="sm" onClick={save} disabled={saving}><Save className="w-4 h-4 mr-2" /> Lagre</Button>
                 {app.status === "draft" && <Button size="sm" onClick={() => setStatus("sent")}><Send className="w-4 h-4 mr-2" /> Marker som sendt</Button>}
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4">
+              <div className="rounded-md border border-border bg-muted/20 p-3 mb-4 space-y-2">
+                <div className="text-sm font-medium">Lag nytt forslag</div>
+                <div className="flex flex-col md:flex-row gap-2">
+                  <Textarea
+                    rows={2}
+                    value={regenerateInstruction}
+                    onChange={(e) => setRegenerateInstruction(e.target.value)}
+                    placeholder="f.eks. mer konkret på hva dere får med meg, mindre formell, kortere åpning..."
+                    disabled={regenerating}
+                  />
+                  <Button onClick={regenerateApplication} disabled={regenerating} className="md:w-44 shrink-0">
+                    {regenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                    Lag nytt
+                  </Button>
+                </div>
+                {revisions.length > 0 && (
+                  <div className="border-t border-border/70 pt-3 space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                      <History className="w-3.5 h-3.5" />
+                      Revisjonshistorikk
+                    </div>
+                    <div className="space-y-1.5">
+                      {revisions.slice(0, 4).map((revision) => (
+                        <div key={revision.id} className="flex items-center justify-between gap-3 rounded-md bg-background/80 px-3 py-2">
+                          <div className="min-w-0">
+                            <div className="text-xs font-medium truncate">
+                              {revision.instruction || (revision.source === "edit" ? "Tekstverktøy" : "Nytt forslag")}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {new Date(revision.created_at).toLocaleString("nb-NO", { dateStyle: "short", timeStyle: "short" })}
+                            </div>
+                          </div>
+                          <Button variant="ghost" size="sm" onClick={() => restoreRevision(revision)} className="shrink-0">
+                            <Undo2 className="w-3.5 h-3.5 mr-1.5" />
+                            Gjenopprett
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className={`grid grid-cols-1 gap-4 ${showTextTools ? "xl:grid-cols-[minmax(0,1fr)_340px]" : ""}`}>
                 <div className="min-w-0">
                   {preview ? (
                     <LetterPdfPreview
@@ -267,18 +369,22 @@ const ApplicationDetail = () => {
                     />
                   )}
                 </div>
-                <div className="min-w-0 xl:sticky xl:top-4 xl:self-start">
-                  <ApplicationChatEditor
-                    applicationId={app.id}
-                    text={text}
-                    onTextChange={setText}
-                    selection={selection}
-                    onClearSelection={() => setSelection("")}
-                    jobTitle={app.jobs?.title}
-                    company={app.jobs?.company}
-                    jobDescription={app.jobs?.description}
-                  />
-                </div>
+                {showTextTools && (
+                  <div className="min-w-0 xl:sticky xl:top-4 xl:self-start">
+                    <ApplicationChatEditor
+                      applicationId={app.id}
+                      userId={app.user_id}
+                      text={text}
+                      onTextChange={setText}
+                      selection={selection}
+                      onClearSelection={() => setSelection("")}
+                      jobTitle={app.jobs?.title}
+                      company={app.jobs?.company}
+                      jobDescription={app.jobs?.description}
+                      onRevisionCreated={refreshRevisions}
+                    />
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -291,7 +397,7 @@ const ApplicationDetail = () => {
                     CV (samme stil)
                     {isTailored && (
                       <span className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 bg-primary/15 text-primary rounded">
-                        <Sparkles className="w-3 h-3" /> AI-tilpasset
+                        <Sparkles className="w-3 h-3" /> Tilpasset
                       </span>
                     )}
                   </CardTitle>
@@ -318,9 +424,9 @@ const ApplicationDetail = () => {
         <TabsContent value="cv" className="space-y-4 mt-4">
           {!tweak ? (
             <Card><CardContent className="p-8 text-center space-y-4">
-              <p className="text-sm text-muted-foreground">Ingen CV-tilpasning ennå. AI bruker CV-malen din og foreslår endringer skreddersydd til denne stillingen.</p>
+              <p className="text-sm text-muted-foreground">Ingen CV-tilpasning ennå. Jobbhjelpen bruker CV-malen din og foreslår endringer skreddersydd til denne stillingen.</p>
               <Button onClick={tailorCv} disabled={tailoring}>
-                {tailoring ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> AI tilpasser…</> : <><Sparkles className="w-4 h-4 mr-2" /> Tilpass CV</>}
+                {tailoring ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Tilpasser…</> : <><Sparkles className="w-4 h-4 mr-2" /> Tilpass CV</>}
               </Button>
             </CardContent></Card>
           ) : (
@@ -328,7 +434,7 @@ const ApplicationDetail = () => {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0">
                   <div className="space-y-1">
-                    <CardTitle className="text-base">AI-anbefalinger</CardTitle>
+                    <CardTitle className="text-base">Anbefalinger</CardTitle>
                     {isTailored && (
                       <p className="text-xs text-muted-foreground">
                         Snapshot av tilpasset CV er aktivt og brukes ved eksport.

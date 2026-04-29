@@ -437,12 +437,12 @@ const MatchItem = ({
           ) : (
             <Button onClick={onSave} disabled={saving} className="flex-1 lg:flex-none">
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Briefcase className="w-4 h-4 mr-2" />}
-              Legg i jobber
+              Aktuell
             </Button>
           )}
           <Button variant="outline" onClick={onDismiss} disabled={saving} className="flex-1 lg:flex-none">
             <X className="w-4 h-4 mr-2" />
-            Avvis
+            Ikke relevant
           </Button>
           {job?.source_url && (
             <Button variant="ghost" asChild className="flex-1 lg:flex-none">

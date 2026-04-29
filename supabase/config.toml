@@ -41,3 +41,6 @@ verify_jwt = true
 
 [functions.summarize-job]
 verify_jwt = true
+
+[functions.import-linkedin]
+verify_jwt = true

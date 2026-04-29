@@ -288,7 +288,7 @@ const Jobs = () => {
               </Tabs>
               <DialogFooter>
                 <Button onClick={addJob} disabled={adding}>
-                  {adding ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> AI parser…</> : <><Sparkles className="w-4 h-4 mr-2" /> Legg til</>}
+                  {adding ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Leser stillingen…</> : <><Sparkles className="w-4 h-4 mr-2" /> Legg til</>}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -425,6 +425,9 @@ const JobListItem = ({
     minScore,
     visibilityRules,
   );
+  const reasoning = j.match_reasoning ?? {};
+  const strengths = Array.isArray(reasoning.strengths) ? reasoning.strengths : [];
+  const concerns = Array.isArray(reasoning.concerns) ? reasoning.concerns : [];
 
   return (
     <Link to={`/jobs/${j.id}`} className="block">
@@ -439,6 +442,20 @@ const JobListItem = ({
                         {j.location && <span className="text-xs text-muted-foreground">· {j.location}</span>}
                       </div>
                       {j.ai_summary && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{j.ai_summary}</p>}
+                      {(strengths.length > 0 || concerns.length > 0) && (
+                        <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                          {strengths[0] && (
+                            <div className="rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-2 py-1 line-clamp-2">
+                              Treffer: {strengths[0]}
+                            </div>
+                          )}
+                          {concerns[0] && (
+                            <div className="rounded-md bg-warning/10 text-warning px-2 py-1 line-clamp-2">
+                              Sjekk: {concerns[0]}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground flex-wrap">
                         <span className="px-1.5 py-0.5 bg-muted rounded">{STATUSES.find((s) => s.v === j.status)?.label}</span>
                         {visibility.includeRuleName && (

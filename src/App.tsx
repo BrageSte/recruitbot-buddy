@@ -8,6 +8,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/AppLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Auth from "./pages/Auth";
+import AuthCallback from "./pages/AuthCallback";
+import Start from "./pages/Start";
 import Dashboard from "./pages/Dashboard";
 import Jobs from "./pages/Jobs";
 import Matches from "./pages/Matches";
@@ -33,7 +35,9 @@ const App = () => (
         <AuthProvider>
           <ErrorBoundary>
           <Routes>
+            <Route path="/start" element={<Start />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<Dashboard />} />

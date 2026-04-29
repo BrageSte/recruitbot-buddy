@@ -16,6 +16,8 @@ import {
   ArrowLeft,
   ArrowRight,
   Briefcase,
+  Bot,
+  ChevronDown,
   Check,
   CheckCircle2,
   ExternalLink,
@@ -32,6 +34,16 @@ import {
   Wand2,
   X,
 } from "lucide-react";
+import {
+  answersFromPreOnboardingDraft,
+  hasUsefulPreOnboardingDraft,
+  loadPreOnboardingDraft,
+  questionsFromPreOnboardingDraft,
+  savePreOnboardingDraft,
+  type PreOnboardingDraft,
+} from "@/lib/preOnboarding";
+import { normalizeWeights, type MatchPriority, weightsFromPriority } from "@/lib/onboardingWeights";
+import { linkedinImportStatusCopy, type LinkedInImportStatus } from "@/lib/linkedinImportStatus";
 
 type StepKey = "cv" | "questions" | "review" | "chat" | "setup";
 
@@ -114,12 +126,21 @@ type SetupMatchPreview = {
   } | null;
 };
 
+type LinkedInDraft = {
+  status?: LinkedInImportStatus;
+  url?: string;
+  profile_text?: string;
+  hint?: string;
+  error?: string;
+  extracted?: Record<string, unknown>;
+};
+
 const steps: { key: StepKey; label: string }[] = [
-  { key: "cv", label: "CV" },
-  { key: "questions", label: "Spørsmål" },
-  { key: "review", label: "Profilutkast" },
-  { key: "chat", label: "Kartlegging" },
-  { key: "setup", label: "Jobbsøk" },
+  { key: "cv", label: "Grunnlag" },
+  { key: "questions", label: "Retning" },
+  { key: "review", label: "Matchprofil" },
+  { key: "chat", label: "Finjuster" },
+  { key: "setup", label: "Første matcher" },
 ];
 
 const categoryLabels: Record<SignalDraft["category"], string> = {
@@ -135,6 +156,7 @@ const categoryLabels: Record<SignalDraft["category"], string> = {
 };
 
 const setupLabels: Record<string, string> = {
+  linkedin: "Sjekker LinkedIn",
   cv: "Lagrer CV",
   profile: "Lagrer profil",
   sources: "Lager Finn-forslag",
@@ -147,6 +169,7 @@ const BACKGROUND_SETUP_MATCH_LIMIT = 30;
 const SETUP_MATCH_PREVIEW_LIMIT = 6;
 
 const emptySetupState: SetupState = {
+  linkedin: { status: "pending" },
   cv: { status: "pending" },
   profile: { status: "pending" },
   sources: { status: "pending" },
@@ -155,6 +178,7 @@ const emptySetupState: SetupState = {
 };
 
 const freshSetupState = (): SetupState => ({
+  linkedin: { status: "pending" },
   cv: { status: "pending" },
   profile: { status: "pending" },
   sources: { status: "pending" },
@@ -267,8 +291,13 @@ const Onboarding = () => {
   const [cvDraft, setCvDraft] = useState<CvDraft | null>(null);
   const [cvText, setCvText] = useState("");
   const [importingCv, setImportingCv] = useState(false);
+  const [preauthDraft, setPreauthDraft] = useState<PreOnboardingDraft | null>(null);
+  const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [linkedinDraft, setLinkedinDraft] = useState<LinkedInDraft | null>(null);
+  const [importingLinkedIn, setImportingLinkedIn] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [showOptionalQuestions, setShowOptionalQuestions] = useState(false);
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [draft, setDraft] = useState<ProfileDraft | null>(null);
@@ -277,6 +306,8 @@ const Onboarding = () => {
   const [refiningDraft, setRefiningDraft] = useState(false);
   const [newSignalLabel, setNewSignalLabel] = useState("");
   const [newSignalCategory, setNewSignalCategory] = useState<SignalDraft["category"]>("skill");
+  const [matchPriority, setMatchPriority] = useState<MatchPriority>("balanced");
+  const [showAdvancedWeights, setShowAdvancedWeights] = useState(false);
   const [saving, setSaving] = useState(false);
   const [setupState, setSetupState] = useState<SetupState>(freshSetupState);
   const [setupDone, setSetupDone] = useState(false);
@@ -362,6 +393,7 @@ const Onboarding = () => {
   const loadInitial = async () => {
     if (!user) return;
     setLoading(true);
+    const localPreauth = loadPreOnboardingDraft();
 
     const [profileRes, cvRes, runRes] = await Promise.all([
       (supabase as any)
@@ -394,18 +426,41 @@ const Onboarding = () => {
 
     if (runRes.data) {
       const payload = parseAnswerPayload(runRes.data.answers);
+      const runPreauth = Object.keys(runRes.data.preauth_draft ?? {}).length
+        ? runRes.data.preauth_draft
+        : localPreauth;
+      const runLinkedIn = Object.keys(runRes.data.linkedin_draft ?? {}).length
+        ? runRes.data.linkedin_draft
+        : runPreauth?.linkedinUrl
+        ? { url: runPreauth.linkedinUrl, status: "pending" }
+        : null;
       setRunId(runRes.data.id);
       setCurrentStep(runRes.data.current_step ?? "cv");
       setCvDraft(Object.keys(runRes.data.cv_draft ?? {}).length ? normalizeCv(runRes.data.cv_draft) : existingCv);
-      setQuestions(payload.questions);
-      setAnswers(payload.answers);
+      setPreauthDraft(runPreauth ?? null);
+      setLinkedinUrl(runLinkedIn?.url ?? existingProfile?.linkedin_url ?? runPreauth?.linkedinUrl ?? "");
+      setLinkedinDraft(runLinkedIn);
+      setQuestions(payload.questions.length ? payload.questions : hasUsefulPreOnboardingDraft(runPreauth) ? questionsFromPreOnboardingDraft() : []);
+      setAnswers({
+        ...(hasUsefulPreOnboardingDraft(runPreauth) ? answersFromPreOnboardingDraft(runPreauth) : {}),
+        ...payload.answers,
+      });
       setDraft(Object.keys(runRes.data.profile_draft ?? {}).length ? runRes.data.profile_draft : null);
       setChatMessages(normalizeChatMessages(runRes.data.chat_messages));
+      if (Object.keys(runRes.data.setup_state ?? {}).length) setSetupState(runRes.data.setup_state);
       setLoading(false);
       return;
     }
 
+    const initialPreauth = localPreauth ?? null;
+    const initialQuestions = hasUsefulPreOnboardingDraft(initialPreauth) ? questionsFromPreOnboardingDraft() : [];
+    const initialAnswers = hasUsefulPreOnboardingDraft(initialPreauth) ? answersFromPreOnboardingDraft(initialPreauth) : {};
     setCvDraft(existingCv);
+    setPreauthDraft(initialPreauth);
+    setLinkedinUrl(existingProfile?.linkedin_url ?? initialPreauth?.linkedinUrl ?? "");
+    setLinkedinDraft(initialPreauth?.linkedinUrl ? { url: initialPreauth.linkedinUrl, status: "pending" } : null);
+    setQuestions(initialQuestions);
+    setAnswers(initialAnswers);
     setChatMessages([]);
     const { data, error } = await (supabase as any)
       .from("profile_onboarding_runs")
@@ -414,6 +469,9 @@ const Onboarding = () => {
         current_step: "cv",
         status: "draft",
         cv_draft: existingCv ?? {},
+        preauth_draft: initialPreauth ?? {},
+        linkedin_draft: initialPreauth?.linkedinUrl ? { url: initialPreauth.linkedinUrl, status: "pending" } : {},
+        answers: initialQuestions.length ? answerPayload(initialQuestions, initialAnswers) : {},
         chat_messages: [],
       })
       .select("id")
@@ -459,11 +517,57 @@ const Onboarding = () => {
     }
   };
 
+  const importLinkedIn = async () => {
+    const url = linkedinUrl.trim();
+    if (!url) {
+      toast({ title: "Lim inn LinkedIn-URL først", variant: "destructive" });
+      return;
+    }
+
+    setImportingLinkedIn(true);
+    const nextPreauth = { ...(preauthDraft ?? {}), linkedinUrl: url };
+    setPreauthDraft(nextPreauth);
+    savePreOnboardingDraft(nextPreauth);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("import-linkedin", { body: { url } });
+      if (error) throw error;
+      const result = data as LinkedInDraft;
+      setLinkedinDraft(result);
+      await persistRun({
+        preauth_draft: nextPreauth,
+        linkedin_draft: result,
+        status: "draft",
+      });
+      if (result.status === "ok") {
+        toast({ title: "LinkedIn brukt som supplement", description: "Offentlig tekst er hentet inn i profilgrunnlaget." });
+      } else {
+        toast({
+          title: "LinkedIn lagret som hint",
+          description: result.hint ?? "LinkedIn lot seg ikke hente direkte.",
+        });
+      }
+    } catch (e: any) {
+      const result = { status: "error" as const, url, error: e.message, hint: "URL-en er lagret som hint." };
+      setLinkedinDraft(result);
+      await persistRun({ preauth_draft: nextPreauth, linkedin_draft: result, status: "draft" }).catch(() => undefined);
+      toast({ title: "Kunne ikke hente LinkedIn", description: e.message, variant: "destructive" });
+    } finally {
+      setImportingLinkedIn(false);
+    }
+  };
+
   const generateQuestions = async () => {
     setGeneratingQuestions(true);
     try {
       const { data, error } = await supabase.functions.invoke("profile-onboarding-ai", {
-        body: { action: "generate_questions", cv: cvDraft, profile },
+        body: {
+          action: "generate_questions",
+          cv: cvDraft,
+          profile,
+          preauth_draft: preauthDraft,
+          linkedin_draft: linkedinDraft,
+        },
       });
       if (error) throw error;
       const next = Array.isArray((data as any)?.questions) ? ((data as any).questions as Question[]) : [];
@@ -491,8 +595,13 @@ const Onboarding = () => {
     persistRun({ answers: answerPayload(questions, next), status: "questions" }).catch(() => undefined);
   };
 
+  const visibleQuestions = useMemo(
+    () => (showOptionalQuestions ? questions : questions.slice(0, 3)),
+    [questions, showOptionalQuestions],
+  );
+
   const requiredMissing = useMemo(
-    () => questions.some((q) => q.required && !answers[q.id]?.trim()),
+    () => questions.slice(0, 3).some((q) => q.required && !answers[q.id]?.trim()),
     [questions, answers],
   );
 
@@ -505,6 +614,8 @@ const Onboarding = () => {
           action: "generate_profile_draft",
           cv: cvDraft,
           profile,
+          preauth_draft: preauthDraft,
+          linkedin_draft: linkedinDraft,
           questions,
           answers,
         },
@@ -534,14 +645,20 @@ const Onboarding = () => {
     updateDraft({ weights: { ...draft.weights, [key]: value } });
   };
 
-  const startRecruiterChat = async () => {
+  const applyMatchPriority = (priority: MatchPriority) => {
+    setMatchPriority(priority);
+    if (!draft) return;
+    updateDraft({ weights: weightsFromPriority(priority) });
+  };
+
+  const startAssistantChat = async () => {
     if (!draft) return;
     const nextMessages = chatMessages.length
       ? chatMessages
       : [
           createChatMessage(
             "assistant",
-            "Jeg har laget en første kartlegging. Skriv hva som ikke stemmer, hva du vil legge til, eller hvilke jobber du egentlig vil mot. Så oppdaterer jeg profilen før vi setter opp matchene.",
+            "Jeg har laget en første matchprofil. Skriv hva som ikke stemmer, hva du vil legge til, eller hvilke jobber du egentlig vil mot. Så oppdaterer jeg profilen før vi finner de første matchene.",
           ),
         ];
     setChatMessages(nextMessages);
@@ -583,6 +700,8 @@ const Onboarding = () => {
           action: "refine_profile_draft",
           cv: cvDraft,
           profile,
+          preauth_draft: preauthDraft,
+          linkedin_draft: linkedinDraft,
           questions,
           answers,
           draft,
@@ -594,7 +713,7 @@ const Onboarding = () => {
 
       const nextDraft = (data as any)?.draft as ProfileDraft | undefined;
       const reply = String((data as any)?.reply ?? "").trim();
-      if (!nextDraft || !reply) throw new Error("AI svarte uten oppdatert kartlegging");
+      if (!nextDraft || !reply) throw new Error("Assistenten svarte uten oppdatert kartlegging");
 
       const assistantMessage = createChatMessage("assistant", reply, (data as any)?.change_summary);
       const updatedMessages = [...nextMessages, assistantMessage];
@@ -647,7 +766,11 @@ const Onboarding = () => {
 
   const setSetupItem = (key: string, status: SetupState[string]["status"], detail?: string) => {
     if (!mountedRef.current) return;
-    setSetupState((prev) => ({ ...prev, [key]: { status, detail } }));
+    setSetupState((prev) => {
+      const next = { ...prev, [key]: { status, detail } };
+      persistRun({ setup_state: next }).catch(() => undefined);
+      return next;
+    });
   };
 
   const saveCvDraft = async () => {
@@ -688,18 +811,19 @@ const Onboarding = () => {
     if (!user || !draft) return;
     setSetupItem("profile", "running");
     const now = new Date().toISOString();
+    const normalizedWeights = normalizeWeights(draft.weights);
     const { error: profileError } = await (supabase as any).from("profiles").upsert(
       {
         user_id: user.id,
         email: user.email,
         display_name: profile?.display_name ?? cvDraft?.full_name ?? user.email?.split("@")[0] ?? null,
-        linkedin_url: profile?.linkedin_url ?? cvDraft?.linkedin_url ?? null,
+        linkedin_url: linkedinUrl || profile?.linkedin_url || cvDraft?.linkedin_url || null,
         master_profile: draft.master_profile,
         style_guide: draft.style_guide,
-        weight_professional: draft.weights.professional,
-        weight_culture: draft.weights.culture,
-        weight_practical: draft.weights.practical,
-        weight_enthusiasm: draft.weights.enthusiasm,
+        weight_professional: normalizedWeights.professional,
+        weight_culture: normalizedWeights.culture,
+        weight_practical: normalizedWeights.practical,
+        weight_enthusiasm: normalizedWeights.enthusiasm,
         rules_green: draft.rules_green,
         rules_yellow: draft.rules_yellow,
         rules_red: draft.rules_red,
@@ -761,13 +885,20 @@ const Onboarding = () => {
   const approveAndSetup = async () => {
     if (!draft || !user) return;
     setSaving(true);
-    setSetupState(freshSetupState());
+    const initialSetup = freshSetupState();
+    setSetupState(initialSetup);
     setSetupDone(false);
     setSetupMatches([]);
     setContinuingMatching(false);
     await updateStep("setup", "applying");
+    await persistRun({ setup_state: initialSetup });
 
     try {
+      if (linkedinUrl || linkedinDraft?.url) {
+        setSetupItem("linkedin", "done", linkedinDraft?.hint ?? "LinkedIn brukes som hint.");
+      } else {
+        setSetupItem("linkedin", "done", "Hoppet over LinkedIn");
+      }
       if (cvDraft) await saveCvDraft();
       else setSetupItem("cv", "done", "Hoppet over CV");
 
@@ -873,7 +1004,7 @@ const Onboarding = () => {
 
   const signOutAndLeave = async () => {
     await signOut();
-    navigate("/auth", { replace: true });
+    navigate("/start", { replace: true });
   };
 
   const canOpenMatches = setupDone || setupMatches.length > 0;
@@ -897,9 +1028,9 @@ const Onboarding = () => {
               <Sparkles className="w-4 h-4 text-primary-foreground" />
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-semibold">Bygg interesseprofil</div>
+              <div className="text-sm font-semibold">Bygg matchprofil</div>
               <div className="text-xs text-muted-foreground truncate">
-                {rerun ? "Kjør onboarding på nytt" : "Første oppsett for bedre matcher"}
+                {rerun ? "Juster oppsettet på nytt" : "Første oppsett for bedre matcher"}
               </div>
             </div>
           </div>
@@ -918,9 +1049,9 @@ const Onboarding = () => {
         <section className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
           <aside className="space-y-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Profil som faktisk matcher deg</h1>
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Jobbene som passer, raskere</h1>
               <p className="text-sm text-muted-foreground mt-2">
-                Last opp CV, svar kort, og godkjenn AI-forslaget før appen bruker det.
+                Start med det du har. Du kan bruke CV, LinkedIn eller bare retningen du skrev inn.
               </p>
             </div>
             <Card>
@@ -949,13 +1080,24 @@ const Onboarding = () => {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <FileText className="w-5 h-5 text-primary" />
-                  Start med CV
+                  Grunnlag
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  CV-en gir faktagrunnlaget. Du kan også fortsette uten CV og fylle retningen manuelt.
+                  CV gir best faktagrunnlag. LinkedIn kan brukes som hint, og du kan også fortsette med svarene fra startsteget.
                 </p>
               </CardHeader>
               <CardContent className="space-y-6">
+                {(preauthDraft?.targetRoles || preauthDraft?.desiredTasks || preauthDraft?.location) && (
+                  <div className="rounded-md border border-primary/20 bg-primary/5 p-4 space-y-2">
+                    <div className="text-sm font-semibold">Dette tar vi med fra startsteget</div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                      <MiniText label="Leter etter" value={preauthDraft?.targetRoles} />
+                      <MiniText label="Oppgaver" value={preauthDraft?.desiredTasks} />
+                      <MiniText label="Rammer" value={preauthDraft?.location} />
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <label className="rounded-md border border-dashed border-border p-5 hover:bg-accent/40 transition-colors cursor-pointer">
                     <input
@@ -989,11 +1131,50 @@ const Onboarding = () => {
 
                 {importingCv && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin" /> AI strukturerer CV-en...
+                    <Loader2 className="w-4 h-4 animate-spin" /> Leser og strukturerer CV-en...
                   </div>
                 )}
 
                 {cvDraft && <CvSummary cv={cvDraft} />}
+
+                <div className="rounded-md border border-border bg-background p-4 space-y-3">
+                  <div>
+                    <Label htmlFor="linkedin-url">LinkedIn som supplement</Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Vi prøver å hente offentlig tekst. Hvis LinkedIn blokkerer, lagres URL-en bare som et hint.
+                    </p>
+                  </div>
+                  <div className="flex flex-col md:flex-row gap-2">
+                    <Input
+                      id="linkedin-url"
+                      value={linkedinUrl}
+                      onChange={(event) => {
+                        setLinkedinUrl(event.target.value);
+                        const next = { ...(preauthDraft ?? {}), linkedinUrl: event.target.value };
+                        setPreauthDraft(next);
+                        savePreOnboardingDraft(next);
+                      }}
+                      placeholder="https://linkedin.com/in/..."
+                    />
+                    <Button variant="outline" onClick={importLinkedIn} disabled={importingLinkedIn || !linkedinUrl.trim()}>
+                      {importingLinkedIn ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ExternalLink className="w-4 h-4 mr-2" />}
+                      Bruk LinkedIn
+                    </Button>
+                  </div>
+                  {linkedinDraft && (
+                    <div className="rounded-md bg-muted/60 p-3 text-sm">
+                      <div className="font-medium">
+                        {linkedinImportStatusCopy(linkedinDraft.status, linkedinDraft.hint ?? linkedinDraft.error).title}
+                      </div>
+                      <p className="text-muted-foreground mt-1">
+                        {linkedinImportStatusCopy(linkedinDraft.status, linkedinDraft.hint ?? linkedinDraft.error ?? linkedinDraft.url).detail}
+                      </p>
+                      {linkedinDraft.profile_text && (
+                        <p className="text-xs text-muted-foreground mt-2 line-clamp-3 whitespace-pre-line">{linkedinDraft.profile_text}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <Button variant="ghost" onClick={() => setCvDraft(null)} disabled={!cvDraft}>
@@ -1005,7 +1186,7 @@ const Onboarding = () => {
                     </Button>
                     <Button onClick={continueToQuestions} disabled={generatingQuestions}>
                       {generatingQuestions ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ArrowRight className="w-4 h-4 mr-2" />}
-                      Fortsett
+                      Fortsett med retning
                     </Button>
                   </div>
                 </div>
@@ -1018,10 +1199,10 @@ const Onboarding = () => {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Target className="w-5 h-5 text-primary" />
-                  Spørsmål om retning
+                  Retning
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Svar kort og konkret. AI bruker svarene til å foreslå profiltekst og tags.
+                  Svar kort. Dette styrer hvilke jobber som løftes frem og hvilke som skjules.
                 </p>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -1038,22 +1219,30 @@ const Onboarding = () => {
                     </Button>
                   </div>
                 ) : (
-                  questions.map((question) => (
-                    <div key={question.id} className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Label className="text-sm">{question.title}</Label>
-                        {question.required && <Badge variant="secondary">Viktig</Badge>}
+                  <>
+                    {visibleQuestions.map((question, index) => (
+                      <div key={question.id} className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm">{question.title}</Label>
+                          {index < 3 && question.required && <Badge variant="secondary">Viktig</Badge>}
+                        </div>
+                        <p className="text-sm text-muted-foreground">{question.prompt}</p>
+                        <Textarea
+                          rows={3}
+                          value={answers[question.id] ?? ""}
+                          onChange={(e) => updateAnswer(question.id, e.target.value)}
+                          placeholder={question.placeholder}
+                        />
+                        {question.helper && <p className="text-xs text-muted-foreground">{question.helper}</p>}
                       </div>
-                      <p className="text-sm text-muted-foreground">{question.prompt}</p>
-                      <Textarea
-                        rows={3}
-                        value={answers[question.id] ?? ""}
-                        onChange={(e) => updateAnswer(question.id, e.target.value)}
-                        placeholder={question.placeholder}
-                      />
-                      {question.helper && <p className="text-xs text-muted-foreground">{question.helper}</p>}
-                    </div>
-                  ))
+                    ))}
+                    {questions.length > 3 && (
+                      <Button variant="ghost" size="sm" onClick={() => setShowOptionalQuestions((value) => !value)}>
+                        <ChevronDown className={`w-4 h-4 mr-2 transition-transform ${showOptionalQuestions ? "rotate-180" : ""}`} />
+                        {showOptionalQuestions ? "Skjul ekstra detaljer" : `Vis ${questions.length - 3} ekstra detaljer`}
+                      </Button>
+                    )}
+                  </>
                 )}
 
                 <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
@@ -1063,11 +1252,11 @@ const Onboarding = () => {
                   </Button>
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={generateQuestions} disabled={generatingQuestions}>
-                      Oppdater spørsmål
+                      Lag andre spørsmål
                     </Button>
                     <Button onClick={generateDraft} disabled={generatingDraft || questions.length === 0 || requiredMissing}>
                       {generatingDraft ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                      Lag profilutkast
+                      Lag matchprofil
                     </Button>
                   </div>
                 </div>
@@ -1080,15 +1269,15 @@ const Onboarding = () => {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-primary" />
-                  Godkjenn profilutkast
+                  Matchprofil
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Dette er bare et forslag. Rediger alt som ikke føles riktig før appen bruker det.
+                  Se over hva Jobbhjelpen skal lete etter. Tall og finjusteringer kan endres senere.
                 </p>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
-                  <Label>Interesseprofil</Label>
+                  <Label>Profiloppsummering</Label>
                   <Textarea
                     rows={14}
                     value={draft.master_profile}
@@ -1175,11 +1364,43 @@ const Onboarding = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <WeightField label="Fag" value={draft.weights.professional} onChange={(value) => updateDraftWeight("professional", value)} />
-                  <WeightField label="Kultur" value={draft.weights.culture} onChange={(value) => updateDraftWeight("culture", value)} />
-                  <WeightField label="Praktisk" value={draft.weights.practical} onChange={(value) => updateDraftWeight("practical", value)} />
-                  <WeightField label="Entusiasme" value={draft.weights.enthusiasm} onChange={(value) => updateDraftWeight("enthusiasm", value)} />
+                <div className="rounded-md border border-border bg-muted/20 p-4 space-y-3">
+                  <div>
+                    <Label>Hva skal veie mest?</Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Dette gjør tallvektingen forståelig. Vi normaliserer fortsatt til 100 bak kulissene.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                    {[
+                      { value: "balanced", label: "Balansert" },
+                      { value: "professional", label: "Faglig treff" },
+                      { value: "practical", label: "Praktiske rammer" },
+                      { value: "culture", label: "Arbeidsmiljø" },
+                      { value: "enthusiasm", label: "Motivasjon" },
+                    ].map((item) => (
+                      <Button
+                        key={item.value}
+                        type="button"
+                        variant={matchPriority === item.value ? "default" : "outline"}
+                        onClick={() => applyMatchPriority(item.value as MatchPriority)}
+                      >
+                        {item.label}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setShowAdvancedWeights((value) => !value)}>
+                    <ChevronDown className={`w-4 h-4 mr-2 transition-transform ${showAdvancedWeights ? "rotate-180" : ""}`} />
+                    Avansert vekting
+                  </Button>
+                  {showAdvancedWeights && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <WeightField label="Fag" value={draft.weights.professional} onChange={(value) => updateDraftWeight("professional", value)} />
+                      <WeightField label="Kultur" value={draft.weights.culture} onChange={(value) => updateDraftWeight("culture", value)} />
+                      <WeightField label="Praktisk" value={draft.weights.practical} onChange={(value) => updateDraftWeight("practical", value)} />
+                      <WeightField label="Motivasjon" value={draft.weights.enthusiasm} onChange={(value) => updateDraftWeight("enthusiasm", value)} />
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
@@ -1187,10 +1408,16 @@ const Onboarding = () => {
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Tilbake
                   </Button>
-                  <Button onClick={startRecruiterChat}>
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    Fortsett til kartlegging
-                  </Button>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button variant="outline" onClick={startAssistantChat}>
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      Finjuster med assistent
+                    </Button>
+                    <Button onClick={approveAndSetup} disabled={saving}>
+                      {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                      Finn mine første matcher
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1200,22 +1427,22 @@ const Onboarding = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5 text-primary" />
-                  Recruiter-kartlegging
+                  <Bot className="w-5 h-5 text-primary" />
+                  Finjuster med profilassistent
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Sjekk oppsummeringen og bruk chatten til å korrigere retning, rammer og hva du faktisk vil søke etter.
+                  Sjekk oppsummeringen og korriger retning, rammer og hva du faktisk vil søke etter.
                 </p>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-5 items-start">
-                  <RecruiterSummary draft={draft} />
+                  <MatchProfileSummary draft={draft} />
 
                   <div className="rounded-md border border-border bg-background min-h-[520px] xl:h-[640px] xl:max-h-[calc(100vh-220px)] flex flex-col overflow-hidden">
                     <div className="border-b border-border p-4">
                       <div className="text-sm font-semibold">Samtale</div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Skriv som du ville svart i et kort møte med en recruiter.
+                        Skriv som du ville forklart retningen til en rådgiver.
                       </p>
                     </div>
 
@@ -1269,7 +1496,7 @@ const Onboarding = () => {
                   </Button>
                   <Button onClick={approveAndSetup} disabled={saving || refiningDraft}>
                     {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                    Godkjenn og sett opp jobbsøk
+                    Finn mine første matcher
                   </Button>
                 </div>
               </CardContent>
@@ -1281,10 +1508,10 @@ const Onboarding = () => {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Wand2 className="w-5 h-5 text-primary" />
-                  Setter opp jobbsøket
+                  Finner første matcher
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Profilen lagres først. Kilder og matching kan feile uten at profilutkastet går tapt.
+                  Profilen lagres først. Kilder og matching kan feile uten at arbeidet ditt går tapt.
                 </p>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -1383,7 +1610,7 @@ const extractMarkdownSection = (markdown: string | undefined, title: string) => 
 const draftSection = (draft: ProfileDraft, key: string, title: string) =>
   draft.sections?.[key]?.trim() || extractMarkdownSection(draft.master_profile, title);
 
-const RecruiterSummary = ({ draft }: { draft: ProfileDraft }) => {
+const MatchProfileSummary = ({ draft }: { draft: ProfileDraft }) => {
   const positiveSignals = draft.signals
     .filter((signal) => signal.weight > 0 && signal.category !== "dealbreaker")
     .sort((a, b) => b.weight - a.weight);
@@ -1433,7 +1660,7 @@ const RecruiterSummary = ({ draft }: { draft: ProfileDraft }) => {
 
       <div className="rounded-md border border-border bg-card p-4 space-y-3">
         <div>
-          <div className="text-sm font-semibold">Hvordan AI bør matche deg</div>
+          <div className="text-sm font-semibold">Hvordan Jobbhjelpen bør matche deg</div>
           <p className="text-sm text-muted-foreground mt-1 whitespace-pre-line">
             {draft.rules_green || "Treff på ønsket rolle, arbeidsoppgaver, ferdigheter og praktiske rammer."}
           </p>
@@ -1488,7 +1715,7 @@ const ChatBubble = ({ message }: { message: OnboardingChatMessage }) => {
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div className={`max-w-[88%] rounded-md px-3 py-2 text-sm ${isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
         <div className={`text-[11px] font-medium mb-1 ${isUser ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-          {isUser ? "Du" : "Recruiter"}
+          {isUser ? "Du" : "Profilassistent"}
         </div>
         <div className="whitespace-pre-line leading-relaxed">{message.content}</div>
       </div>
@@ -1504,7 +1731,7 @@ const CvSummary = ({ cv }: { cv: CvDraft }) => {
         <div>
           <div className="text-sm font-semibold">{cv.full_name || "CV-utkast"}</div>
           <div className="text-sm text-muted-foreground">
-            {[cv.headline, cv.location].filter(Boolean).join(" · ") || "AI har strukturert CV-en."}
+            {[cv.headline, cv.location].filter(Boolean).join(" · ") || "CV-en er strukturert."}
           </div>
         </div>
         <Badge variant="secondary">Klar for spørsmål</Badge>
@@ -1582,6 +1809,13 @@ const MiniStat = ({ label, value }: { label: string; value: number }) => (
   <div className="rounded-md bg-muted/60 p-3">
     <div className="text-lg font-semibold tabular-nums">{value}</div>
     <div className="text-xs text-muted-foreground">{label}</div>
+  </div>
+);
+
+const MiniText = ({ label, value }: { label: string; value?: string | null }) => (
+  <div className="rounded-md bg-background/80 p-3 min-w-0">
+    <div className="text-xs text-muted-foreground">{label}</div>
+    <div className="text-sm font-medium mt-1 line-clamp-2 whitespace-pre-line">{value || "Ikke fylt ut"}</div>
   </div>
 );
 

@@ -51,7 +51,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) return <Navigate to="/start" replace state={{ from: location }} />;
   if (needsOnboarding) return <Navigate to="/onboarding" replace state={{ from: location }} />;
 
   return <>{children}</>;

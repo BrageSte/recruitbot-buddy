@@ -110,7 +110,7 @@ function fallbackQuestions(cv: any): Question[] {
     {
       id: "voice",
       title: "Hvordan skal søknader høres ut?",
-      prompt: "Hvordan vil du at AI skal skrive på dine vegne?",
+      prompt: "Hvordan vil du at søknadstekstene skal høres ut?",
       placeholder: "f.eks. kort, varm og konkret. Ikke for selgende.",
     },
   ];
@@ -131,12 +131,34 @@ function compactChatMessages(messages: unknown) {
   return messages
     .slice(-10)
     .map((message: any) => {
-      const role = message?.role === "user" ? "Bruker" : "Recruiter";
+      const role = message?.role === "user" ? "Bruker" : "Profilassistent";
       const content = String(message?.content ?? "").trim();
       return content ? `${role}: ${content.slice(0, 1200)}` : "";
     })
     .filter(Boolean)
     .join("\n");
+}
+
+function compactPreauth(value: any) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    target_roles: value.targetRoles ?? "",
+    desired_tasks: value.desiredTasks ?? "",
+    location: value.location ?? "",
+    work_style: value.workStyle ?? "",
+    dealbreakers: value.dealbreakers ?? "",
+    linkedin_url: value.linkedinUrl ?? "",
+  };
+}
+
+function compactLinkedInDraft(value: any) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    status: value.status ?? "pending",
+    url: value.url ?? "",
+    profile_text: value.profile_text ?? "",
+    hint: value.hint ?? "",
+  };
 }
 
 function normalizeQuestions(value: any, cv: any): Question[] {
@@ -152,7 +174,7 @@ function normalizeQuestions(value: any, cv: any): Question[] {
       prompt: prompt.slice(0, 500),
       helper: q.helper ? String(q.helper).slice(0, 240) : undefined,
       placeholder: q.placeholder ? String(q.placeholder).slice(0, 240) : undefined,
-      required: Boolean(q.required ?? index < 3),
+      required: index < 3 && Boolean(q.required ?? true),
     }];
   });
   const fallback = fallbackQuestions(cv);
@@ -326,6 +348,8 @@ serve(async (req) => {
     const action = body.action;
     const cv = compactCv(body.cv);
     const previousProfile = body.profile ?? null;
+    const preauthDraft = compactPreauth(body.preauth_draft);
+    const linkedinDraft = compactLinkedInDraft(body.linkedin_draft);
 
     if (action === "generate_questions") {
       const parsed = await callAi([
@@ -342,7 +366,13 @@ CV:
 ${cv ? JSON.stringify(cv, null, 2).slice(0, 9000) : "(ingen CV lastet opp)"}
 
 Eksisterende profil:
-${previousProfile ? JSON.stringify(previousProfile, null, 2).slice(0, 2500) : "(tom)"}`,
+${previousProfile ? JSON.stringify(previousProfile, null, 2).slice(0, 2500) : "(tom)"}
+
+Startsteg før innlogging:
+${preauthDraft ? JSON.stringify(preauthDraft, null, 2) : "(ikke brukt)"}
+
+LinkedIn-supplement:
+${linkedinDraft ? JSON.stringify(linkedinDraft, null, 2).slice(0, 1800) : "(ikke brukt)"}`,
         },
       ]);
 
@@ -356,7 +386,7 @@ ${previousProfile ? JSON.stringify(previousProfile, null, 2).slice(0, 2500) : "(
         {
           role: "system",
           content:
-            "Du er en norsk karriereprofil-assistent. Bygg en ærlig interesseprofil fra CV og brukerens svar. Ikke finn på erfaring, arbeidsgivere, utdanning, datoer eller sertifiseringer. Skille fakta fra ønsker.",
+            "Du er en norsk karriereprofil-assistent. Bygg en ærlig interesseprofil fra CV og brukerens svar. Ikke finn på erfaring, arbeidsgivere, utdanning, datoer eller sertifiseringer. Skill fakta fra ønsker. Skriv konkret og uten floskler som 'brenner for' eller tom entusiasme.",
         },
         {
           role: "user",
@@ -388,7 +418,13 @@ Spørsmål og svar:
 ${answerText(questions, answers) || "(ingen svar)"}
 
 Eksisterende profil:
-${previousProfile ? JSON.stringify(previousProfile, null, 2).slice(0, 2500) : "(tom)"}`,
+${previousProfile ? JSON.stringify(previousProfile, null, 2).slice(0, 2500) : "(tom)"}
+
+Startsteg før innlogging:
+${preauthDraft ? JSON.stringify(preauthDraft, null, 2) : "(ikke brukt)"}
+
+LinkedIn-supplement:
+${linkedinDraft ? JSON.stringify(linkedinDraft, null, 2).slice(0, 1800) : "(ikke brukt)"}`,
         },
       ]);
 
@@ -406,11 +442,11 @@ ${previousProfile ? JSON.stringify(previousProfile, null, 2).slice(0, 2500) : "(
         {
           role: "system",
           content:
-            "Du er en norsk recruiter og karrierecoach som hjelper en jobbsøker å avklare retning etter CV-onboarding. Svar kort, konkret og rolig. Oppdater profilen når brukeren korrigerer, legger til preferanser eller presiserer hva de vil. Ikke finn på arbeidserfaring, arbeidsgivere, utdanning, datoer, sertifiseringer eller ferdigheter som fakta. Nye opplysninger fra brukeren skal behandles som brukeroppgitte preferanser, ønsker, arbeidsstil, rammer eller selvbeskrivelse.",
+            "Du er en norsk profilassistent som hjelper en jobbsøker å avklare retning etter onboarding. Svar kort, konkret og rolig. Oppdater profilen når brukeren korrigerer, legger til preferanser eller presiserer hva de vil. Ikke finn på arbeidserfaring, arbeidsgivere, utdanning, datoer, sertifiseringer eller ferdigheter som fakta. Nye opplysninger fra brukeren skal behandles som brukeroppgitte preferanser, ønsker, arbeidsstil, rammer eller selvbeskrivelse. Unngå floskler som 'brenner for'.",
         },
         {
           role: "user",
-          content: `Oppdater interesseprofilen basert på siste melding i recruiter-chatten.
+          content: `Oppdater interesseprofilen basert på siste melding i profilassistent-samtalen.
 Returner KUN JSON med denne formen:
 {
   "reply": "Kort norsk svar til brukeren som forklarer hva du justerte og eventuelt ett konkret oppfølgingsspørsmål.",
@@ -451,7 +487,13 @@ Spørsmål og svar fra onboarding:
 ${answerText(questions, answers) || "(ingen svar)"}
 
 Eksisterende lagret profil:
-${previousProfile ? JSON.stringify(previousProfile, null, 2).slice(0, 2000) : "(tom)"}`,
+${previousProfile ? JSON.stringify(previousProfile, null, 2).slice(0, 2000) : "(tom)"}
+
+Startsteg før innlogging:
+${preauthDraft ? JSON.stringify(preauthDraft, null, 2) : "(ikke brukt)"}
+
+LinkedIn-supplement:
+${linkedinDraft ? JSON.stringify(linkedinDraft, null, 2).slice(0, 1800) : "(ikke brukt)"}`,
         },
       ]);
 

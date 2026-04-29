@@ -44,6 +44,7 @@ ABSOLUTT FORBUDT:
 Hvis du ikke har noe meningsfylt å returnere for et avsnitt, returner en tom array [] for det avsnittet — IKKE [{}].
 
 I tillegg skal du levere korte AI-anbefalinger og en markdown-versjon for arkiv. Svar på norsk.`;
+const STYLE_RULES = `Språkregler: skriv konkret, arbeidsgiverrettet og uten floskler. Ikke bruk "jeg brenner for", "lidenskapelig opptatt av" eller tom entusiasme.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -226,7 +227,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: SYS },
+          { role: "system", content: `${SYS}\n\n${STYLE_RULES}` },
           { role: "user", content: ctx },
         ],
         tools: [tool],

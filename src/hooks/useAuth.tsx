@@ -8,6 +8,7 @@ type AuthContextValue = {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, displayName?: string) => Promise<{ error: Error | null }>;
+  sendMagicLink: (email: string, redirectTo?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 };
 
@@ -51,12 +52,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error };
   };
 
+  const sendMagicLink = async (email: string, redirectTo = `${window.location.origin}/auth/callback`) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: redirectTo,
+        shouldCreateUser: true,
+      },
+    });
+    return { error };
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, sendMagicLink, signOut }}>
       {children}
     </AuthContext.Provider>
   );

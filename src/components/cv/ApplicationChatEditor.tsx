@@ -18,6 +18,7 @@ type Turn = {
 
 interface ApplicationChatEditorProps {
   applicationId: string;
+  userId?: string;
   text: string;
   onTextChange: (next: string) => void;
   selection?: string;
@@ -25,18 +26,20 @@ interface ApplicationChatEditorProps {
   jobTitle?: string;
   company?: string;
   jobDescription?: string;
+  onRevisionCreated?: () => void;
 }
 
 const QUICK_ACTIONS = [
-  "Gjør den kortere og mer direkte",
-  "Mindre akademisk, mer personlig",
-  "Fjern alle bindestreker",
-  "Mer entusiastisk åpning",
-  "Bytt ut floskler med konkrete eksempler",
+  "Språkvask",
+  "Mer konkret bidrag",
+  "Kortere og mer direkte",
+  "Mer rettet mot arbeidsgiver",
+  "Fjern floskler",
 ];
 
 export const ApplicationChatEditor = ({
   applicationId,
+  userId,
   text,
   onTextChange,
   selection,
@@ -44,6 +47,7 @@ export const ApplicationChatEditor = ({
   jobTitle,
   company,
   jobDescription,
+  onRevisionCreated,
 }: ApplicationChatEditorProps) => {
   const { toast } = useToast();
   const [input, setInput] = useState("");
@@ -89,13 +93,25 @@ export const ApplicationChatEditor = ({
       onTextChange(d.newText);
       // Persist the edit immediately
       await supabase.from("applications").update({ generated_text: d.newText }).eq("id", applicationId);
+      if (userId) {
+        await (supabase as any).from("application_revisions").insert({
+          user_id: userId,
+          application_id: applicationId,
+          instruction,
+          source: "edit",
+          previous_text: before,
+          next_text: d.newText,
+          metadata: { selection: sel ?? null },
+        });
+        onRevisionCreated?.();
+      }
 
       setTurns((t) => t.map((x) => (x.id === turnId ? { ...x, status: "applied", after: d.newText } : x)));
       onClearSelection?.();
     } catch (e: any) {
       const msg = e?.message || "Noe gikk galt";
       setTurns((t) => t.map((x) => (x.id === turnId ? { ...x, status: "error", errorMessage: msg } : x)));
-      toast({ title: "AI-redigering feilet", description: msg, variant: "destructive" });
+      toast({ title: "Redigering feilet", description: msg, variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -113,7 +129,7 @@ export const ApplicationChatEditor = ({
       <div className="px-4 py-3 border-b border-border flex items-center gap-2 bg-muted/30">
         <Wand2 className="w-4 h-4 text-primary" />
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium">AI-redigering</div>
+          <div className="text-sm font-medium">Tekstverktøy</div>
           <div className="text-[11px] text-muted-foreground">
             Skriv hva du vil endre — på naturlig språk
           </div>

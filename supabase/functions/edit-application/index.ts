@@ -13,6 +13,9 @@ Regler:
 - Behold avsnittsstruktur og linjeskift med mindre instruksjonen ber om noe annet.
 - Behold språk (norsk bokmål med mindre originalen er noe annet).
 - Ikke finn på fakta som ikke står i originalen eller i jobbkonteksten.
+- Skriv mer om hva arbeidsgiver får, ikke bare hva kandidaten ønsker.
+- Bruk gjerne "dere" når teksten retter seg mot arbeidsgiveren.
+- Unngå floskler som "jeg brenner for", "lidenskapelig opptatt av", "spennende mulighet" og tom motivasjon.
 - Hvis brukeren markerer kun et utvalg av teksten (mellom <SELECTION>...</SELECTION>), endre KUN den delen og bytt den ut i hele teksten — returner hele dokumentet.
 - Hvis instruksjonen er uklar, gjør den mest sannsynlige tolkningen og utfør endringen.`;
 
