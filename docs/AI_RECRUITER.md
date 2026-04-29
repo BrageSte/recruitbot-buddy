@@ -179,6 +179,8 @@ Desired behavior:
 
 Function: `tailor-cv`.
 
+Contract: follow [`AI_CV_HANDLING.md`](./AI_CV_HANDLING.md). CV output must be factual, classic, and PDF-safe.
+
 Input:
 
 - application;
@@ -188,6 +190,8 @@ Input:
 
 Output:
 
+- complete structured tailored CV snapshot;
+- recommended section order;
 - tailored intro;
 - experiences to highlight;
 - experiences to de-emphasize;
@@ -201,7 +205,9 @@ Desired behavior:
 - preserve CV facts;
 - reframe rather than fabricate;
 - explain choices briefly;
-- prioritize relevance for the specific job.
+- prioritize relevance for the specific job;
+- return structured sections with empty arrays instead of placeholder objects;
+- keep tailored bullets and descriptions concise enough for a standard CV PDF.
 
 ### Application Editing
 
@@ -230,6 +236,8 @@ Desired behavior:
 
 Function: `import-cv`.
 
+Contract: follow [`AI_CV_HANDLING.md`](./AI_CV_HANDLING.md). Import is extraction, not creative rewriting.
+
 Input:
 
 - pasted text or PDF.
@@ -244,7 +252,9 @@ Desired behavior:
 - extract only present information;
 - normalize dates where possible;
 - use empty arrays for missing sections;
-- return JSON only.
+- return JSON only;
+- keep contact fields as plain text;
+- never return `[{}]` or malformed skill groups.
 
 ### Plan Generation
 

@@ -22,12 +22,11 @@ export const CvStylePicker = ({ value, onChange, size = "md" }: Props) => {
               selected ? "border-primary ring-2 ring-primary/30" : "border-border"
             }`}
           >
-            {/* Mini visual swatch */}
-            <div className="h-12 flex" style={{ background: s.background }}>
-              <div style={{ background: s.accent, width: s.layout === "sidebar" ? "30%" : "100%", height: "100%" }} />
-              {s.layout !== "sidebar" && (
-                <div style={{ background: s.accentSoft, position: "absolute", top: 0, right: 0, width: "30%", height: "100%", opacity: 0.6 }} />
-              )}
+            <div className="h-12 bg-white px-3 py-2 border-b border-border">
+              <div className="h-1 rounded-sm mb-2" style={{ background: s.accent }} />
+              <div className="h-1.5 rounded-sm w-3/5 bg-slate-800 mb-1.5" />
+              <div className="h-1 rounded-sm w-full bg-slate-200 mb-1" />
+              <div className="h-1 rounded-sm w-4/5 bg-slate-200" />
             </div>
             <div className="px-2.5 py-2">
               <div className="flex items-center justify-between">

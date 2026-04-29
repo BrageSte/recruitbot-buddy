@@ -27,7 +27,7 @@ export const buildBaseStyles = (style: CvStyleDef) => {
       fontSize: 24,
       fontWeight: 700,
       color: style.ink,
-      letterSpacing: -0.4,
+      letterSpacing: 0,
     },
     headline: {
       fontSize: 11,
@@ -37,7 +37,7 @@ export const buildBaseStyles = (style: CvStyleDef) => {
     },
     sectionTitle: {
       fontSize: 9,
-      letterSpacing: 1.6,
+      letterSpacing: 0,
       textTransform: "uppercase",
       color: style.accent,
       fontWeight: 600,
@@ -149,35 +149,6 @@ export const buildBaseStyles = (style: CvStyleDef) => {
       paddingHorizontal: 5,
       borderRadius: 3,
       fontWeight: 500,
-    },
-    // Slim continuation header that appears on page 2+
-    // Outer view: only positioning (no background — background lives inside the
-    // render prop so it never bleeds onto page 1).
-    continuation: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-    },
-    continuationInner: {
-      backgroundColor: style.accent,
-      paddingVertical: 6,
-      paddingHorizontal: 22,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    continuationName: {
-      color: "#fff",
-      fontSize: 9,
-      fontWeight: 600,
-      letterSpacing: 0.4,
-    },
-    continuationLabel: {
-      color: "rgba(255,255,255,0.75)",
-      fontSize: 8,
-      letterSpacing: 1,
-      textTransform: "uppercase",
     },
   });
 };

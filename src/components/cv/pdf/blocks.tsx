@@ -1,6 +1,6 @@
 // Atomic block components used by all CV layouts.
-// Each "item" block sets wrap={false} so a single experience/education/skill
-// entry is moved to the next page rather than split mid-content.
+// Items are allowed to split across pages. Only short header fragments use
+// orphan/widow hints so long AI-generated entries never overflow the page.
 // Empty/incomplete items are filtered out so the AI-generated CV doesn't
 // emit blank rows.
 
@@ -54,9 +54,8 @@ export const Section = ({
   children,
   s,
 }: { title: string; divider?: boolean; children: ReactNode; s: BaseStyles }) => (
-  <View style={s.section}>
-    {/* break={false} keeps the title attached to the next sibling block */}
-    <View wrap={false}>
+  <View style={s.section} minPresenceAhead={70}>
+    <View minPresenceAhead={70}>
       <Text style={[s.sectionTitle, divider ? s.sectionTitleDivider : {}]}>
         {title}
       </Text>
@@ -71,8 +70,8 @@ export const ExperienceItem = ({
   const bullets = (item.bullets ?? []).filter((b) => typeof b === "string" && b.trim());
   const techs = (item.technologies ?? []).filter((t) => typeof t === "string" && t.trim());
   return (
-    <View wrap={false} style={{ marginTop: 8 }}>
-      <View style={s.expRow}>
+    <View minPresenceAhead={58} style={{ marginTop: 8 }}>
+      <View wrap={false} style={s.expRow}>
         <View style={{ flex: 1, paddingRight: 6 }}>
           {item.title ? <Text style={s.expTitle}>{item.title}</Text> : null}
           {(item.company || item.location) ? (
@@ -88,7 +87,7 @@ export const ExperienceItem = ({
       {bullets.length ? (
         <View style={{ marginTop: 3 }}>
           {bullets.map((b, j) => (
-            <View key={j} style={s.bulletRow}>
+            <View key={j} wrap={false} style={s.bulletRow}>
               <Text style={s.bulletDot}>•</Text>
               <Text style={s.bulletText}>{b}</Text>
             </View>
@@ -103,7 +102,7 @@ export const ExperienceItem = ({
 export const EducationItem = ({
   item, s,
 }: { item: CvEducation } & WithStyles) => (
-  <View wrap={false} style={[s.expRow, { marginTop: 6 }]}>
+  <View minPresenceAhead={44} style={[s.expRow, { marginTop: 6 }]}>
     <View style={{ flex: 1, paddingRight: 6 }}>
       {item.degree ? <Text style={s.expTitle}>{item.degree}</Text> : null}
       {item.institution ? <Text style={s.expCompany}>{item.institution}</Text> : null}
@@ -118,7 +117,7 @@ export const EducationItem = ({
 export const SkillsGroup = ({
   group, s,
 }: { group: CvSkillGroup } & WithStyles) => (
-  <View wrap={false} style={{ marginTop: 5 }}>
+  <View minPresenceAhead={34} style={{ marginTop: 5 }}>
     {group.category ? <Text style={s.skillsCategory}>{group.category}</Text> : null}
     {group.items.length ? (
       <Text style={s.skillsItems}>{group.items.join(" · ")}</Text>
@@ -131,7 +130,7 @@ export const ProjectItem = ({
 }: { item: CvProject } & WithStyles) => {
   const techs = (item.technologies ?? []).filter((t) => typeof t === "string" && t.trim());
   return (
-    <View wrap={false} style={{ marginTop: 6 }}>
+    <View minPresenceAhead={46} style={{ marginTop: 6 }}>
       {item.name ? <Text style={s.expTitle}>{item.name}</Text> : null}
       {item.description ? <Text style={s.expDescription}>{item.description}</Text> : null}
       {techs.length ? (
@@ -148,10 +147,10 @@ export const ProjectItem = ({
 export const CertificationItem = ({
   item, s,
 }: { item: CvCertification } & WithStyles) => (
-  <View wrap={false} style={{ marginTop: 4 }}>
+  <View minPresenceAhead={28} style={{ marginTop: 4 }}>
     <Text style={s.skillsItems}>
       {item.name ? <Text style={{ fontWeight: 600, color: s.expTitle.color }}>{item.name}</Text> : null}
-      {item.issuer ? ` — ${item.issuer}` : ""}
+      {item.issuer ? ` - ${item.issuer}` : ""}
       {item.date ? `, ${item.date}` : ""}
     </Text>
   </View>

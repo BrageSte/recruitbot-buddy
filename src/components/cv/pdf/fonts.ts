@@ -1,19 +1,10 @@
-// Font registration for @react-pdf/renderer.
+// Font setup for @react-pdf/renderer.
 //
-// We bundle Inter via @fontsource/inter so the sans-serif CV styles
-// (Skandinavisk, Startup, Bold) keep their visual identity offline.
-//
-// The serif styles (Korporat = Georgia, Akademisk = Garamond) fall back to
-// react-pdf's built-in Times-Roman — we don't bundle proprietary fonts.
-// Visually close enough; can be replaced with licensed serif faces later.
+// CV/letter PDFs use built-in PDF fonts for maximum compatibility with
+// browsers, Preview, Poppler, and applicant tracking systems. Custom webfont
+// embedding looked nicer, but made external PDF renderers less reliable.
 
 import { Font } from "@react-pdf/renderer";
-
-import Inter400 from "@fontsource/inter/files/inter-latin-400-normal.woff?url";
-import Inter500 from "@fontsource/inter/files/inter-latin-500-normal.woff?url";
-import Inter600 from "@fontsource/inter/files/inter-latin-600-normal.woff?url";
-import Inter700 from "@fontsource/inter/files/inter-latin-700-normal.woff?url";
-import Inter800 from "@fontsource/inter/files/inter-latin-800-normal.woff?url";
 
 let registered = false;
 
@@ -21,20 +12,17 @@ export function ensureFontsRegistered() {
   if (registered) return;
   registered = true;
 
-  Font.register({
-    family: "Inter",
-    fonts: [
-      { src: Inter400, fontWeight: 400 },
-      { src: Inter500, fontWeight: 500 },
-      { src: Inter600, fontWeight: 600 },
-      { src: Inter700, fontWeight: 700 },
-      { src: Inter800, fontWeight: 800 },
-    ],
+  // Keep normal words intact, but allow very long URLs/emails/tokens to wrap
+  // so they cannot push contact lines or skill lists outside the page.
+  Font.registerHyphenationCallback((word) => {
+    if (!word || word.length <= 24) return [word];
+    const pieces = word.split(/([/@._-])/).filter(Boolean);
+    if (pieces.length > 1) return pieces;
+    const chunks: string[] = [];
+    for (let i = 0; i < word.length; i += 14) chunks.push(word.slice(i, i + 14));
+    return chunks;
   });
-
-  // react-pdf hyphenates words by default; off looks more like the previous HTML output.
-  Font.registerHyphenationCallback((word) => [word]);
 }
 
-export const PDF_FONT_SANS = "Inter";
+export const PDF_FONT_SANS = "Helvetica";
 export const PDF_FONT_SERIF = "Times-Roman";

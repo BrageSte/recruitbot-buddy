@@ -52,12 +52,13 @@ serve(async (req) => {
         },
       };
 
-      const sys = `Du velger CV-stil for en søker. Stiler:
-- skandinavisk: lys, ren, lite farge — offentlig, bærekraft, helse, NGO.
-- korporat: klassisk, blått, formelt — finans, jus, konsulent, store selskaper.
-- akademisk: serif, tett tekst — forskning, universitet, undervisning.
-- startup: moderne, lilla aksent, sidebar — scaleups, produkt, tech.
-- bold: stor tittel, sterk farge — design, media, kreative bransjer.
+      const sys = `Du velger CV-stil for en søker. Alle CV-PDFer bruker en klassisk, ryddig printlayout uten store fargeflater; stilen påvirker kun aksent og skrifttone.
+Stiler:
+- skandinavisk: ren, rolig, lite farge - offentlig, bærekraft, helse, NGO.
+- korporat: formell, blå, strukturert - finans, jus, konsulent, store selskaper.
+- akademisk: serif, nøktern, innholdstett - forskning, universitet, undervisning.
+- startup: moderne, teknologisk, men fortsatt ryddig - scaleups, produkt, tech.
+- bold: høy kontrast og tydelig aksent - design, media, kreative bransjer.
 Svar med tool-call.`;
 
       const userMsg = `STILLING: ${job.title}\nSELSKAP: ${job.company ?? ""}\nLOKASJON: ${job.location ?? ""}\n\nBESKRIVELSE:\n${(job.description ?? "").slice(0, 4000)}`;

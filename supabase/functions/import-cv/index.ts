@@ -37,6 +37,9 @@ Regler:
 - Hvis nåværende stilling, sett "current": true og la "end" stå tom.
 - Grupper ferdigheter i meningsfulle kategorier (f.eks. "Programmeringsspråk", "Verktøy", "Metodikk").
 - "intro" = kort sammendrag/elevator pitch hvis CV'en har det, ellers tom streng.
+- Hold CV-data PDF-sikker: ingen tomme objekter i lister, ingen svært lange pyntetekster, ingen dekorative overskrifter.
+- Erfaringer bør ha korte, konkrete bullets. Ikke slå sammen flere roller hvis CV-en tydelig skiller dem.
+- Kontaktfelt skal være rene tekstverdier uten markdown.
 - Ikke finn på data. Tomme arrays er greit.
 - Returner KUN JSON, ingen forklaring, ingen markdown-kodeblokk.`;
 

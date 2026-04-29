@@ -80,8 +80,12 @@ export type CvData = {
   certifications?: CvCertification[];
 };
 
-export const fmtRange = (start?: string, end?: string, current?: boolean) =>
-  `${start ?? ""}${start || end || current ? " – " : ""}${current ? "nå" : end ?? ""}`;
+export const fmtRange = (start?: string, end?: string, current?: boolean) => {
+  const from = (start ?? "").trim();
+  const to = current ? "nå" : (end ?? "").trim();
+  if (from && to) return `${from} - ${to}`;
+  return from || to;
+};
 
 // Resolves a CV's section_order against DEFAULT_SECTION_ORDER, dropping unknown
 // keys, appending any missing defaults, and excluding sections rendered elsewhere.

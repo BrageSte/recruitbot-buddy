@@ -18,6 +18,8 @@ Regler:
 - Ikke bruk floskler som "jeg brenner for", "lidenskapelig opptatt av", "spennende mulighet" eller tom entusiasme.
 - Ikke finn på erfaringer, resultater, utdanning, sertifiseringer eller ferdigheter.
 - Hvis noe er uklart, skriv generelt eller la det være ute.
+- CV-notater skal være redaksjonelle forslag til vektlegging, rekkefølge og formulering. Ikke foreslå nye fakta som ikke finnes i CV-en.
+- Tenk klassisk CV: kort, ryddig, konkret og PDF-vennlig.
 - Svar i markdown med kort hilsen, 3-5 konkrete avsnitt og en rolig avslutning.`;
 
 const STYLES = ["skandinavisk", "korporat", "akademisk", "startup", "bold"];

@@ -168,13 +168,13 @@ Directory: `src/components/cv/`
 
 - `cvStyles.ts`: five CV/letter style presets.
 - `CvStylePicker.tsx`: style selector.
-- `CvDocument.tsx`: A4 CV renderer.
-- `LetterDocument.tsx`: A4 cover-letter renderer.
-- `SheetViewer.tsx`: preview wrapper for A4 pages.
-- `exportPdf.ts`: DOM-to-PDF helper using `html2canvas` and `jspdf`.
+- `pdf/CvPdfDocument.tsx`: classic vector-PDF CV renderer.
+- `pdf/LetterPdfDocument.tsx`: vector-PDF cover-letter renderer.
+- `pdf/CvPdfPreview.tsx`: live PDF preview wrapper.
+- `exportPdf.ts`: vector-PDF download helper using `@react-pdf/renderer`.
 - `ApplicationChatEditor.tsx`: AI editing panel for application text.
 
-This is a distinct print/document subsystem. Treat CV data as factual source material.
+This is a distinct print/document subsystem. Treat CV data as factual source material and follow `docs/AI_CV_HANDLING.md` for AI-produced CV data.
 
 ## Supabase Schema
 

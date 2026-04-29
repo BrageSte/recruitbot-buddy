@@ -31,7 +31,7 @@ export const LetterPdfDocument = ({ cv, text, jobTitle, company, styleId }: Prop
         <View style={{ borderTopWidth: 4, borderTopColor: style.accent, paddingHorizontal: 56, paddingTop: 36, paddingBottom: 18 }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontFamily: fontFor(style), fontSize: 18, fontWeight: 700, color: style.ink, letterSpacing: -0.2 }}>
+              <Text style={{ fontFamily: fontFor(style), fontSize: 18, fontWeight: 700, color: style.ink, letterSpacing: 0 }}>
                 {cv.full_name || "Navn Navnesen"}
               </Text>
               {cv.headline ? (

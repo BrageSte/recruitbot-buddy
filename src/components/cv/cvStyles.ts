@@ -22,7 +22,7 @@ export const CV_STYLES: Record<CvStyleId, CvStyleDef> = {
   skandinavisk: {
     id: "skandinavisk",
     name: "Skandinavisk",
-    tagline: "Lyst, rolig, mye luft – passer offentlig sektor og bærekraft.",
+    tagline: "Ren, rolig og klassisk - passer offentlig sektor og bærekraft.",
     accent: "#2f6f4f",
     accentSoft: "#e8f1ec",
     ink: "#1a1f1c",
@@ -35,7 +35,7 @@ export const CV_STYLES: Record<CvStyleId, CvStyleDef> = {
   korporat: {
     id: "korporat",
     name: "Korporat",
-    tagline: "Klassisk og strukturert – for finans, jus og konsulent.",
+    tagline: "Formell og strukturert - for finans, jus og konsulent.",
     accent: "#0f3a6b",
     accentSoft: "#e6ecf4",
     ink: "#101828",
@@ -48,7 +48,7 @@ export const CV_STYLES: Record<CvStyleId, CvStyleDef> = {
   akademisk: {
     id: "akademisk",
     name: "Akademisk",
-    tagline: "Tett tekst, mye innhold – passer forskning og utdanning.",
+    tagline: "Nøktern og innholdssterk - passer forskning og utdanning.",
     accent: "#5b3a8c",
     accentSoft: "#efeaf6",
     ink: "#1f1a2c",
@@ -61,7 +61,7 @@ export const CV_STYLES: Record<CvStyleId, CvStyleDef> = {
   startup: {
     id: "startup",
     name: "Startup",
-    tagline: "Moderne, tech-aktig – passer scaleups og produkt.",
+    tagline: "Moderne, men fortsatt ryddig - passer scaleups og produkt.",
     accent: "#7c3aed",
     accentSoft: "#f1ebff",
     ink: "#0b0a1a",
@@ -74,7 +74,7 @@ export const CV_STYLES: Record<CvStyleId, CvStyleDef> = {
   bold: {
     id: "bold",
     name: "Bold",
-    tagline: "Stor tittel, sterk farge – passer kreative og media.",
+    tagline: "Tydelig aksent og høy kontrast - passer kreative og media.",
     accent: "#dc2626",
     accentSoft: "#fde8e8",
     ink: "#1a0e0e",

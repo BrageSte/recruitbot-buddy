@@ -36,6 +36,13 @@ Du har lov til å:
 - Utelate enkeltelementer som er åpenbart irrelevante.
 - Justere "section_order" slik at de viktigste avsnittene kommer først.
 
+CV-kvalitet og PDF-sikkerhet:
+- Tenk klassisk CV, ikke kampanje/landing page: rolig struktur, tydelige seksjoner, korte punkter.
+- Ikke lag lange avsnitt inni bullets. Bruk konkrete, lesbare setninger.
+- Behold kronologi og kontekst slik at leseren forstår arbeidsgiver, rolle og tidsrom.
+- Ikke bruk markdown, emoji eller visuell pynt i structured JSON-feltene.
+- Ikke returner ekstremt lange URL-er eller kontakttekst i nye felt.
+
 ABSOLUTT FORBUDT:
 - Returnere tomme objekter ({}) i listene.
 - Hoppe over obligatoriske felt som title/company i experiences eller category/items i skills.
