@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, useMotionValue, useTransform, AnimatePresence, PanInfo } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -62,9 +62,7 @@ const JobSwipe = () => {
   const noOpacity = useTransform(x, [-140, -40], [1, 0]);
   const superOpacity = useTransform(y, [-140, -40], [1, 0]);
 
-  useEffect(() => { load(); }, [user, includeReviewed]);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     let q = supabase.from("jobs").select("*").eq("user_id", user.id);
@@ -77,7 +75,9 @@ const JobSwipe = () => {
     setQueue(data ?? []);
     setHistory([]);
     setLoading(false);
-  };
+  }, [includeReviewed, user]);
+
+  useEffect(() => { load(); }, [load]);
 
   const top = queue[0];
   const next = queue[1];

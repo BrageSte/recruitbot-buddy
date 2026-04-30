@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -75,9 +75,7 @@ const Jobs = () => {
   const [sortBy, setSortBy] = useState<SortKey>("created_desc");
   const [showArchived, setShowArchived] = useState(false);
 
-  useEffect(() => { load(); }, [user]);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     const [j, f, p, r] = await Promise.all([
@@ -97,7 +95,9 @@ const Jobs = () => {
     setProfileMinScore(nextMinScore);
     setConfig((current) => (Object.keys(current).length === 0 ? { minScore: nextMinScore } : current));
     setLoading(false);
-  };
+  }, [user]);
+
+  useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => {
     const list = jobs.filter((j) => {

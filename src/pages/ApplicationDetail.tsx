@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +18,6 @@ import { CvStyleId } from "@/components/cv/cvStyles";
 import { ApplicationChatEditor } from "@/components/cv/ApplicationChatEditor";
 import { CvTailoringChatEditor } from "@/components/cv/CvTailoringChatEditor";
 import { JobContextCard } from "@/components/JobContextCard";
-import { useRef } from "react";
 
 const STATUSES = [
   { v: "draft", label: "Utkast" }, { v: "sent", label: "Sendt" },
@@ -46,9 +45,7 @@ const ApplicationDetail = () => {
   const [showTextTools, setShowTextTools] = useState(true);
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => { load(); }, [id]);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     const [{ data: a }, { data: t }, { data: r }] = await Promise.all([
@@ -90,7 +87,9 @@ const ApplicationDetail = () => {
       setAllCvs(cvs ?? []);
     }
     setLoading(false);
-  };
+  }, [id]);
+
+  useEffect(() => { load(); }, [load]);
 
   const refreshRevisions = async () => {
     if (!id) return;

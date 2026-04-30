@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -122,9 +122,7 @@ const Profile = () => {
   const [ruleDescriptionTerms, setRuleDescriptionTerms] = useState("");
   const [ruleSourceTerms, setRuleSourceTerms] = useState("");
 
-  useEffect(() => { loadAll(); }, [user]);
-
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     const [{ data: prof }, { data: fls }, { data: au }, { data: sig }, { data: rules }] = await Promise.all([
@@ -144,9 +142,11 @@ const Profile = () => {
       daily_limit: au.daily_limit,
       only_from_rss: au.only_from_rss,
       exclude_with_risks: au.exclude_with_risks,
-    });
+      });
     setLoading(false);
-  };
+  }, [user]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   const save = async () => {
     if (!user || !profile) return;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -54,11 +54,7 @@ const Matches = () => {
   const [ingesting, setIngesting] = useState<Provider | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    load();
-  }, [user]);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     const [matchRes, stateRes, arbeidsplassenCount, finnCount, profileRes, rulesRes] = await Promise.all([
@@ -98,7 +94,11 @@ const Matches = () => {
       finn: finnCount.count ?? 0,
     });
     setLoading(false);
-  };
+  }, [user]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const decoratedMatches = useMemo(
     () =>

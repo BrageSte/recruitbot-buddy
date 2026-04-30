@@ -23,7 +23,7 @@ import {
   validLanguages,
   validProjects,
   validSkillGroups,
-} from "./blocks";
+} from "./cvPdfFilters";
 
 ensureFontsRegistered();
 

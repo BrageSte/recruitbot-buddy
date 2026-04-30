@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -112,14 +112,7 @@ const Sources = () => {
   const [rssName, setRssName] = useState("");
   const [rssUrl, setRssUrl] = useState("");
 
-  useEffect(() => {
-    loadAuto();
-    loadRss();
-    loadCoverage();
-    loadSuggestions(true);
-  }, [user]);
-
-  const loadSuggestions = async (generateIfEmpty = false) => {
+  const loadSuggestions = useCallback(async (generateIfEmpty = false) => {
     if (!user) return;
     setSuggestionsLoading(true);
     const [{ data: prof }, { data: suggestions }] = await Promise.all([
@@ -149,7 +142,7 @@ const Sources = () => {
     }
     setSourceSuggestions((suggestions ?? []) as SourceSuggestion[]);
     setSuggestionsLoading(false);
-  };
+  }, [user]);
 
   const setAutoSuggestionsEnabled = async (enabled: boolean) => {
     if (!user) return;
@@ -229,7 +222,7 @@ const Sources = () => {
     toast({ title: "Søketekst kopiert", description: text });
   };
 
-  const loadCoverage = async () => {
+  const loadCoverage = useCallback(async () => {
     const [states, arbeidsplassenCount, finnCount] = await Promise.all([
       supabase.from("source_ingest_state").select("*"),
       supabase
@@ -248,7 +241,7 @@ const Sources = () => {
       arbeidsplassen: arbeidsplassenCount.count ?? 0,
       finn: finnCount.count ?? 0,
     });
-  };
+  }, []);
 
   const runFullSource = async (source: "arbeidsplassen" | "finn") => {
     setFullRunning(source);
@@ -271,7 +264,7 @@ const Sources = () => {
   };
 
   // ============= Auto-søk =============
-  const loadAuto = async () => {
+  const loadAuto = useCallback(async () => {
     if (!user) return;
     setAutoLoading(true);
     const { data } = await supabase
@@ -281,7 +274,7 @@ const Sources = () => {
       .order("created_at", { ascending: false });
     setAutoItems((data ?? []) as AutoSearch[]);
     setAutoLoading(false);
-  };
+  }, [user]);
 
   const addAuto = async () => {
     if (!user || !autoName.trim() || !autoQuery.trim()) {
@@ -338,7 +331,7 @@ const Sources = () => {
   };
 
   // ============= RSS =============
-  const loadRss = async () => {
+  const loadRss = useCallback(async () => {
     if (!user) return;
     setRssLoading(true);
     const { data } = await supabase
@@ -348,7 +341,14 @@ const Sources = () => {
       .order("created_at", { ascending: false });
     setFeeds((data ?? []) as Feed[]);
     setRssLoading(false);
-  };
+  }, [user]);
+
+  useEffect(() => {
+    loadAuto();
+    loadRss();
+    loadCoverage();
+    loadSuggestions(true);
+  }, [loadAuto, loadCoverage, loadRss, loadSuggestions]);
 
   const addRss = async () => {
     if (!user || !rssName.trim() || !rssUrl.trim()) {

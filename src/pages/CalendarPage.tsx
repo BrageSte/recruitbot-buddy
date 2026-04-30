@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -105,28 +105,7 @@ const CalendarPage = () => {
   // Calendar grid
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
-  useEffect(() => { load(); }, [user]);
-
-  const load = async () => {
-    if (!user) return;
-    setLoading(true);
-    const [g, e, j, a] = await Promise.all([
-      supabase.from("goals").select("*").eq("user_id", user.id).neq("status", "archived").order("sort_order"),
-      supabase.from("calendar_events").select("*").eq("user_id", user.id).order("event_date"),
-      supabase.from("jobs").select("id,title,company,deadline,status").eq("user_id", user.id).not("deadline", "is", null).not("status", "in", "(archived,rejected)"),
-      supabase.from("applications").select("id,job_id,sent_at,status,jobs(title,company)").eq("user_id", user.id),
-    ]);
-    setGoals((g.data ?? []) as Goal[]);
-    setEvents((e.data ?? []) as CalEvent[]);
-    setJobs((j.data ?? []) as any);
-    setApps((a.data ?? []) as any);
-    setLoading(false);
-
-    // Auto-update milestone progress for current week
-    void updateMilestoneProgress((g.data ?? []) as Goal[], (a.data ?? []) as any);
-  };
-
-  const updateMilestoneProgress = async (goalsList: Goal[], appsList: any[]) => {
+  const updateMilestoneProgress = useCallback(async (goalsList: Goal[], appsList: any[]) => {
     if (!user) return;
     const now = new Date();
     for (const g of goalsList) {
@@ -146,7 +125,28 @@ const CalendarPage = () => {
         await supabase.from("goals").update({ progress_count: sentInWeek, status: newStatus }).eq("id", g.id);
       }
     }
-  };
+  }, [user]);
+
+  const load = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    const [g, e, j, a] = await Promise.all([
+      supabase.from("goals").select("*").eq("user_id", user.id).neq("status", "archived").order("sort_order"),
+      supabase.from("calendar_events").select("*").eq("user_id", user.id).order("event_date"),
+      supabase.from("jobs").select("id,title,company,deadline,status").eq("user_id", user.id).not("deadline", "is", null).not("status", "in", "(archived,rejected)"),
+      supabase.from("applications").select("id,job_id,sent_at,status,jobs(title,company)").eq("user_id", user.id),
+    ]);
+    setGoals((g.data ?? []) as Goal[]);
+    setEvents((e.data ?? []) as CalEvent[]);
+    setJobs((j.data ?? []) as any);
+    setApps((a.data ?? []) as any);
+    setLoading(false);
+
+    // Auto-update milestone progress for current week
+    void updateMilestoneProgress((g.data ?? []) as Goal[], (a.data ?? []) as any);
+  }, [user, updateMilestoneProgress]);
+
+  useEffect(() => { load(); }, [load]);
 
   const generatePlan = async () => {
     if (!planDate) {

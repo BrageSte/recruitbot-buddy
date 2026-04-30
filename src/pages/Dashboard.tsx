@@ -147,10 +147,10 @@ const Dashboard = () => {
     });
   }, [user]);
 
-  const today = new Date();
-  const tomorrow = addDays(today, 1);
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
+  const today = useMemo(() => new Date(), []);
+  const tomorrow = useMemo(() => addDays(today, 1), [today]);
+  const weekStart = useMemo(() => startOfWeek(today, { weekStartsOn: 1 }), [today]);
+  const weekEnd = useMemo(() => endOfWeek(today, { weekStartsOn: 1 }), [today]);
 
   // ============= KPIs =============
   const sentThisWeek = apps.filter((a) => a.sent_at && new Date(a.sent_at) >= weekStart).length;
@@ -179,9 +179,9 @@ const Dashboard = () => {
         return urgencyB - urgencyA;
       })
       .slice(0, 5);
-  }, [jobs, drafted]);
+  }, [jobs, drafted, today]);
 
-  const mustApplyIds = new Set(mustApply.map((j) => j.id));
+  const mustApplyIds = useMemo(() => new Set(mustApply.map((j) => j.id)), [mustApply]);
   const newRecent = useMemo(() => {
     const sevenDaysAgo = addDays(today, -7);
     return jobs
@@ -194,7 +194,7 @@ const Dashboard = () => {
       )
       .sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0))
       .slice(0, 8);
-  }, [jobs, mustApplyIds, drafted]);
+  }, [jobs, mustApplyIds, drafted, today]);
 
   // ============= Smart agenda =============
   const agenda = useMemo(() => {
@@ -258,7 +258,7 @@ const Dashboard = () => {
     });
 
     return items.sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [jobs, apps, events, goals]);
+  }, [jobs, apps, events, goals, today, weekStart]);
 
   const agendaGroups = useMemo(() => {
     const todayItems = agenda.filter((i) => isSameDay(i.date, today));
@@ -271,7 +271,7 @@ const Dashboard = () => {
     );
     const next30Items = agenda.filter((i) => isAfter(i.date, weekEnd) && isBefore(i.date, addDays(today, 30)));
     return { todayItems, tomorrowItems, thisWeekItems, next30Items };
-  }, [agenda]);
+  }, [agenda, today, tomorrow, weekEnd]);
 
   // ============= Urgent =============
   const urgent = useMemo(() => {
@@ -340,7 +340,7 @@ const Dashboard = () => {
     });
 
     return out.slice(0, 12);
-  }, [jobs, apps, events, drafted]);
+  }, [jobs, apps, events, drafted, today, tomorrow]);
 
   if (loading) {
     return <div className="p-10 text-sm text-muted-foreground">Laster…</div>;

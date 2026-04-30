@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -100,9 +100,25 @@ const CvTemplate = () => {
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameDraft, setRenameDraft] = useState({ name: "", description: "" });
 
-  useEffect(() => { initialLoad(); }, [user]);
+  const loadVariant = useCallback(async (id: string) => {
+    const { data } = await supabase.from("cv_templates").select("*").eq("id", id).maybeSingle();
+    if (data) {
+      setCv({
+        ...(data as any),
+        variant_name: (data as any).variant_name ?? "Standard",
+        section_order: normalizeOrder((data as any).section_order),
+        experiences: ((data as any).experiences as any) ?? [],
+        education: ((data as any).education as any) ?? [],
+        skills: ((data as any).skills as any) ?? [],
+        languages: ((data as any).languages as any) ?? [],
+        projects: ((data as any).projects as any) ?? [],
+        certifications: ((data as any).certifications as any) ?? [],
+      } as CV);
+      setActiveId(id);
+    }
+  }, []);
 
-  const initialLoad = async () => {
+  const initialLoad = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     const { data } = await supabase
@@ -137,25 +153,9 @@ const CvTemplate = () => {
       await loadVariant(first.id);
     }
     setLoading(false);
-  };
+  }, [loadVariant, user]);
 
-  const loadVariant = async (id: string) => {
-    const { data } = await supabase.from("cv_templates").select("*").eq("id", id).maybeSingle();
-    if (data) {
-      setCv({
-        ...(data as any),
-        variant_name: (data as any).variant_name ?? "Standard",
-        section_order: normalizeOrder((data as any).section_order),
-        experiences: ((data as any).experiences as any) ?? [],
-        education: ((data as any).education as any) ?? [],
-        skills: ((data as any).skills as any) ?? [],
-        languages: ((data as any).languages as any) ?? [],
-        projects: ((data as any).projects as any) ?? [],
-        certifications: ((data as any).certifications as any) ?? [],
-      } as CV);
-      setActiveId(id);
-    }
-  };
+  useEffect(() => { initialLoad(); }, [initialLoad]);
 
   const refreshVariants = async () => {
     if (!user) return;

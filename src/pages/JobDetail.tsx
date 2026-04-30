@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -29,15 +29,15 @@ const JobDetail = () => {
   // "__ai__" means let AI choose; otherwise the cv_template_id.
   const [chosen, setChosen] = useState<string>("__ai__");
 
-  useEffect(() => { load(); }, [id]);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     const { data } = await supabase.from("jobs").select("*").eq("id", id).maybeSingle();
     setJob(data);
     setLoading(false);
-  };
+  }, [id]);
+
+  useEffect(() => { load(); }, [load]);
 
   const openPicker = async () => {
     if (!user) return;
