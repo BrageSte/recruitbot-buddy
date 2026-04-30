@@ -22,9 +22,10 @@ function useDebounced<T>(value: T, ms = DEBOUNCE_MS): T {
 const viewerStyle: React.CSSProperties = {
   width: "100%",
   height: "min(80vh, 1100px)",
-  border: "none",
-  borderRadius: 6,
-  background: "transparent",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: 8,
+  background: "hsl(var(--muted))",
+  boxShadow: "var(--shadow-card)",
 };
 
 export const CvPdfPreview = ({ cv, styleId }: { cv: CvData; styleId?: string | null }) => {

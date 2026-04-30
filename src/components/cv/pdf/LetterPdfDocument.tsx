@@ -3,7 +3,7 @@
 // bullet lists, bold (**), and italic (*) — the 90% case for application letters.
 
 import { ReactNode } from "react";
-import { Document, Page, View, Text } from "@react-pdf/renderer";
+import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer";
 import { CvData } from "../types";
 import { CvStyleDef, getStyle } from "../cvStyles";
 import { ensureFontsRegistered } from "./fonts";
@@ -22,53 +22,50 @@ type Props = {
 export const LetterPdfDocument = ({ cv, text, jobTitle, company, styleId }: Props) => {
   const style = getStyle(styleId);
   const s = buildBaseStyles(style);
+  const letter = buildLetterStyles(style);
   const today = new Date().toLocaleDateString("no-NO", { year: "numeric", month: "long", day: "numeric" });
 
   return (
     <Document>
-      <Page size="A4" style={[s.page, { paddingBottom: 56 }]}>
-        {/* Top accent strip + header (page-1 only — the rest of the letter is plain) */}
-        <View style={{ borderTopWidth: 4, borderTopColor: style.accent, paddingHorizontal: 56, paddingTop: 36, paddingBottom: 18 }}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontFamily: fontFor(style), fontSize: 18, fontWeight: 700, color: style.ink, letterSpacing: 0 }}>
-                {cv.full_name || "Navn Navnesen"}
-              </Text>
+      <Page size="A4" style={[s.page, letter.page]}>
+        <View style={letter.header}>
+          <View style={letter.headerRow}>
+            <View style={letter.identity}>
+              <Text style={letter.name}>{cv.full_name || "Navn Navnesen"}</Text>
               {cv.headline ? (
-                <Text style={{ fontSize: 10, color: style.accent, marginTop: 1, fontWeight: 500 }}>{cv.headline}</Text>
+                <Text style={letter.headline}>{cv.headline}</Text>
               ) : null}
             </View>
-            <View style={{ alignItems: "flex-end" }}>
+            <View style={letter.contact}>
               {[cv.email, cv.phone, cv.location].filter(Boolean).map((p, i) => (
-                <Text key={i} style={{ fontSize: 9, color: style.muted, lineHeight: 1.55 }}>{p}</Text>
+                <Text key={i} style={letter.contactItem}>{p}</Text>
               ))}
               {cv.linkedin_url ? (
-                <Text style={{ fontSize: 9, color: style.muted, lineHeight: 1.55 }}>{cv.linkedin_url}</Text>
+                <Text style={letter.contactItem}>{cv.linkedin_url}</Text>
               ) : null}
             </View>
           </View>
         </View>
 
-        {/* Body */}
-        <View style={{ paddingHorizontal: 56, paddingTop: 4 }}>
-          <Text style={{ fontSize: 9.5, color: style.muted, marginBottom: 18 }}>{today}</Text>
+        <View style={letter.body}>
+          <Text style={letter.date}>{today}</Text>
 
           {(jobTitle || company) ? (
-            <View style={{ marginBottom: 14 }}>
-              <Text style={{ fontSize: 12, fontWeight: 600, color: style.ink, fontFamily: fontFor(style) }}>
+            <View style={letter.subjectBlock}>
+              <Text style={letter.subject}>
                 Søknad{jobTitle ? `: ${jobTitle}` : ""}
               </Text>
               {company ? (
-                <Text style={{ fontSize: 10, color: style.accent, marginTop: 1 }}>{company}</Text>
+                <Text style={letter.company}>{company}</Text>
               ) : null}
             </View>
           ) : null}
 
           <MarkdownBody text={text || "*Ingen tekst ennå.*"} style={style} />
 
-          <View style={{ marginTop: 22 }}>
-            <Text style={{ fontSize: 10, color: style.ink }}>Med vennlig hilsen</Text>
-            <Text style={{ fontFamily: fontFor(style), fontWeight: 600, fontSize: 11, color: style.accent, marginTop: 14 }}>
+          <View style={letter.closing}>
+            <Text style={letter.closingText}>Med vennlig hilsen</Text>
+            <Text style={letter.signature}>
               {cv.full_name || ""}
             </Text>
           </View>
@@ -76,6 +73,105 @@ export const LetterPdfDocument = ({ cv, text, jobTitle, company, styleId }: Prop
       </Page>
     </Document>
   );
+};
+
+const buildLetterStyles = (style: CvStyleDef) => {
+  const font = fontFor(style);
+
+  return StyleSheet.create({
+    page: {
+      paddingBottom: 56,
+    },
+    header: {
+      borderTopWidth: 4,
+      borderTopColor: style.accent,
+      borderBottomWidth: 1,
+      borderBottomColor: style.accentSoft,
+      paddingHorizontal: 56,
+      paddingTop: 34,
+      paddingBottom: 24,
+    },
+    headerRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: 18,
+    },
+    identity: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+      paddingRight: 16,
+    },
+    name: {
+      fontFamily: font,
+      fontSize: 19,
+      fontWeight: 700,
+      color: style.ink,
+      letterSpacing: 0,
+      lineHeight: 1.18,
+    },
+    headline: {
+      fontSize: 10.5,
+      color: style.accent,
+      marginTop: 6,
+      fontWeight: 500,
+      lineHeight: 1.35,
+    },
+    contact: {
+      width: 168,
+      alignItems: "flex-end",
+      paddingTop: 2,
+    },
+    contactItem: {
+      fontSize: 8.8,
+      color: style.muted,
+      lineHeight: 1.45,
+      textAlign: "right",
+    },
+    body: {
+      paddingHorizontal: 56,
+      paddingTop: 16,
+    },
+    date: {
+      fontSize: 9.5,
+      color: style.muted,
+      marginBottom: 18,
+    },
+    subjectBlock: {
+      marginBottom: 16,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: style.accentSoft,
+    },
+    subject: {
+      fontFamily: font,
+      fontSize: 12.5,
+      fontWeight: 600,
+      color: style.ink,
+      lineHeight: 1.3,
+    },
+    company: {
+      fontSize: 10,
+      color: style.accent,
+      marginTop: 3,
+      lineHeight: 1.35,
+    },
+    closing: {
+      marginTop: 24,
+    },
+    closingText: {
+      fontSize: 10,
+      color: style.ink,
+    },
+    signature: {
+      fontFamily: font,
+      fontWeight: 600,
+      fontSize: 11,
+      color: style.accent,
+      marginTop: 14,
+    },
+  });
 };
 
 /* ---------- Minimal markdown → react-pdf parser ---------- */

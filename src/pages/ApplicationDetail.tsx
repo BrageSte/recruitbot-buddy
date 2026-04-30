@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -283,9 +283,12 @@ const ApplicationDetail = () => {
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-base">Søknadsbrev</CardTitle>
-              <div className="flex gap-2">
+            <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1.5">
+                <CardTitle className="text-base leading-6">Søknadsbrev</CardTitle>
+                <CardDescription className="text-xs">Samme visuelle stil som valgt CV</CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 <Button variant="outline" size="sm" onClick={() => setPreview(!preview)}>{preview ? "Rediger" : "Forhåndsvis"}</Button>
                 <Button variant="outline" size="sm" onClick={() => setShowTextTools((value) => !value)}>
                   {showTextTools ? <PanelRightClose className="w-4 h-4 mr-2" /> : <PanelRightOpen className="w-4 h-4 mr-2" />}
@@ -296,18 +299,19 @@ const ApplicationDetail = () => {
                 {app.status === "draft" && <Button size="sm" onClick={() => setStatus("sent")}><Send className="w-4 h-4 mr-2" /> Marker som sendt</Button>}
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="rounded-md border border-border bg-muted/20 p-3 mb-4 space-y-2">
+            <CardContent className="space-y-5">
+              <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
                 <div className="text-sm font-medium">Lag nytt forslag</div>
-                <div className="flex flex-col md:flex-row gap-2">
+                <div className="flex flex-col gap-3 md:flex-row">
                   <Textarea
                     rows={2}
                     value={regenerateInstruction}
                     onChange={(e) => setRegenerateInstruction(e.target.value)}
                     placeholder="f.eks. mer konkret på hva dere får med meg, mindre formell, kortere åpning..."
                     disabled={regenerating}
+                    className="min-h-[72px] resize-none bg-background"
                   />
-                  <Button onClick={regenerateApplication} disabled={regenerating} className="md:w-44 shrink-0">
+                  <Button onClick={regenerateApplication} disabled={regenerating} className="shrink-0 md:w-44">
                     {regenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
                     Lag nytt
                   </Button>
@@ -340,7 +344,7 @@ const ApplicationDetail = () => {
                 )}
               </div>
 
-              <div className={`grid grid-cols-1 gap-4 ${showTextTools ? "xl:grid-cols-[minmax(0,1fr)_340px]" : ""}`}>
+              <div className={`grid grid-cols-1 gap-5 ${showTextTools ? "xl:grid-cols-[minmax(0,1fr)_340px]" : ""}`}>
                 <div className="min-w-0">
                   {preview ? (
                     <LetterPdfPreview
