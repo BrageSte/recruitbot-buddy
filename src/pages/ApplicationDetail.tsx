@@ -16,6 +16,7 @@ import { LetterPdfDocument } from "@/components/cv/pdf/LetterPdfDocument";
 import { downloadPdfDocument } from "@/components/cv/exportPdf";
 import { CvStyleId } from "@/components/cv/cvStyles";
 import { ApplicationChatEditor } from "@/components/cv/ApplicationChatEditor";
+import { CvTailoringChatEditor } from "@/components/cv/CvTailoringChatEditor";
 import { JobContextCard } from "@/components/JobContextCard";
 import { useRef } from "react";
 
@@ -506,7 +507,20 @@ const ApplicationDetail = () => {
                     <Button variant="outline" size="sm" onClick={exportCvPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
                   </CardHeader>
                   <CardContent>
-                    <CvPdfPreview cv={effectiveCv} styleId={styleId} />
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+                      <div className="min-w-0">
+                        <CvPdfPreview cv={effectiveCv} styleId={styleId} />
+                      </div>
+                      <div className="min-w-0 xl:sticky xl:top-4 xl:h-[min(80vh,1100px)]">
+                        <CvTailoringChatEditor
+                          applicationId={app.id}
+                          userId={app.user_id}
+                          cv={effectiveCv}
+                          tweak={tweak}
+                          onTweakChange={setTweak}
+                        />
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               )}

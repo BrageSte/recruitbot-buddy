@@ -78,6 +78,14 @@ const normalizeOrder = (raw: unknown): CvSectionKey[] => {
   return valid;
 };
 
+const moveArrayItem = <T,>(items: T[], from: number, to: number): T[] => {
+  if (from === to || from < 0 || from >= items.length || to < 0 || to >= items.length) return items;
+  const next = [...items];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+};
+
 const CvTemplate = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -896,15 +904,55 @@ const Field = ({ label, value, onChange, placeholder }: { label: string; value: 
 
 const ChipList = ({ label, items, onChange }: { label: string; items: string[]; onChange: (v: string[]) => void }) => {
   const [input, setInput] = useState("");
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
   const add = () => { if (!input.trim()) return; onChange([...items, input.trim()]); setInput(""); };
+  const move = (from: number, to: number) => {
+    const next = moveArrayItem(items, from, to);
+    if (next !== items) onChange(next);
+  };
   return (
     <div className="space-y-2 mt-3">
       <Label>{label}</Label>
       <div className="flex flex-wrap gap-1.5">
         {items.map((it, i) => (
-          <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent text-accent-foreground text-xs">
-            {it}
-            <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))} className="hover:text-destructive">×</button>
+          <span
+            key={`${it}-${i}`}
+            draggable
+            onDragStart={() => setDragIdx(i)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (dragIdx !== null) move(dragIdx, i);
+              setDragIdx(null);
+            }}
+            onDragEnd={() => setDragIdx(null)}
+            className={`inline-flex items-center gap-1 rounded-md bg-accent px-1 py-0.5 text-xs text-accent-foreground transition-colors ${
+              dragIdx === i ? "opacity-50 ring-1 ring-primary" : ""
+            }`}
+          >
+            <GripVertical className="h-3 w-3 shrink-0 cursor-grab text-muted-foreground" />
+            <span className="px-1">{it}</span>
+            <button
+              type="button"
+              disabled={i === 0}
+              onClick={() => move(i, i - 1)}
+              className="inline-flex h-5 w-5 items-center justify-center rounded hover:bg-background/70 disabled:pointer-events-none disabled:opacity-35"
+              aria-label="Flytt opp"
+            >
+              <ArrowUp className="h-3 w-3" />
+            </button>
+            <button
+              type="button"
+              disabled={i === items.length - 1}
+              onClick={() => move(i, i + 1)}
+              className="inline-flex h-5 w-5 items-center justify-center rounded hover:bg-background/70 disabled:pointer-events-none disabled:opacity-35"
+              aria-label="Flytt ned"
+            >
+              <ArrowDown className="h-3 w-3" />
+            </button>
+            <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))} className="inline-flex h-5 w-5 items-center justify-center rounded hover:bg-background/70 hover:text-destructive" aria-label="Fjern">
+              ×
+            </button>
           </span>
         ))}
       </div>
@@ -925,6 +973,30 @@ function SectionList<T>({ title, items, onChange, render, empty, labelKey }: {
   labelKey: (item: T) => string;
 }) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+
+  const move = (from: number, to: number) => {
+    const next = moveArrayItem(items, from, to);
+    if (next === items) return;
+    onChange(next);
+    setOpenIdx((current) => {
+      if (current === null) return null;
+      if (current === from) return to;
+      if (from < current && current <= to) return current - 1;
+      if (to <= current && current < from) return current + 1;
+      return current;
+    });
+  };
+
+  const remove = (index: number) => {
+    onChange(items.filter((_, j) => j !== index));
+    setOpenIdx((current) => {
+      if (current === null) return null;
+      if (current === index) return null;
+      return current > index ? current - 1 : current;
+    });
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -936,15 +1008,40 @@ function SectionList<T>({ title, items, onChange, render, empty, labelKey }: {
       <CardContent className="space-y-2">
         {items.length === 0 && <p className="text-sm text-muted-foreground italic">Ingen ennå.</p>}
         {items.map((item, i) => (
-          <div key={i} className="border border-border rounded-md">
-            <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-accent/30" onClick={() => setOpenIdx(openIdx === i ? null : i)}>
+          <div
+            key={i}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (dragIdx !== null) move(dragIdx, i);
+              setDragIdx(null);
+            }}
+            className={`rounded-md border border-border transition-colors ${
+              dragIdx === i ? "opacity-50 border-primary" : ""
+            }`}
+          >
+            <div
+              draggable
+              onDragStart={() => setDragIdx(i)}
+              onDragEnd={() => setDragIdx(null)}
+              className="flex items-center justify-between p-3 cursor-pointer hover:bg-accent/30"
+              onClick={() => setOpenIdx(openIdx === i ? null : i)}
+            >
               <div className="flex items-center gap-2 min-w-0">
-                <GripVertical className="w-4 h-4 text-muted-foreground" />
+                <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
                 <span className="text-sm truncate">{labelKey(item)}</span>
               </div>
-              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onChange(items.filter((_, j) => j !== i)); }}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" className="h-8 w-8" disabled={i === 0} onClick={(e) => { e.stopPropagation(); move(i, i - 1); }} aria-label="Flytt opp">
+                  <ArrowUp className="w-3.5 h-3.5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" disabled={i === items.length - 1} onClick={(e) => { e.stopPropagation(); move(i, i + 1); }} aria-label="Flytt ned">
+                  <ArrowDown className="w-3.5 h-3.5" />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); remove(i); }}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
             {openIdx === i && (
               <div className="p-3 border-t border-border">

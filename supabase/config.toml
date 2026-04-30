@@ -9,6 +9,9 @@ verify_jwt = true
 [functions.tailor-cv]
 verify_jwt = true
 
+[functions.edit-tailored-cv]
+verify_jwt = true
+
 [functions.poll-rss]
 verify_jwt = false
 
