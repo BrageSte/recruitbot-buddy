@@ -55,12 +55,37 @@ type Step = 1 | 2 | 3;
 
 const Demo = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>(1);
   const [cvText, setCvText] = useState("");
+  const [importing, setImporting] = useState(false);
   const [roles, setRoles] = useState("");
   const [location, setLocation] = useState("");
   const [dealbreakers, setDealbreakers] = useState("");
   const [jobs, setJobs] = useState<DemoJob[]>([]);
+
+  const handleUpload = async (file: File) => {
+    setImporting(true);
+    try {
+      let body: Record<string, unknown>;
+      if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+        body = { pdf_base64: await fileToBase64(file), mime_type: file.type || "application/pdf" };
+      } else {
+        body = { text: await fileToText(file) };
+      }
+      const { data, error } = await supabase.functions.invoke("import-cv", { body });
+      if (error || !(data as any)?.cv) throw error ?? new Error("Tomt CV-svar");
+      const text = cvToText((data as any).cv).trim();
+      if (!text) throw new Error("Fant ikke lesbar tekst i CV-en");
+      setCvText(text);
+      toast({ title: "CV lest", description: "Vi har hentet ut teksten – juster gjerne før du går videre." });
+    } catch (e: any) {
+      toast({ title: "Kunne ikke lese CV", description: e.message ?? String(e), variant: "destructive" });
+    } finally {
+      setImporting(false);
+    }
+  };
 
   useEffect(() => {
     fetch("/demo-jobs.json")
