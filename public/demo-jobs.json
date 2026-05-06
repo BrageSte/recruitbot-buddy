@@ -1,0 +1,62 @@
+[
+  {
+    "id": "1",
+    "title": "Produktleder – B2B SaaS",
+    "company": "Nordic Insights",
+    "location": "Oslo / hybrid",
+    "source": "Finn",
+    "deadline": "2026-05-22",
+    "summary": "Eier roadmap for analyseplattform. Tett samarbeid med design, data og kunder. Definerer KPIer og kjører discovery.",
+    "keywords": ["produkt", "roadmap", "kunde", "discovery", "saas", "b2b", "analyse", "kpi", "leder", "strategi", "stakeholder"]
+  },
+  {
+    "id": "2",
+    "title": "Senior Frontend-utvikler (React)",
+    "company": "Folio",
+    "location": "Oslo",
+    "source": "Arbeidsplassen",
+    "deadline": "2026-05-15",
+    "summary": "Bygger ny kundeportal i React/TypeScript. Stort fokus på design system, ytelse og tilgjengelighet.",
+    "keywords": ["react", "typescript", "frontend", "design system", "tilgjengelighet", "ytelse", "ui", "komponent", "tailwind", "javascript"]
+  },
+  {
+    "id": "3",
+    "title": "Customer Success Manager",
+    "company": "Lyra",
+    "location": "Remote (Norge)",
+    "source": "LinkedIn",
+    "deadline": "2026-06-01",
+    "summary": "Følger opp nordiske enterprise-kunder. Driver onboarding, kvartalsmøter og jobber tett med produkt.",
+    "keywords": ["kunde", "onboarding", "enterprise", "saas", "relasjon", "success", "saas", "kommunikasjon", "engelsk", "produkt"]
+  },
+  {
+    "id": "4",
+    "title": "Prosjektleder digitalisering",
+    "company": "Helse Nord",
+    "location": "Tromsø",
+    "source": "NAV",
+    "deadline": "2026-05-30",
+    "summary": "Leder tverrfaglige prosjekter for journalsystemer. Koordinerer leverandører, klinikere og IT-team.",
+    "keywords": ["prosjekt", "koordinering", "leder", "leverandør", "stakeholder", "helse", "ledelse", "plan", "risiko", "milepæl"]
+  },
+  {
+    "id": "5",
+    "title": "Data Analyst – Vekst",
+    "company": "Stack Mobility",
+    "location": "Oslo / hybrid",
+    "source": "Finn",
+    "deadline": "2026-05-19",
+    "summary": "Analyserer brukeradferd, bygger dashboards i Looker og kjører A/B-tester sammen med produktteamene.",
+    "keywords": ["sql", "data", "analyse", "dashboard", "looker", "ab-test", "vekst", "produkt", "python", "kpi"]
+  },
+  {
+    "id": "6",
+    "title": "UX-designer",
+    "company": "Brage",
+    "location": "Bergen / hybrid",
+    "source": "LinkedIn",
+    "deadline": "2026-06-05",
+    "summary": "Driver brukerintervjuer, prototyping og test for offentlig sektor-kunder. Tett samarbeid med utviklere og PM.",
+    "keywords": ["ux", "design", "figma", "prototyping", "brukerintervju", "research", "tilgjengelighet", "interaksjon", "produkt"]
+  }
+]
