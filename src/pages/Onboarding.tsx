@@ -943,7 +943,7 @@ const Onboarding = () => {
       setSetupDone(true);
       toast({
         title: firstMatchingOk ? "De første matchene er klare" : "Interesseprofilen er klar",
-        description: firstMatchingOk ? "Vi fortsetter å finne flere i bakgrunnen." : "Du kan prøve matching igjen fra matcher-siden.",
+        description: firstMatchingOk ? "Vi fortsetter å finne flere i bakgrunnen." : "Du kan prøve matching igjen fra Jobber.",
       });
 
       const continueMatching = async () => {
@@ -964,7 +964,7 @@ const Onboarding = () => {
             "matching",
             "done",
             latestMatches.length > 0
-              ? `${latestMatches.length} matcher vises, flere ligger i matcher-siden`
+              ? `${latestMatches.length} matcher vises, flere ligger i jobblisten`
               : `${(data as any)?.scored ?? 0} nye jobber scoret`,
           );
         } catch (e: any) {
@@ -1581,13 +1581,13 @@ const Onboarding = () => {
                   </Button>
                   {canOpenMatches ? (
                     <Button asChild>
-                      <Link to="/matches">
-                        Se matcher <ArrowRight className="w-4 h-4 ml-2" />
+                      <Link to="/jobs">
+                        Se jobber <ArrowRight className="w-4 h-4 ml-2" />
                       </Link>
                     </Button>
                   ) : (
                     <Button disabled>
-                      Se matcher <ArrowRight className="w-4 h-4 ml-2" />
+                      Se jobber <ArrowRight className="w-4 h-4 ml-2" />
                     </Button>
                   )}
                 </div>

@@ -1079,34 +1079,43 @@ export type Database = {
       source_ingest_state: {
         Row: {
           created_at: string
+          cursor_url: string | null
           last_checked_at: string | null
+          last_etag: string | null
           last_error: string | null
           last_feed_url: string | null
           last_modified_at: string | null
           last_run_stats: Json
           last_status: string
+          pending_last_modified_at: string | null
           provider: Database["public"]["Enums"]["external_job_provider"]
           updated_at: string
         }
         Insert: {
           created_at?: string
+          cursor_url?: string | null
           last_checked_at?: string | null
+          last_etag?: string | null
           last_error?: string | null
           last_feed_url?: string | null
           last_modified_at?: string | null
           last_run_stats?: Json
           last_status?: string
+          pending_last_modified_at?: string | null
           provider: Database["public"]["Enums"]["external_job_provider"]
           updated_at?: string
         }
         Update: {
           created_at?: string
+          cursor_url?: string | null
           last_checked_at?: string | null
+          last_etag?: string | null
           last_error?: string | null
           last_feed_url?: string | null
           last_modified_at?: string | null
           last_run_stats?: Json
           last_status?: string
+          pending_last_modified_at?: string | null
           provider?: Database["public"]["Enums"]["external_job_provider"]
           updated_at?: string
         }
@@ -1168,6 +1177,79 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      source_suggestion_hits: {
+        Row: {
+          created_at: string
+          external_job_id: string
+          found_at: string
+          id: string
+          location: string | null
+          metadata: Json
+          provider: Database["public"]["Enums"]["external_job_provider"]
+          query: string
+          rank: number | null
+          rss_feed_id: string | null
+          score: number | null
+          source_suggestion_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          external_job_id: string
+          found_at?: string
+          id?: string
+          location?: string | null
+          metadata?: Json
+          provider: Database["public"]["Enums"]["external_job_provider"]
+          query: string
+          rank?: number | null
+          rss_feed_id?: string | null
+          score?: number | null
+          source_suggestion_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          external_job_id?: string
+          found_at?: string
+          id?: string
+          location?: string | null
+          metadata?: Json
+          provider?: Database["public"]["Enums"]["external_job_provider"]
+          query?: string
+          rank?: number | null
+          rss_feed_id?: string | null
+          score?: number | null
+          source_suggestion_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_suggestion_hits_external_job_id_fkey"
+            columns: ["external_job_id"]
+            isOneToOne: false
+            referencedRelation: "external_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "source_suggestion_hits_rss_feed_id_fkey"
+            columns: ["rss_feed_id"]
+            isOneToOne: false
+            referencedRelation: "rss_feeds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "source_suggestion_hits_source_suggestion_id_fkey"
+            columns: ["source_suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "source_suggestions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       uploaded_files: {
         Row: {
@@ -1370,7 +1452,7 @@ export type Database = {
         | "application"
         | "swipe"
         | "ai_suggested"
-      source_suggestion_provider: "finn"
+      source_suggestion_provider: "finn" | "arbeidsplassen"
       source_suggestion_status: "suggested" | "active" | "paused" | "dismissed"
       user_job_match_status: "new" | "saved" | "dismissed" | "archived"
     }
@@ -1568,7 +1650,7 @@ export const Constants = {
         "swipe",
         "ai_suggested",
       ],
-      source_suggestion_provider: ["finn"],
+      source_suggestion_provider: ["finn", "arbeidsplassen"],
       source_suggestion_status: ["suggested", "active", "paused", "dismissed"],
       user_job_match_status: ["new", "saved", "dismissed", "archived"],
     },

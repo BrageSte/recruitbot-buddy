@@ -42,16 +42,39 @@ async function getFeedToken(): Promise<string> {
   return token;
 }
 
-async function fetchJson(url: string, token: string, since?: string | null) {
+async function fetchFeedPage(url: string, token: string, since?: string | null, etag?: string | null) {
   const headers: Record<string, string> = {
     Accept: "application/json",
     Authorization: `Bearer ${token}`,
     "User-Agent": "RecruitBuddyFullMatch/1.0",
   };
   if (since) headers["If-Modified-Since"] = since;
+  if (etag) headers["If-None-Match"] = etag;
   const resp = await fetch(url, { headers });
-  if (resp.status === 304) return null;
+  if (resp.status === 304) {
+    return {
+      page: null,
+      etag: resp.headers.get("etag"),
+      lastModified: resp.headers.get("last-modified"),
+    };
+  }
   if (!resp.ok) throw new Error(`NAV feed svarte HTTP ${resp.status}`);
+  return {
+    page: await resp.json(),
+    etag: resp.headers.get("etag"),
+    lastModified: resp.headers.get("last-modified"),
+  };
+}
+
+async function fetchJson(url: string, token: string) {
+  const resp = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+      "User-Agent": "RecruitBuddyFullMatch/1.0",
+    },
+  });
+  if (!resp.ok) throw new Error(`NAV detail svarte HTTP ${resp.status}`);
   return await resp.json();
 }
 
@@ -68,7 +91,20 @@ function titleFromAd(ad: any, fallback: string) {
 }
 
 function sourceUrlFromAd(ad: any, uuid: string) {
-  return ad?.link || `https://arbeidsplassen.nav.no/stillinger/stilling/${uuid}`;
+  return ad?.link || ad?.sourceurl || `https://arbeidsplassen.nav.no/stillinger/stilling/${uuid}`;
+}
+
+function adFromDetail(detail: any) {
+  return detail?.ad_content ?? detail?.json ?? null;
+}
+
+function rawDataFromDetail(detail: any, ad: any) {
+  return detail?.ad_content ? detail : { ...(detail ?? {}), ad_content: ad };
+}
+
+function detailIsActive(detail: any, ad: any) {
+  const status = detail?.status ?? ad?.status ?? null;
+  return !status || status === "ACTIVE";
 }
 
 serve(async (req) => {
@@ -116,14 +152,24 @@ serve(async (req) => {
     const sinceHeader = Number.isNaN(sinceDate.getTime()) ? null : sinceDate.toUTCString();
 
     const token = await getFeedToken();
-    let feedUrl = `${FEED_BASE}/api/v1/feed`;
+    let feedUrl = typeof body.feedUrl === "string" && body.feedUrl.trim()
+      ? absoluteUrl(body.feedUrl.trim())
+      : state?.cursor_url
+      ? absoluteUrl(state.cursor_url)
+      : `${FEED_BASE}/api/v1/feed`;
     let lastFeedUrl: string | null = null;
-    let newestModified: string | null = state?.last_modified_at ?? null;
+    let newestModified: string | null = state?.pending_last_modified_at ?? state?.last_modified_at ?? null;
+    let lastEtag: string | null = state?.last_etag ?? null;
     const processed = new Set<string>();
 
     while (feedUrl && stats.pages < maxPages && stats.seen < maxItems) {
-      const page = await fetchJson(feedUrl, token, sinceHeader);
-      if (!page) break;
+      const feedResp = await fetchFeedPage(feedUrl, token, sinceHeader, state?.cursor_url ? null : lastEtag);
+      const page = feedResp.page;
+      lastEtag = feedResp.etag ?? lastEtag;
+      if (!page) {
+        feedUrl = "";
+        break;
+      }
       stats.pages++;
       lastFeedUrl = page.feed_url ?? feedUrl;
 
@@ -165,8 +211,8 @@ serve(async (req) => {
           }
 
           const detail = await fetchJson(absoluteUrl(item.url), token);
-          const ad = detail?.ad_content;
-          if (!ad || detail?.status !== "ACTIVE") {
+          const ad = adFromDetail(detail);
+          if (!ad || !detailIsActive(detail, ad)) {
             const { error } = await admin
               .from("external_jobs")
               .upsert(
@@ -207,7 +253,7 @@ serve(async (req) => {
                 description,
                 deadline: normalizeDeadline(ad.applicationDue ?? ad.expires),
                 status: "active",
-                raw_data: detail,
+                raw_data: rawDataFromDetail(detail, ad),
                 provider_updated_at: detail?.sistEndret ?? ad.updated ?? modified,
                 fetched_at: startedAt.toISOString(),
                 last_seen_at: startedAt.toISOString(),
@@ -225,20 +271,31 @@ serve(async (req) => {
       feedUrl = page.next_url ? absoluteUrl(page.next_url) : "";
     }
 
+    const completed = !feedUrl;
+    const lastStatus = stats.errors > 0 ? "partial" : completed ? "ok" : "partial";
+    const lastError = stats.errors > 0
+      ? `${stats.errors} annonser feilet under ingest.`
+      : completed
+      ? null
+      : "Ingest pauset før feeden var ferdig; fortsetter fra cursor neste runde.";
+
     await admin.from("source_ingest_state").upsert(
       {
         provider: "arbeidsplassen",
         last_checked_at: startedAt.toISOString(),
-        last_modified_at: newestModified,
+        last_modified_at: completed ? newestModified : state?.last_modified_at ?? null,
+        pending_last_modified_at: completed ? null : newestModified,
+        cursor_url: completed ? null : feedUrl,
+        last_etag: lastEtag,
         last_feed_url: lastFeedUrl,
-        last_status: stats.errors > 0 ? "partial" : "ok",
-        last_error: stats.errors > 0 ? `${stats.errors} annonser feilet under ingest.` : null,
-        last_run_stats: stats,
+        last_status: lastStatus,
+        last_error: lastError,
+        last_run_stats: { ...stats, completed, cursorUrl: completed ? null : feedUrl },
       },
       { onConflict: "provider" },
     );
 
-    return json({ ok: true, provider: "arbeidsplassen", ...stats, lastModifiedAt: newestModified });
+    return json({ ok: true, provider: "arbeidsplassen", ...stats, completed, cursorUrl: completed ? null : feedUrl, lastModifiedAt: completed ? newestModified : state?.last_modified_at ?? null });
   } catch (e) {
     const message = (e as Error).message;
     await admin.from("source_ingest_state").upsert(

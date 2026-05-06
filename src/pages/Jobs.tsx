@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useToast } from "@/hooks/use-toast";
 import { evaluateMatchVisibility, type MatchVisibilityRule } from "@/lib/matchVisibility";
+import { discoveryToastDescription, matchStatusForJobStatus, statusToFeedbackDecision } from "@/lib/jobDiscovery";
 import { Plus, Loader2, Sparkles, ExternalLink, Filter, Bookmark, Trash2, X, Send, ChevronDown, Layers, ArrowUpDown, Archive, ArchiveRestore, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 
@@ -70,6 +71,7 @@ const Jobs = () => {
   const [saveName, setSaveName] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
   const [sortBy, setSortBy] = useState<SortKey>("created_desc");
@@ -184,6 +186,57 @@ const Jobs = () => {
     }
   };
 
+  const discoverJobs = async () => {
+    if (!user) return;
+    setDiscovering(true);
+    const warnings: string[] = [];
+    try {
+      const suggestions = await supabase.functions.invoke("suggest-source-feeds", { body: {} });
+      if (suggestions.error) warnings.push(`Kildeforslag: ${suggestions.error.message}`);
+
+      const arbeidsplassen = await supabase.functions.invoke("ingest-arbeidsplassen-feed", {
+        body: { maxPages: 3, maxItems: 180 },
+      });
+      if (arbeidsplassen.error) warnings.push(`Arbeidsplassen: ${arbeidsplassen.error.message}`);
+
+      const finn = await supabase.functions.invoke("ingest-finn", {
+        body: {
+          includeUserFeeds: true,
+          includeHtmlSuggestions: true,
+          userId: user.id,
+          maxSuggestionsPerUser: 3,
+          maxHitsPerSuggestion: 10,
+        },
+      });
+      if (finn.error) warnings.push(`Finn: ${finn.error.message}`);
+      const finnHint = (finn.data as any)?.hint;
+      if (finnHint) warnings.push(String(finnHint));
+
+      const { data, error } = await supabase.functions.invoke("match-user-jobs", {
+        body: {
+          limit: 30,
+          minVisibleScore: config.minScore ?? profileMinScore,
+          autoSaveVisible: true,
+          materializeExisting: true,
+        },
+      });
+      if (error) throw error;
+
+      const d = data as any;
+      toast({
+        title: "Jobber oppdatert",
+        description: warnings.length > 0
+          ? `${discoveryToastDescription(d)} ${warnings[0].slice(0, 160)}`
+          : discoveryToastDescription(d),
+      });
+      await load();
+    } catch (e: any) {
+      toast({ title: "Fant ikke nye jobber", description: e.message, variant: "destructive" });
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
   const addJob = async () => {
     if (!url && !text.trim()) { toast({ title: "Lim inn URL eller tekst", variant: "destructive" }); return; }
     setAdding(true);
@@ -198,7 +251,44 @@ const Jobs = () => {
   };
 
   const updateStatus = async (id: string, status: string) => {
-    await supabase.from("jobs").update({ status: status as any }).eq("id", id); load();
+    const job = jobs.find((item) => item.id === id);
+    const previousStatus = job?.status ?? null;
+    const { error } = await supabase.from("jobs").update({ status: status as any }).eq("id", id);
+    if (error) {
+      toast({ title: "Kunne ikke oppdatere status", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    const decision = statusToFeedbackDecision(status, previousStatus);
+    if (user && decision) {
+      let match: any = null;
+      if (job?.external_job_id) {
+        const { data: matchData } = await supabase
+          .from("user_job_matches")
+          .select("id,match_score")
+          .eq("user_id", user.id)
+          .eq("external_job_id", job.external_job_id)
+          .maybeSingle();
+        match = matchData;
+
+        const nextMatchStatus = matchStatusForJobStatus(status);
+        if (match?.id && nextMatchStatus) {
+          await supabase.from("user_job_matches").update({ status: nextMatchStatus as any }).eq("id", match.id);
+        }
+      }
+
+      await supabase.from("job_score_feedback").insert({
+        user_id: user.id,
+        job_id: id,
+        external_job_id: job?.external_job_id ?? null,
+        user_job_match_id: match?.id ?? null,
+        decision: decision as any,
+        original_score: job?.match_score ?? match?.match_score ?? null,
+        metadata: { source: "jobs_status", previousStatus, nextStatus: status },
+      });
+    }
+
+    load();
   };
 
   const saveFilter = async () => {
@@ -222,6 +312,10 @@ const Jobs = () => {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Button onClick={discoverJobs} disabled={discovering}>
+            {discovering ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+            Finn nye jobber
+          </Button>
           <Button variant="outline" asChild>
             <Link to="/jobs/swipe"><Layers className="w-4 h-4 mr-2" /> Sveip-modus</Link>
           </Button>
@@ -269,7 +363,7 @@ const Jobs = () => {
             <Filter className="w-4 h-4 mr-2" /> Filter {activeFilterCount > 0 && <span className="ml-1.5 px-1.5 py-0 rounded bg-primary text-primary-foreground text-xs">{activeFilterCount}</span>}
           </Button>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild><Button><Plus className="w-4 h-4 mr-2" /> Legg til</Button></DialogTrigger>
+            <DialogTrigger asChild><Button variant="outline"><Plus className="w-4 h-4 mr-2" /> Legg til</Button></DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader><DialogTitle>Ny jobb</DialogTitle></DialogHeader>
               <Tabs defaultValue="url">
@@ -382,7 +476,7 @@ const Jobs = () => {
         <Card>
           <CardContent className="p-12 text-center space-y-2">
             <div className="font-medium">Ingen jobber over filteret</div>
-            <p className="text-sm text-muted-foreground">Senk min score, vis arkiverte, eller nullstill filteret.</p>
+            <p className="text-sm text-muted-foreground">Finn nye jobber, senk min score, vis arkiverte, eller nullstill filteret.</p>
           </CardContent>
         </Card>
       ) : (

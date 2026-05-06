@@ -15,7 +15,6 @@ import Demo from "./pages/Demo";
 import Dashboard from "./pages/Dashboard";
 import { RootRoute } from "@/components/RootRoute";
 import Jobs from "./pages/Jobs";
-import Matches from "./pages/Matches";
 import JobSwipe from "./pages/JobSwipe";
 import JobDetail from "./pages/JobDetail";
 import Applications from "./pages/Applications";
@@ -48,7 +47,7 @@ const App = () => (
               <Route index element={<Dashboard />} />
             </Route>
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-              <Route path="/matches" element={<Matches />} />
+              <Route path="/matches" element={<Navigate to="/jobs" replace />} />
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/jobs/swipe" element={<JobSwipe />} />
               <Route path="/jobs/:id" element={<JobDetail />} />

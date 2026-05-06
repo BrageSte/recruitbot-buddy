@@ -42,7 +42,8 @@ export async function searchArbeidsplassenJobs(
   const q = [query.trim(), location?.trim()].filter(Boolean).join(" ").replace(/\s+/g, " ");
   if (q.length < 3) return [];
 
-  const params = new URLSearchParams({ q, size: String(Math.max(1, Math.min(50, Math.round(size)))) });
+  const limit = Math.max(1, Math.min(50, Math.round(size)));
+  const params = new URLSearchParams({ q, size: String(limit) });
   const resp = await fetch(`${NAV_SEARCH_URL}?${params}`, {
     headers: { "User-Agent": UA, Accept: "application/json" },
   });
@@ -66,5 +67,5 @@ export async function searchArbeidsplassenJobs(
       raw_data: src,
       nav_score: Number(hit._score ?? 0),
     }];
-  });
+  }).slice(0, limit);
 }
