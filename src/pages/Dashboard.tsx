@@ -5,16 +5,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScoreBadge } from "@/components/ScoreBadge";
+import { DailyCoachPanel } from "@/components/DailyCoachPanel";
+import { buildDailyCoach, type CoachSourceHealth } from "@/lib/dailyCoach";
 import {
-  Briefcase,
-  Send,
   Sparkles,
   Calendar as CalendarIcon,
   Target,
   Flame,
   AlertTriangle,
-  Clock,
-  Users,
   ArrowRight,
   CheckCircle2,
   Layers,
@@ -118,6 +116,8 @@ const Dashboard = () => {
   const [goals, setGoals] = useState<any[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [highMatchNotifs, setHighMatchNotifs] = useState<any[]>([]);
+  const [hasCv, setHasCv] = useState(true);
+  const [sourceHealth, setSourceHealth] = useState<CoachSourceHealth>({ hasActiveSources: true });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -127,7 +127,7 @@ const Dashboard = () => {
       supabase.from("applications").select("*, jobs(title, company, deadline, match_score)").eq("user_id", user.id),
       supabase.from("calendar_events").select("*").eq("user_id", user.id),
       supabase.from("goals").select("*").eq("user_id", user.id).neq("status", "archived").order("sort_order"),
-      supabase.from("profiles").select("weekly_goal, display_name, notify_high_match_min_score").eq("user_id", user.id).maybeSingle(),
+      supabase.from("profiles").select("weekly_goal, display_name, master_profile, notify_high_match_min_score").eq("user_id", user.id).maybeSingle(),
       supabase
         .from("notifications")
         .select("*")
@@ -136,13 +136,44 @@ const Dashboard = () => {
         .is("read_at", null)
         .order("created_at", { ascending: false })
         .limit(5),
-    ]).then(([j, a, e, g, p, n]) => {
+      supabase
+        .from("cv_templates")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id),
+      supabase
+        .from("auto_searches")
+        .select("id,is_active,last_status,last_error,items_found")
+        .eq("user_id", user.id),
+      supabase
+        .from("rss_feeds")
+        .select("id,is_active,last_error,items_found")
+        .eq("user_id", user.id),
+      supabase.from("source_ingest_state").select("provider,last_status,last_error"),
+    ]).then(([j, a, e, g, p, n, cv, auto, rss, ingest]) => {
       setJobs((j.data ?? []) as any);
       setApps((a.data ?? []) as any);
       setEvents((e.data ?? []) as any);
       setGoals((g.data ?? []) as any);
       setProfile(p.data);
       setHighMatchNotifs((n.data ?? []) as any);
+      setHasCv((cv.count ?? 0) > 0);
+      const autoItems = auto.data ?? [];
+      const rssItems = rss.data ?? [];
+      const ingestItems = ingest.data ?? [];
+      const activeCount =
+        autoItems.filter((item: any) => item.is_active).length +
+        rssItems.filter((item: any) => item.is_active).length;
+      setSourceHealth({
+        activeCount,
+        hasActiveSources: activeCount > 0,
+        totalFound:
+          autoItems.reduce((sum: number, item: any) => sum + (item.items_found ?? 0), 0) +
+          rssItems.reduce((sum: number, item: any) => sum + (item.items_found ?? 0), 0),
+        hasErrors:
+          autoItems.some((item: any) => ["blocked", "error"].includes(item.last_status) || item.last_error) ||
+          rssItems.some((item: any) => item.last_error) ||
+          ingestItems.some((item: any) => ["error", "needs_access"].includes(item.last_status) || item.last_error),
+      });
       setLoading(false);
     });
   }, [user]);
@@ -342,6 +373,21 @@ const Dashboard = () => {
     return out.slice(0, 12);
   }, [jobs, apps, events, drafted, today, tomorrow]);
 
+  const coach = useMemo(
+    () =>
+      buildDailyCoach({
+        jobs,
+        applications: apps,
+        events,
+        goals,
+        profile,
+        hasCv,
+        sourceHealth,
+        now: today,
+      }),
+    [jobs, apps, events, goals, profile, hasCv, sourceHealth, today]
+  );
+
   if (loading) {
     return <div className="p-10 text-sm text-muted-foreground">Laster…</div>;
   }
@@ -356,11 +402,7 @@ const Dashboard = () => {
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
             Hei{profile?.display_name ? `, ${profile.display_name.split(" ")[0]}` : ""}
           </h1>
-          <p className="text-muted-foreground text-sm mt-1.5">
-            {urgent.length > 0
-              ? `${urgent.length} ${urgent.length === 1 ? "ting krever" : "ting krever"} handling i dag.`
-              : "Alt under kontroll – tid for å se på nye muligheter."}
-          </p>
+          <p className="text-muted-foreground text-sm mt-1.5">{coach.statusText}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button asChild size="sm" className="gap-1.5">
@@ -376,6 +418,8 @@ const Dashboard = () => {
           </Button>
         </div>
       </header>
+
+      <DailyCoachPanel coach={coach} />
 
       {/* High-match alert banner */}
       {highMatchNotifs.length > 0 && (
@@ -451,8 +495,8 @@ const Dashboard = () => {
         </Card>
       )}
 
-      {/* KPI strip — én sammenhengende rad */}
-      <Card>
+      {/* KPI strip — dempet statusrad */}
+      <Card className="shadow-none">
         <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-border">
           <KpiCell label="Sendt totalt" value={totalSent} sub={`${sentThisWeek} denne uken`} href="/applications?tab=sent" />
           <KpiCell label="Aktive" value={active} href="/applications?tab=active" />
@@ -518,6 +562,7 @@ const Dashboard = () => {
                         )}
                       </div>
                     </div>
+                    <ArrowRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                   </Link>
                 ))
               )}
@@ -544,6 +589,7 @@ const Dashboard = () => {
                           {j.company} · {formatDistanceToNow(parseISO(j.created_at), { addSuffix: true, locale: nb })}
                         </div>
                       </div>
+                      <ArrowRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                     </Link>
                   ))}
                   {newRecent.length > 5 && (
@@ -639,9 +685,9 @@ const KpiCell = ({
   href?: string;
 }) => {
   const inner = (
-    <div className="p-4 md:p-5 transition-colors hover:bg-accent/30">
+    <div className="p-3 md:p-4 transition-colors hover:bg-accent/30">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-2xl font-semibold tabular-nums mt-1">{value}</div>
+      <div className="text-xl font-semibold tabular-nums mt-0.5">{value}</div>
       {sub && <div className="text-[11px] text-muted-foreground mt-1">{sub}</div>}
     </div>
   );

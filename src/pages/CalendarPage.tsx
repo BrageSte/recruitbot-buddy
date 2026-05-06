@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
+  buildCalendarCoachSuggestions,
+  buildDailyCoach,
+  type CalendarCoachSuggestion,
+} from "@/lib/dailyCoach";
+import {
   Loader2,
   Sparkles,
   Plus,
@@ -28,6 +34,8 @@ import {
   Send,
   Users,
   Trash2,
+  ArrowRight,
+  Bot,
 } from "lucide-react";
 import { format, formatDistanceToNow, getISOWeek, isSameDay, isSameMonth, startOfWeek, endOfWeek, addDays, parseISO, differenceInDays, isBefore, isAfter } from "date-fns";
 import { nb } from "date-fns/locale";
@@ -84,8 +92,9 @@ const CalendarPage = () => {
   const [loading, setLoading] = useState(true);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [events, setEvents] = useState<CalEvent[]>([]);
-  const [jobs, setJobs] = useState<{ id: string; title: string; company: string | null; deadline: string | null }[]>([]);
-  const [apps, setApps] = useState<{ id: string; job_id: string; sent_at: string | null; status: string; jobs: { title: string; company: string | null } | null }[]>([]);
+  const [jobs, setJobs] = useState<{ id: string; title: string; company: string | null; deadline: string | null; status: string; match_score: number | null; created_at: string | null }[]>([]);
+  const [apps, setApps] = useState<{ id: string; job_id: string; sent_at: string | null; status: string; generated_text: string | null; created_at: string | null; jobs: { title: string; company: string | null; deadline?: string | null; match_score?: number | null } | null }[]>([]);
+  const [savingSuggestion, setSavingSuggestion] = useState<string | null>(null);
 
   // Plan dialog
   const [planOpen, setPlanOpen] = useState(false);
@@ -104,6 +113,7 @@ const CalendarPage = () => {
 
   // Calendar grid
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const today = useMemo(() => new Date(), []);
 
   const updateMilestoneProgress = useCallback(async (goalsList: Goal[], appsList: any[]) => {
     if (!user) return;
@@ -133,8 +143,8 @@ const CalendarPage = () => {
     const [g, e, j, a] = await Promise.all([
       supabase.from("goals").select("*").eq("user_id", user.id).neq("status", "archived").order("sort_order"),
       supabase.from("calendar_events").select("*").eq("user_id", user.id).order("event_date"),
-      supabase.from("jobs").select("id,title,company,deadline,status").eq("user_id", user.id).not("deadline", "is", null).not("status", "in", "(archived,rejected)"),
-      supabase.from("applications").select("id,job_id,sent_at,status,jobs(title,company)").eq("user_id", user.id),
+      supabase.from("jobs").select("id,title,company,deadline,status,match_score,created_at").eq("user_id", user.id).not("status", "in", "(archived,rejected)"),
+      supabase.from("applications").select("id,job_id,sent_at,status,generated_text,created_at,jobs(title,company,deadline,match_score)").eq("user_id", user.id),
     ]);
     setGoals((g.data ?? []) as Goal[]);
     setEvents((e.data ?? []) as CalEvent[]);
@@ -188,6 +198,22 @@ const CalendarPage = () => {
     } else {
       setEvTitle(""); setEvDate(undefined); setEvTime(""); setEvLocation(""); setEvDescription("");
       setEventOpen(false);
+      load();
+    }
+  };
+
+  const addCoachSuggestion = async (suggestion: CalendarCoachSuggestion) => {
+    if (!user) return;
+    setSavingSuggestion(suggestion.id);
+    const { error } = await supabase.from("calendar_events").insert({
+      user_id: user.id,
+      ...suggestion.eventPayload,
+    });
+    setSavingSuggestion(null);
+    if (error) {
+      toast({ title: "Kunne ikke legge til", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Lagt til i kalenderen", description: suggestion.title });
       load();
     }
   };
@@ -253,12 +279,37 @@ const CalendarPage = () => {
   const milestones = goals.filter((g) => g.kind === "milestone").sort((a, b) =>
     (a.target_date ?? "").localeCompare(b.target_date ?? "")
   );
+  const coach = useMemo(
+    () =>
+      buildDailyCoach({
+        jobs,
+        applications: apps,
+        events,
+        goals,
+        hasCv: true,
+        sourceHealth: { hasActiveSources: true },
+        now: today,
+      }),
+    [jobs, apps, events, goals, today]
+  );
+  const coachSuggestions = useMemo(
+    () =>
+      buildCalendarCoachSuggestions({
+        jobs,
+        applications: apps,
+        events,
+        goals,
+        hasCv: true,
+        sourceHealth: { hasActiveSources: true },
+        now: today,
+      }).slice(0, 5),
+    [jobs, apps, events, goals, today]
+  );
 
   // Timeline weeks: from today to main goal date (or +12 weeks)
   const timelineEnd = mainGoal?.target_date ? parseISO(mainGoal.target_date) : addDays(new Date(), 12 * 7);
   const totalDays = Math.max(7, differenceInDays(timelineEnd, new Date()));
   const totalWeeks = Math.ceil(totalDays / 7);
-  const today = new Date();
   const overallProgress = mainGoal?.target_date
     ? Math.min(100, Math.max(0, ((Date.now() - addDays(parseISO(mainGoal.target_date), -totalDays).getTime()) / (parseISO(mainGoal.target_date).getTime() - addDays(parseISO(mainGoal.target_date), -totalDays).getTime())) * 100))
     : 0;
@@ -275,6 +326,7 @@ const CalendarPage = () => {
   }, [allItems]);
 
   const itemsForSelected = allItems.filter((i) => isSameDay(i.date, selectedDate));
+  const suggestionsForSelected = coachSuggestions.filter((i) => isSameDay(parseISO(i.date), selectedDate));
   const upcoming = allItems.filter((i) => !isBefore(i.date, today)).slice(0, 12);
 
   if (loading) {
@@ -396,6 +448,55 @@ const CalendarPage = () => {
         </div>
       </header>
 
+      <Card className="border-primary/20 shadow-card">
+        <CardContent className="p-4 md:p-5 space-y-4">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Bot className="w-3.5 h-3.5" />
+                Denne uken
+              </div>
+              <h2 className="text-lg md:text-xl font-semibold mt-1">{coach.primaryAction.title}</h2>
+              <p className="text-sm text-muted-foreground mt-1 max-w-2xl">{coach.statusText}</p>
+            </div>
+            <Button asChild variant="outline" className="gap-1.5">
+              <Link to={coach.primaryAction.href}>
+                {coach.primaryAction.ctaLabel}
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </Button>
+          </div>
+
+          {coachSuggestions.length > 0 && (
+            <div className="grid gap-2 md:grid-cols-2">
+              {coachSuggestions.slice(0, 4).map((suggestion) => (
+                <div key={suggestion.id} className="rounded-md border border-dashed border-primary/30 bg-primary/5 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{suggestion.title}</div>
+                      <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{suggestion.description}</div>
+                      <div className="text-[11px] text-muted-foreground mt-2">
+                        {format(parseISO(suggestion.date), "EEEE d. MMM", { locale: nb })}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => addCoachSuggestion(suggestion)}
+                      disabled={savingSuggestion !== null}
+                    >
+                      {savingSuggestion === suggestion.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                      <span className="sr-only">Legg til</span>
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Main goal banner */}
       {mainGoal ? (
         <Card className="bg-gradient-to-br from-primary/10 to-transparent border-primary/30">
@@ -488,6 +589,38 @@ const CalendarPage = () => {
         </TabsList>
 
         <TabsContent value="agenda" className="space-y-2">
+          {coachSuggestions.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">Coach-forslag</div>
+              {coachSuggestions.map((suggestion) => (
+                <Card key={suggestion.id} className="border-dashed">
+                  <CardContent className="p-3 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{suggestion.title}</div>
+                      <div className="text-xs text-muted-foreground truncate">{suggestion.description}</div>
+                    </div>
+                    <div className="text-right shrink-0 hidden sm:block">
+                      <div className="text-sm font-medium">{format(parseISO(suggestion.date), "d. MMM", { locale: nb })}</div>
+                      <div className="text-[10px] text-muted-foreground">{KIND_META[suggestion.kind].label}</div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addCoachSuggestion(suggestion)}
+                      disabled={savingSuggestion !== null}
+                    >
+                      {savingSuggestion === suggestion.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                      <span className="hidden sm:inline ml-1">Legg til</span>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
           {upcoming.length === 0 ? (
             <Card><CardContent className="p-10 text-center text-muted-foreground text-sm">
               Ingen kommende hendelser.
@@ -563,6 +696,28 @@ const CalendarPage = () => {
                       </div>
                     );
                   })
+                )}
+                {suggestionsForSelected.length > 0 && (
+                  <div className="pt-3 mt-3 border-t space-y-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Forslag</div>
+                    {suggestionsForSelected.map((suggestion) => (
+                      <div key={suggestion.id} className="flex items-start gap-3 p-2 rounded-md border border-dashed bg-primary/5">
+                        <Sparkles className="w-4 h-4 mt-0.5 shrink-0 text-primary" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{suggestion.title}</div>
+                          <div className="text-xs text-muted-foreground">{suggestion.description}</div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => addCoachSuggestion(suggestion)}
+                          disabled={savingSuggestion !== null}
+                        >
+                          Legg til
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </CardContent>
