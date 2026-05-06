@@ -14,6 +14,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      application_attachments: {
+        Row: {
+          ai_summary: string | null
+          application_id: string
+          created_at: string
+          extracted_text: string | null
+          extraction_error: string | null
+          extraction_status: string
+          file_name: string
+          id: string
+          mime_type: string | null
+          size_bytes: number | null
+          storage_path: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_summary?: string | null
+          application_id: string
+          created_at?: string
+          extracted_text?: string | null
+          extraction_error?: string | null
+          extraction_status?: string
+          file_name: string
+          id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_summary?: string | null
+          application_id?: string
+          created_at?: string
+          extracted_text?: string | null
+          extraction_error?: string | null
+          extraction_status?: string
+          file_name?: string
+          id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_attachments_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       application_cv_tweaks: {
         Row: {
           application_id: string

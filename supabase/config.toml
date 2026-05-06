@@ -12,6 +12,12 @@ verify_jwt = true
 [functions.edit-tailored-cv]
 verify_jwt = true
 
+[functions.extract-application-attachment]
+verify_jwt = true
+
+[functions.apply-application-attachments]
+verify_jwt = true
+
 [functions.poll-rss]
 verify_jwt = false
 

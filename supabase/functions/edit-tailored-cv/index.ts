@@ -24,11 +24,12 @@ ABSOLUTTE REGLER:
 - Returner alltid komplett, strukturert JSON via tool-call. Ingen markdown-kodeblokker eller fri tekst.
 - Bruk tomme arrays [] for tomme seksjoner. Aldri returner [{}].
 - Hold CV-en klassisk, kort, konkret og PDF-sikker. Korte bullets, ingen kampanjespråk.
+- Standard er å bevare mest mulig av CV-en. Ikke fjern eksisterende roller, utdanning, prosjekter, språk, sertifikater eller ferdigheter med mindre brukeren eksplisitt ber om å korte ned, fjerne eller skjule noe.
 
 Du kan:
 - gjøre intro/headline mer relevant;
 - omformulere beskrivelser og bullets;
-- korte ned, sortere, omprioritere eller tone ned eksisterende innhold;
+- korte ned kun når brukeren ber om det, ellers sortere, omprioritere eller tone ned eksisterende innhold;
 - endre section_order for denne søknaden.
 
 Svar på norsk.`;

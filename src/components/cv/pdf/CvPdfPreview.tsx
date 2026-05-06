@@ -32,7 +32,7 @@ export const CvPdfPreview = ({ cv, styleId }: { cv: CvData; styleId?: string | n
   const debouncedCv = useDebounced(cv);
   const debouncedStyle = useDebounced(styleId);
   return (
-    <PDFViewer style={viewerStyle} showToolbar={false}>
+    <PDFViewer style={viewerStyle as any} showToolbar={false}>
       <CvPdfDocument cv={debouncedCv} styleId={debouncedStyle} />
     </PDFViewer>
   );
@@ -51,7 +51,7 @@ export const LetterPdfPreview = ({
   const debouncedText = useDebounced(text);
   const debouncedStyle = useDebounced(styleId);
   return (
-    <PDFViewer style={viewerStyle} showToolbar={false}>
+    <PDFViewer style={viewerStyle as any} showToolbar={false}>
       <LetterPdfDocument
         cv={debouncedCv}
         text={debouncedText}

@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Save, Send, Trash2, Sparkles, FileText, Download, PanelRightClose, PanelRightOpen, RefreshCw, History, Undo2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, Clock3, Download, FileText, History, Loader2, PanelRightClose, PanelRightOpen, Paperclip, RefreshCw, Save, Send, Sparkles, Trash2, Undo2, Upload } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CvStylePicker } from "@/components/cv/CvStylePicker";
@@ -25,6 +26,75 @@ const STATUSES = [
   { v: "offer", label: "Tilbud" }, { v: "rejected", label: "Avslag" }, { v: "withdrawn", label: "Trukket" },
 ];
 
+type ApplicationAttachment = {
+  id: string;
+  user_id: string;
+  application_id: string;
+  file_name: string;
+  storage_path: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  extracted_text: string | null;
+  ai_summary: string | null;
+  extraction_status: "uploaded" | "extracting" | "ready" | "failed" | string;
+  extraction_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+const isSupportedAttachment = (file: File) => {
+  const name = file.name.toLowerCase();
+  return (
+    file.type === "application/pdf"
+    || file.type.startsWith("text/")
+    || name.endsWith(".pdf")
+    || name.endsWith(".txt")
+    || name.endsWith(".md")
+    || name.endsWith(".markdown")
+  );
+};
+
+const sanitizeStorageName = (name: string) =>
+  name
+    .normalize("NFKD")
+    .replace(/[^\w.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    || "vedlegg";
+
+const formatBytes = (value: number | null | undefined) => {
+  if (!value) return "";
+  if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const AttachmentStatus = ({ status }: { status: string }) => {
+  if (status === "ready") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-700 dark:text-emerald-400">
+        <CheckCircle2 className="h-3 w-3" /> Klar
+      </span>
+    );
+  }
+
+  if (status === "failed") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive">
+        <AlertCircle className="h-3 w-3" /> Feilet
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+      {status === "extracting" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Clock3 className="h-3 w-3" />}
+      Behandler
+    </span>
+  );
+};
+
 const ApplicationDetail = () => {
   const { id } = useParams();
   const { toast } = useToast();
@@ -34,11 +104,17 @@ const ApplicationDetail = () => {
   const [cvTpl, setCvTpl] = useState<any>(null);
   const [allCvs, setAllCvs] = useState<any[]>([]);
   const [revisions, setRevisions] = useState<any[]>([]);
+  const [attachments, setAttachments] = useState<ApplicationAttachment[]>([]);
+  const [selectedAttachmentIds, setSelectedAttachmentIds] = useState<string[]>([]);
   const [text, setText] = useState("");
   const [preview, setPreview] = useState(true);
+  const [activeTab, setActiveTab] = useState("letter");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tailoring, setTailoring] = useState(false);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [applyingAttachments, setApplyingAttachments] = useState<"letter" | "cv" | "both" | null>(null);
+  const [attachmentInstruction, setAttachmentInstruction] = useState("");
   const [selection, setSelection] = useState("");
   const [regenerateInstruction, setRegenerateInstruction] = useState("");
   const [regenerating, setRegenerating] = useState(false);
@@ -48,7 +124,7 @@ const ApplicationDetail = () => {
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    const [{ data: a }, { data: t }, { data: r }] = await Promise.all([
+    const [{ data: a }, { data: t }, { data: r }, { data: at }] = await Promise.all([
       supabase.from("applications").select("*, jobs(*)").eq("id", id).maybeSingle(),
       supabase.from("application_cv_tweaks").select("*").eq("application_id", id).maybeSingle(),
       (supabase as any)
@@ -57,9 +133,16 @@ const ApplicationDetail = () => {
         .eq("application_id", id)
         .order("created_at", { ascending: false })
         .limit(8),
+      supabase
+        .from("application_attachments")
+        .select("*")
+        .eq("application_id", id)
+        .order("created_at", { ascending: false }),
     ]);
     setApp(a); setTweak(t); setText(a?.generated_text ?? "");
     setRevisions(r ?? []);
+    setAttachments((at ?? []) as ApplicationAttachment[]);
+    setSelectedAttachmentIds((ids) => ids.filter((attachmentId) => (at ?? []).some((item: any) => item.id === attachmentId)));
     if (a?.user_id) {
       let cv: any = null;
       if ((a as any).cv_template_id) {
@@ -91,6 +174,18 @@ const ApplicationDetail = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  const refreshAttachments = useCallback(async () => {
+    if (!id) return;
+    const { data } = await supabase
+      .from("application_attachments")
+      .select("*")
+      .eq("application_id", id)
+      .order("created_at", { ascending: false });
+    const next = (data ?? []) as ApplicationAttachment[];
+    setAttachments(next);
+    setSelectedAttachmentIds((ids) => ids.filter((attachmentId) => next.some((item) => item.id === attachmentId)));
+  }, [id]);
+
   const refreshRevisions = async () => {
     if (!id) return;
     const { data } = await (supabase as any)
@@ -100,6 +195,116 @@ const ApplicationDetail = () => {
       .order("created_at", { ascending: false })
       .limit(8);
     setRevisions(data ?? []);
+  };
+
+  const uploadAttachment = async (file: File | undefined) => {
+    if (!file || !app) return;
+    if (!isSupportedAttachment(file)) {
+      toast({ title: "Ustøttet filtype", description: "V1 støtter PDF, TXT og Markdown.", variant: "destructive" });
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      toast({ title: "For stor fil", description: "Maks 10 MB.", variant: "destructive" });
+      return;
+    }
+
+    setUploadingAttachment(true);
+    try {
+      const path = `${app.user_id}/applications/${app.id}/${Date.now()}-${sanitizeStorageName(file.name)}`;
+      const { error: uploadError } = await supabase.storage.from("user-files").upload(path, file, {
+        contentType: file.type || undefined,
+      });
+      if (uploadError) throw uploadError;
+
+      const { data: inserted, error: insertError } = await supabase
+        .from("application_attachments")
+        .insert({
+          user_id: app.user_id,
+          application_id: app.id,
+          file_name: file.name,
+          storage_path: path,
+          mime_type: file.type || null,
+          size_bytes: file.size,
+          extraction_status: "uploaded",
+        })
+        .select()
+        .maybeSingle();
+      if (insertError) throw insertError;
+
+      if (inserted) {
+        setAttachments((items) => [inserted as ApplicationAttachment, ...items]);
+        const { error: extractError } = await supabase.functions.invoke("extract-application-attachment", {
+          body: { attachmentId: inserted.id },
+        });
+        if (extractError) throw extractError;
+      }
+
+      toast({ title: "Vedlegg klart", description: "Filen kan brukes som AI-kontekst." });
+    } catch (e: any) {
+      toast({ title: "Kunne ikke behandle vedlegg", description: e.message, variant: "destructive" });
+    } finally {
+      setUploadingAttachment(false);
+      await refreshAttachments();
+    }
+  };
+
+  const deleteAttachment = async (attachment: ApplicationAttachment) => {
+    if (!confirm(`Slette "${attachment.file_name}"?`)) return;
+    await supabase.storage.from("user-files").remove([attachment.storage_path]);
+    const { error } = await supabase.from("application_attachments").delete().eq("id", attachment.id);
+    if (error) {
+      toast({ title: "Kunne ikke slette vedlegg", description: error.message, variant: "destructive" });
+      return;
+    }
+    setAttachments((items) => items.filter((item) => item.id !== attachment.id));
+    setSelectedAttachmentIds((ids) => ids.filter((id) => id !== attachment.id));
+  };
+
+  const applySelectedAttachments = async (target: "letter" | "cv") => {
+    if (!app) return;
+    const readyIds = selectedAttachmentIds.filter((attachmentId) => {
+      const attachment = attachments.find((item) => item.id === attachmentId);
+      return attachment?.extraction_status === "ready" && attachment.extracted_text?.trim();
+    });
+    if (readyIds.length === 0) {
+      toast({ title: "Velg AI-klare vedlegg først", variant: "destructive" });
+      return;
+    }
+
+    setApplyingAttachments(target);
+    try {
+      const { data, error } = await supabase.functions.invoke("apply-application-attachments", {
+        body: {
+          applicationId: app.id,
+          attachmentIds: readyIds,
+          target,
+          instruction: attachmentInstruction,
+        },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+
+      if (target === "letter" && (data as any)?.generatedText) {
+        const nextText = (data as any).generatedText;
+        setText(nextText);
+        setApp({ ...app, generated_text: nextText });
+        await refreshRevisions();
+        setActiveTab("letter");
+      }
+      if (target === "cv" && (data as any)?.tweak) {
+        setTweak((data as any).tweak);
+        setActiveTab("cv");
+      }
+
+      setAttachmentInstruction("");
+      toast({
+        title: target === "letter" ? "Vedlegg flettet inn i søknadsbrevet" : "Vedlegg flettet inn i CV-en",
+      });
+    } catch (e: any) {
+      toast({ title: "Fletting feilet", description: e.message, variant: "destructive" });
+    } finally {
+      setApplyingAttachments(null);
+    }
   };
 
   const styleId: CvStyleId = (app?.cv_style ?? cvTpl?.cv_style ?? "skandinavisk") as CvStyleId;
@@ -121,6 +326,10 @@ const ApplicationDetail = () => {
     ? { ...cvTpl, ...tweak.tailored_cv, section_order: tweak.section_order ?? tweak.tailored_cv.section_order ?? cvTpl?.section_order }
     : cvTpl;
   const isTailored = !!tweak?.tailored_cv;
+  const readySelectedCount = selectedAttachmentIds.filter((attachmentId) => {
+    const attachment = attachments.find((item) => item.id === attachmentId);
+    return attachment?.extraction_status === "ready" && attachment.extracted_text?.trim();
+  }).length;
 
   const exportLetterPdf = async () => {
     await downloadPdfDocument(
@@ -241,10 +450,11 @@ const ApplicationDetail = () => {
 
       {app.jobs && <JobContextCard job={app.jobs} />}
 
-      <Tabs defaultValue="letter">
-        <TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="flex h-auto flex-wrap">
           <TabsTrigger value="letter"><FileText className="w-3.5 h-3.5 mr-1.5" /> Søknadsbrev</TabsTrigger>
           <TabsTrigger value="cv"><Sparkles className="w-3.5 h-3.5 mr-1.5" /> Tilpasset CV {tweak && "✓"}</TabsTrigger>
+          <TabsTrigger value="attachments"><Paperclip className="w-3.5 h-3.5 mr-1.5" /> Vedlegg {attachments.length > 0 && `(${attachments.length})`}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="letter" className="space-y-4 mt-4">
@@ -540,6 +750,125 @@ const ApplicationDetail = () => {
               )}
             </>
           )}
+        </TabsContent>
+
+        <TabsContent value="attachments" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1.5">
+                <CardTitle className="text-base">Vedlegg</CardTitle>
+                <CardDescription className="text-xs">
+                  Last opp filer som bare hører til denne søknaden. AI bruker kun vedleggene du velger her.
+                </CardDescription>
+              </div>
+              <label className={`shrink-0 ${uploadingAttachment ? "pointer-events-none opacity-60" : "cursor-pointer"}`}>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.txt,.md,.markdown,application/pdf,text/plain,text/markdown"
+                  disabled={uploadingAttachment}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    uploadAttachment(file);
+                    event.target.value = "";
+                  }}
+                />
+                <span className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent">
+                  {uploadingAttachment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  Last opp
+                </span>
+              </label>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {attachments.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border p-8 text-center">
+                  <Paperclip className="mx-auto mb-3 h-5 w-5 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Ingen vedlegg på denne søknaden ennå.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {attachments.map((attachment) => {
+                    const isReady = attachment.extraction_status === "ready" && !!attachment.extracted_text?.trim();
+                    const isSelected = selectedAttachmentIds.includes(attachment.id);
+                    return (
+                      <div key={attachment.id} className="flex items-start gap-3 rounded-md border border-border bg-card p-3">
+                        <Checkbox
+                          checked={isSelected}
+                          disabled={!isReady}
+                          onCheckedChange={(checked) => {
+                            setSelectedAttachmentIds((ids) =>
+                              checked === true
+                                ? [...new Set([...ids, attachment.id])]
+                                : ids.filter((id) => id !== attachment.id)
+                            );
+                          }}
+                          className="mt-1"
+                          aria-label={`Velg ${attachment.file_name}`}
+                        />
+                        <FileText className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate text-sm font-medium">{attachment.file_name}</span>
+                            {formatBytes(attachment.size_bytes) && (
+                              <span className="text-xs text-muted-foreground">{formatBytes(attachment.size_bytes)}</span>
+                            )}
+                            <AttachmentStatus status={attachment.extraction_status} />
+                          </div>
+                          {attachment.ai_summary && (
+                            <p className="line-clamp-2 text-xs text-muted-foreground">{attachment.ai_summary}</p>
+                          )}
+                          {attachment.extraction_error && (
+                            <p className="text-xs text-destructive">{attachment.extraction_error}</p>
+                          )}
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => deleteAttachment(attachment)} className="shrink-0">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-medium">Flett inn valgte vedlegg</div>
+                    <div className="text-xs text-muted-foreground">
+                      {readySelectedCount > 0 ? `${readySelectedCount} AI-klare vedlegg valgt` : "Velg ett eller flere AI-klare vedlegg først"}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => applySelectedAttachments("letter")}
+                      disabled={readySelectedCount === 0 || !!applyingAttachments}
+                    >
+                      {applyingAttachments === "letter" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                      Søknadsbrev
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => applySelectedAttachments("cv")}
+                      disabled={readySelectedCount === 0 || !!applyingAttachments}
+                    >
+                      {applyingAttachments === "cv" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                      CV
+                    </Button>
+                  </div>
+                </div>
+                <Textarea
+                  rows={2}
+                  value={attachmentInstruction}
+                  onChange={(event) => setAttachmentInstruction(event.target.value)}
+                  placeholder="Valgfritt: f.eks. bruk bare attesten som dokumenterer prosjektledelse, ikke gjenta alt..."
+                  className="min-h-[72px] resize-none bg-background"
+                  disabled={!!applyingAttachments}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
