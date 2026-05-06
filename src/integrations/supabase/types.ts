@@ -14,58 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
-      application_attachments: {
+      application_cv_revisions: {
         Row: {
-          ai_summary: string | null
           application_id: string
           created_at: string
-          extracted_text: string | null
-          extraction_error: string | null
-          extraction_status: string
-          file_name: string
           id: string
-          mime_type: string | null
-          size_bytes: number | null
-          storage_path: string
-          updated_at: string
+          instruction: string
+          metadata: Json
+          next_cv: Json
+          next_section_order: string[] | null
+          previous_cv: Json
+          previous_section_order: string[] | null
+          tweak_id: string | null
           user_id: string
         }
         Insert: {
-          ai_summary?: string | null
           application_id: string
           created_at?: string
-          extracted_text?: string | null
-          extraction_error?: string | null
-          extraction_status?: string
-          file_name: string
           id?: string
-          mime_type?: string | null
-          size_bytes?: number | null
-          storage_path: string
-          updated_at?: string
+          instruction?: string
+          metadata?: Json
+          next_cv?: Json
+          next_section_order?: string[] | null
+          previous_cv?: Json
+          previous_section_order?: string[] | null
+          tweak_id?: string | null
           user_id: string
         }
         Update: {
-          ai_summary?: string | null
           application_id?: string
           created_at?: string
-          extracted_text?: string | null
-          extraction_error?: string | null
-          extraction_status?: string
-          file_name?: string
           id?: string
-          mime_type?: string | null
-          size_bytes?: number | null
-          storage_path?: string
-          updated_at?: string
+          instruction?: string
+          metadata?: Json
+          next_cv?: Json
+          next_section_order?: string[] | null
+          previous_cv?: Json
+          previous_section_order?: string[] | null
+          tweak_id?: string | null
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "application_attachments_application_id_fkey"
+            foreignKeyName: "application_cv_revisions_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: false
             referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_cv_revisions_tweak_id_fkey"
+            columns: ["tweak_id"]
+            isOneToOne: false
+            referencedRelation: "application_cv_tweaks"
             referencedColumns: ["id"]
           },
         ]
@@ -720,51 +721,6 @@ export type Database = {
           },
         ]
       }
-      match_visibility_rules: {
-        Row: {
-          action: Database["public"]["Enums"]["match_visibility_rule_action"]
-          company_terms: string[]
-          created_at: string
-          description_terms: string[]
-          id: string
-          is_active: boolean
-          location_terms: string[]
-          name: string
-          source_terms: string[]
-          title_terms: string[]
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          action?: Database["public"]["Enums"]["match_visibility_rule_action"]
-          company_terms?: string[]
-          created_at?: string
-          description_terms?: string[]
-          id?: string
-          is_active?: boolean
-          location_terms?: string[]
-          name: string
-          source_terms?: string[]
-          title_terms?: string[]
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          action?: Database["public"]["Enums"]["match_visibility_rule_action"]
-          company_terms?: string[]
-          created_at?: string
-          description_terms?: string[]
-          id?: string
-          is_active?: boolean
-          location_terms?: string[]
-          name?: string
-          source_terms?: string[]
-          title_terms?: string[]
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       notifications: {
         Row: {
           application_id: string | null
@@ -893,7 +849,6 @@ export type Database = {
           email: string | null
           id: string
           linkedin_url: string | null
-          match_min_visible_score: number
           master_profile: string | null
           notify_email: boolean
           notify_high_match_min_score: number
@@ -919,7 +874,6 @@ export type Database = {
           email?: string | null
           id?: string
           linkedin_url?: string | null
-          match_min_visible_score?: number
           master_profile?: string | null
           notify_email?: boolean
           notify_high_match_min_score?: number
@@ -945,7 +899,6 @@ export type Database = {
           email?: string | null
           id?: string
           linkedin_url?: string | null
-          match_min_visible_score?: number
           master_profile?: string | null
           notify_email?: boolean
           notify_high_match_min_score?: number
@@ -1345,7 +1298,6 @@ export type Database = {
         | "deadline_soon"
         | "interview_reminder"
         | "system"
-      match_visibility_rule_action: "include" | "exclude"
       profile_signal_category:
         | "role"
         | "industry"
@@ -1362,7 +1314,7 @@ export type Database = {
         | "application"
         | "swipe"
         | "ai_suggested"
-      source_suggestion_provider: "finn" | "arbeidsplassen"
+      source_suggestion_provider: "finn"
       source_suggestion_status: "suggested" | "active" | "paused" | "dismissed"
       user_job_match_status: "new" | "saved" | "dismissed" | "archived"
     }
@@ -1542,7 +1494,6 @@ export const Constants = {
         "interview_reminder",
         "system",
       ],
-      match_visibility_rule_action: ["include", "exclude"],
       profile_signal_category: [
         "role",
         "industry",
@@ -1561,7 +1512,7 @@ export const Constants = {
         "swipe",
         "ai_suggested",
       ],
-      source_suggestion_provider: ["finn", "arbeidsplassen"],
+      source_suggestion_provider: ["finn"],
       source_suggestion_status: ["suggested", "active", "paused", "dismissed"],
       user_job_match_status: ["new", "saved", "dismissed", "archived"],
     },
