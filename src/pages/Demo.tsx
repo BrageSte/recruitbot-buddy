@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Briefcase, FileText, Sparkles, Wand2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Briefcase, FileText, Loader2, Sparkles, Upload, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,17 +10,82 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { savePreOnboardingDraft } from "@/lib/preOnboarding";
 import { SAMPLE_CVS, scoreDemoJobs, type DemoJob, type ScoredDemoJob } from "@/lib/demoScoring";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+const fileToBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+
+const fileToText = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
+
+const cvToText = (cv: any): string => {
+  if (!cv) return "";
+  const parts: string[] = [];
+  if (cv.full_name) parts.push(cv.full_name);
+  if (cv.headline) parts.push(cv.headline);
+  if (cv.intro) parts.push(cv.intro);
+  for (const e of cv.experiences ?? []) {
+    parts.push(`${e.title ?? ""} ${e.company ?? ""}`);
+    if (e.description) parts.push(e.description);
+    if (Array.isArray(e.bullets)) parts.push(e.bullets.join(" "));
+    if (Array.isArray(e.technologies)) parts.push(e.technologies.join(" "));
+  }
+  for (const s of cv.skills ?? []) {
+    if (Array.isArray(s.items)) parts.push(s.items.join(" "));
+  }
+  for (const p of cv.projects ?? []) {
+    parts.push(`${p.name ?? ""} ${p.description ?? ""}`);
+    if (Array.isArray(p.technologies)) parts.push(p.technologies.join(" "));
+  }
+  return parts.filter(Boolean).join("\n");
+};
 
 type Step = 1 | 2 | 3;
 
 const Demo = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>(1);
   const [cvText, setCvText] = useState("");
+  const [importing, setImporting] = useState(false);
   const [roles, setRoles] = useState("");
   const [location, setLocation] = useState("");
   const [dealbreakers, setDealbreakers] = useState("");
   const [jobs, setJobs] = useState<DemoJob[]>([]);
+
+  const handleUpload = async (file: File) => {
+    setImporting(true);
+    try {
+      let body: Record<string, unknown>;
+      if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+        body = { pdf_base64: await fileToBase64(file), mime_type: file.type || "application/pdf" };
+      } else {
+        body = { text: await fileToText(file) };
+      }
+      const { data, error } = await supabase.functions.invoke("import-cv", { body });
+      if (error || !(data as any)?.cv) throw error ?? new Error("Tomt CV-svar");
+      const text = cvToText((data as any).cv).trim();
+      if (!text) throw new Error("Fant ikke lesbar tekst i CV-en");
+      setCvText(text);
+      toast({ title: "CV lest", description: "Vi har hentet ut teksten – juster gjerne før du går videre." });
+    } catch (e: any) {
+      toast({ title: "Kunne ikke lese CV", description: e.message ?? String(e), variant: "destructive" });
+    } finally {
+      setImporting(false);
+    }
+  };
 
   useEffect(() => {
     fetch("/demo-jobs.json")
@@ -66,6 +131,38 @@ const Demo = () => {
         {step === 1 && (
           <StepCard title="Last opp CV eller velg eksempel" subtitle="Lim inn CV-tekst, eller bruk en av eksempelpersonene for å se hvordan matchingen funker.">
             <div className="space-y-4">
+              <div className="rounded-lg border border-dashed border-border/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <Upload className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">Last opp CV (PDF, TXT, MD)</div>
+                    <p className="text-xs text-muted-foreground">Vi leser den med AI og fyller inn teksten under.</p>
+                  </div>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.txt,.md,text/plain,application/pdf"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUpload(file);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={importing}
+                >
+                  {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                  {importing ? "Leser CV..." : "Velg fil"}
+                </Button>
+              </div>
+
               <div className="flex flex-wrap gap-2">
                 {SAMPLE_CVS.map((s) => (
                   <button

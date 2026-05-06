@@ -22,7 +22,7 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.import-cv]
-verify_jwt = true
+verify_jwt = false
 
 [functions.auto-search]
 verify_jwt = false
