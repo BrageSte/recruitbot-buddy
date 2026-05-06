@@ -10,7 +10,10 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import Start from "./pages/Start";
+import Landing from "./pages/Landing";
+import Demo from "./pages/Demo";
 import Dashboard from "./pages/Dashboard";
+import { RootRoute } from "@/components/RootRoute";
 import Jobs from "./pages/Jobs";
 import Matches from "./pages/Matches";
 import JobSwipe from "./pages/JobSwipe";
@@ -36,11 +39,15 @@ const App = () => (
           <ErrorBoundary>
           <Routes>
             <Route path="/start" element={<Start />} />
+            <Route path="/demo" element={<Demo />} />
+            <Route path="/landing" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+            <Route path="/" element={<RootRoute />}>
+              <Route index element={<Dashboard />} />
+            </Route>
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-              <Route path="/" element={<Dashboard />} />
               <Route path="/matches" element={<Matches />} />
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/jobs/swipe" element={<JobSwipe />} />
