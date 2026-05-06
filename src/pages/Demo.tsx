@@ -131,6 +131,38 @@ const Demo = () => {
         {step === 1 && (
           <StepCard title="Last opp CV eller velg eksempel" subtitle="Lim inn CV-tekst, eller bruk en av eksempelpersonene for å se hvordan matchingen funker.">
             <div className="space-y-4">
+              <div className="rounded-lg border border-dashed border-border/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <Upload className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">Last opp CV (PDF, TXT, MD)</div>
+                    <p className="text-xs text-muted-foreground">Vi leser den med AI og fyller inn teksten under.</p>
+                  </div>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.txt,.md,text/plain,application/pdf"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUpload(file);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={importing}
+                >
+                  {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                  {importing ? "Leser CV..." : "Velg fil"}
+                </Button>
+              </div>
+
               <div className="flex flex-wrap gap-2">
                 {SAMPLE_CVS.map((s) => (
                   <button
