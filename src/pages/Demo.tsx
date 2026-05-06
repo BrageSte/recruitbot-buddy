@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Briefcase, FileText, Sparkles, Wand2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Briefcase, FileText, Loader2, Sparkles, Upload, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,46 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { savePreOnboardingDraft } from "@/lib/preOnboarding";
 import { SAMPLE_CVS, scoreDemoJobs, type DemoJob, type ScoredDemoJob } from "@/lib/demoScoring";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+const fileToBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+
+const fileToText = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
+
+const cvToText = (cv: any): string => {
+  if (!cv) return "";
+  const parts: string[] = [];
+  if (cv.full_name) parts.push(cv.full_name);
+  if (cv.headline) parts.push(cv.headline);
+  if (cv.intro) parts.push(cv.intro);
+  for (const e of cv.experiences ?? []) {
+    parts.push(`${e.title ?? ""} ${e.company ?? ""}`);
+    if (e.description) parts.push(e.description);
+    if (Array.isArray(e.bullets)) parts.push(e.bullets.join(" "));
+    if (Array.isArray(e.technologies)) parts.push(e.technologies.join(" "));
+  }
+  for (const s of cv.skills ?? []) {
+    if (Array.isArray(s.items)) parts.push(s.items.join(" "));
+  }
+  for (const p of cv.projects ?? []) {
+    parts.push(`${p.name ?? ""} ${p.description ?? ""}`);
+    if (Array.isArray(p.technologies)) parts.push(p.technologies.join(" "));
+  }
+  return parts.filter(Boolean).join("\n");
+};
 
 type Step = 1 | 2 | 3;
 
