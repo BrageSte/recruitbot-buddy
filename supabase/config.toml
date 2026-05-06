@@ -42,6 +42,9 @@ verify_jwt = false
 [functions.match-user-jobs]
 verify_jwt = true
 
+[functions.match-anonymous]
+verify_jwt = false
+
 [functions.suggest-source-feeds]
 verify_jwt = true
 
