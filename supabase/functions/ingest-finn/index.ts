@@ -325,9 +325,11 @@ async function loadFinnItems(body: any, admin: any): Promise<LoadedFinnItems> {
   }
 
   if (body.includeHtmlSuggestions) {
-    const enabled = (Deno.env.get("FINN_HTML_FALLBACK_ENABLED") ?? "").toLowerCase() === "true";
+    const enabledByEnv = (Deno.env.get("FINN_HTML_FALLBACK_ENABLED") ?? "").toLowerCase() === "true";
+    const enabledForUserRun = typeof body.userId === "string" && body.userId.trim().length > 0;
+    const enabled = enabledByEnv || enabledForUserRun;
     if (!enabled) {
-      loaded.hints.push("Finn HTML fallback er av. Sett FINN_HTML_FALLBACK_ENABLED=true for kontrollert daglig fallback.");
+      loaded.hints.push("Finn HTML fallback er av for planlagt bred kjøring. Sett FINN_HTML_FALLBACK_ENABLED=true for kontrollert daglig fallback, eller kjør for én innlogget bruker.");
     } else {
       let suggestionsQ = admin
         .from("source_suggestions")

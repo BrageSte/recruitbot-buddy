@@ -246,16 +246,28 @@ const Sources = () => {
   const runFullSource = async (source: "arbeidsplassen" | "finn") => {
     setFullRunning(source);
     try {
+      if (source === "finn") {
+        await supabase.functions.invoke("suggest-source-feeds", { body: { force: false } });
+      }
       const { data, error } = source === "arbeidsplassen"
         ? await supabase.functions.invoke("ingest-arbeidsplassen-feed", { body: { maxPages: 8, sinceDays: 30 } })
-        : await supabase.functions.invoke("ingest-finn", { body: { includeUserFeeds: true, userId: user?.id } });
+        : await supabase.functions.invoke("ingest-finn", {
+            body: {
+              includeUserFeeds: true,
+              includeHtmlSuggestions: true,
+              userId: user?.id,
+              maxSuggestionsPerUser: 3,
+              maxHitsPerSuggestion: 10,
+            },
+          });
       if (error) throw error;
       const d: any = data;
       toast({
         title: source === "arbeidsplassen" ? "Arbeidsplassen oppdatert" : "Finn sjekket",
-        description: d.hint ?? `${d.activeUpserted ?? d.upserted ?? 0} annonser oppdatert.`,
+        description: d.hint ?? `${d.activeUpserted ?? d.upserted ?? 0} annonser oppdatert${d.linksRecorded ? `, ${d.linksRecorded} bruker-treff koblet` : ""}.`,
       });
       loadCoverage();
+      loadSuggestions(false);
     } catch (e: any) {
       toast({ title: "Feilet", description: e.message, variant: "destructive" });
     } finally {
@@ -454,7 +466,7 @@ const Sources = () => {
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[
             { key: "arbeidsplassen", label: "Arbeidsplassen", action: "Oppdater bred NAV-cache" },
-            { key: "finn", label: "Finn", action: "Hent RSS fallback" },
+            { key: "finn", label: "Finn", action: "Hent Finn fallback" },
           ].map((s) => {
             const state = sourceStates.find((item) => item.provider === s.key);
             return (

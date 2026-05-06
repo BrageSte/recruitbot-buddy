@@ -216,6 +216,7 @@ const Jobs = () => {
         body: {
           limit: 30,
           minVisibleScore: config.minScore ?? profileMinScore,
+          includeBroadCache: true,
           autoSaveVisible: true,
           materializeExisting: true,
         },

@@ -17,7 +17,7 @@ import { searchArbeidsplassenJobs } from "../_shared/nav-search.ts";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
-const CANDIDATE_POOL = 700;
+const CANDIDATE_POOL = 2000;
 const PROFILE_SEARCH_HITS_PER_QUERY = 12;
 const PRESERVED_MATCH_JOB_STATUSES = new Set(["applied", "interview", "offer", "rejected", "archived"]);
 
@@ -393,7 +393,7 @@ serve(async (req) => {
 
     const limit = clampLimit(body.limit);
     const refresh = Boolean(body.refresh);
-    const includeBroadCache = Boolean(body.includeBroadCache);
+    const includeBroadCache = body.includeBroadCache !== false;
     const autoSaveVisible = body.autoSaveVisible !== false;
     const materializeExisting = Boolean(body.materializeExisting);
     const enableProfileSearch = body.profileSearch !== false;

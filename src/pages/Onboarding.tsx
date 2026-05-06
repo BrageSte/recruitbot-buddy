@@ -924,7 +924,7 @@ const Onboarding = () => {
       setSetupItem("matching", "running");
       try {
         const { data, error } = await supabase.functions.invoke("match-user-jobs", {
-          body: { limit: INITIAL_SETUP_MATCH_LIMIT },
+          body: { limit: INITIAL_SETUP_MATCH_LIMIT, includeBroadCache: true, autoSaveVisible: true, materializeExisting: true },
         });
         if (error) throw error;
         const firstMatches = await loadSetupMatches();
@@ -956,7 +956,7 @@ const Onboarding = () => {
         );
         try {
           const { data, error } = await supabase.functions.invoke("match-user-jobs", {
-            body: { limit: BACKGROUND_SETUP_MATCH_LIMIT },
+            body: { limit: BACKGROUND_SETUP_MATCH_LIMIT, includeBroadCache: true, autoSaveVisible: true, materializeExisting: true },
           });
           if (error) throw error;
           const latestMatches = await loadSetupMatches();

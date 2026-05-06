@@ -162,7 +162,13 @@ const Matches = () => {
     setIngesting("finn");
     try {
       const { data, error } = await supabase.functions.invoke("ingest-finn", {
-        body: { includeUserFeeds: true, userId: user?.id },
+        body: {
+          includeUserFeeds: true,
+          includeHtmlSuggestions: true,
+          userId: user?.id,
+          maxSuggestionsPerUser: 3,
+          maxHitsPerSuggestion: 10,
+        },
       });
       if (error) throw error;
       const d: any = data;
@@ -182,7 +188,7 @@ const Matches = () => {
     setRunning(true);
     try {
       const { data, error } = await supabase.functions.invoke("match-user-jobs", {
-        body: { limit: 25, minVisibleScore: minScore },
+        body: { limit: 25, minVisibleScore: minScore, includeBroadCache: true, autoSaveVisible: true, materializeExisting: true },
       });
       if (error) throw error;
       const d: any = data;
