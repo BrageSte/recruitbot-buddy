@@ -137,7 +137,7 @@ function omittedSkills(originalCv: CvData, tailoredCv: CvData): CvOriginalInclus
           source: { category: group.category, item },
         };
       })
-      .filter((entry): entry is CvOriginalInclusionItem => Boolean(entry)),
+      .filter(Boolean) as CvOriginalInclusionItem[],
   );
 
   return { section: "skills", label: SECTION_LABELS.skills, items };
