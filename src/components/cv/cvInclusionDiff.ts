@@ -111,7 +111,7 @@ function omittedGroup<T>(
         source: item,
       };
     })
-    .filter((item): item is CvOriginalInclusionItem => Boolean(item));
+    .filter(Boolean) as CvOriginalInclusionItem[];
 
   return { section, label: SECTION_LABELS[section], items };
 }
