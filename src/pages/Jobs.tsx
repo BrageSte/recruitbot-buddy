@@ -202,7 +202,8 @@ const Jobs = () => {
       const finn = await supabase.functions.invoke("ingest-finn", {
         body: {
           includeUserFeeds: true,
-          includeHtmlSuggestions: true,
+          includeOfficialApi: true,
+          includeHtmlSuggestions: false,
           userId: user.id,
           maxSuggestionsPerUser: 3,
           maxHitsPerSuggestion: 10,

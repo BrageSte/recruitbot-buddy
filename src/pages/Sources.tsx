@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   buildSourceSearchText,
   buildSourceSearchUrl,
+  rssIngestOwnerForUrl,
   SOURCE_PROVIDER_LABEL,
   type SourceSuggestionProvider,
 } from "@/lib/sourceSuggestions";
@@ -211,9 +212,13 @@ const Sources = () => {
       return;
     }
     await supabase.from("source_suggestions").update({ status: "active" as any, is_active: true }).eq("id", suggestion.id);
+    await supabase.functions.invoke("ingest-finn", {
+      body: { includeUserFeeds: true, includeOfficialApi: true, includeHtmlSuggestions: false, userId: user.id },
+    });
     toast({ title: "RSS koblet" });
     loadSuggestions(false);
     loadRss();
+    loadCoverage();
   };
 
   const copySuggestionSearch = async (suggestion: SourceSuggestion) => {
@@ -243,8 +248,9 @@ const Sources = () => {
     });
   }, []);
 
-  const runFullSource = async (source: "arbeidsplassen" | "finn") => {
-    setFullRunning(source);
+  const runFullSource = async (source: "arbeidsplassen" | "finn", options: { htmlFallback?: boolean } = {}) => {
+    const runKey = source === "finn" && options.htmlFallback ? "finn-html" : source;
+    setFullRunning(runKey);
     try {
       if (source === "finn") {
         await supabase.functions.invoke("suggest-source-feeds", { body: { force: false } });
@@ -254,7 +260,8 @@ const Sources = () => {
         : await supabase.functions.invoke("ingest-finn", {
             body: {
               includeUserFeeds: true,
-              includeHtmlSuggestions: true,
+              includeOfficialApi: true,
+              includeHtmlSuggestions: Boolean(options.htmlFallback),
               userId: user?.id,
               maxSuggestionsPerUser: 3,
               maxHitsPerSuggestion: 10,
@@ -263,7 +270,11 @@ const Sources = () => {
       if (error) throw error;
       const d: any = data;
       toast({
-        title: source === "arbeidsplassen" ? "Arbeidsplassen oppdatert" : "Finn sjekket",
+        title: source === "arbeidsplassen"
+          ? "Arbeidsplassen oppdatert"
+          : options.htmlFallback
+          ? "FINN fallback forsøkt"
+          : "FINN RSS/API sjekket",
         description: d.hint ?? `${d.activeUpserted ?? d.upserted ?? 0} annonser oppdatert${d.linksRecorded ? `, ${d.linksRecorded} bruker-treff koblet` : ""}.`,
       });
       loadCoverage();
@@ -378,6 +389,12 @@ const Sources = () => {
     else {
       setRssName("");
       setRssUrl("");
+      if (rssIngestOwnerForUrl(rssUrl) === "ingest-finn") {
+        await supabase.functions.invoke("ingest-finn", {
+          body: { includeUserFeeds: true, includeOfficialApi: true, includeHtmlSuggestions: false, userId: user.id },
+        });
+        loadCoverage();
+      }
       loadRss();
     }
   };
@@ -396,16 +413,38 @@ const Sources = () => {
   const pollRss = async (feedId?: string) => {
     setRssPolling(feedId ?? "all");
     try {
-      const { data, error } = await supabase.functions.invoke("poll-rss", {
-        body: feedId ? { feedId, userId: user!.id } : { userId: user!.id },
-      });
-      if (error) throw error;
-      const d: any = data;
+      const selectedFeeds = feedId ? feeds.filter((feed) => feed.id === feedId) : feeds;
+      const hasFinnFeeds = selectedFeeds.some((feed) => rssIngestOwnerForUrl(feed.url) === "ingest-finn");
+      const hasGenericFeeds = selectedFeeds.some((feed) => rssIngestOwnerForUrl(feed.url) === "poll-rss");
+      let rssData: any = null;
+      let finnData: any = null;
+
+      if (hasGenericFeeds) {
+        const genericFeedId = feedId && selectedFeeds.length === 1 ? feedId : undefined;
+        const { data, error } = await supabase.functions.invoke("poll-rss", {
+          body: genericFeedId ? { feedId: genericFeedId, userId: user!.id } : { userId: user!.id },
+        });
+        if (error) throw error;
+        rssData = data;
+      }
+
+      if (hasFinnFeeds) {
+        const { data, error } = await supabase.functions.invoke("ingest-finn", {
+          body: { includeUserFeeds: true, includeOfficialApi: true, includeHtmlSuggestions: false, userId: user!.id },
+        });
+        if (error) throw error;
+        finnData = data;
+      }
+
       toast({
         title: "Sjekket",
-        description: `${d.feeds ?? 0} feed(s), ${d.newItems ?? 0} nye jobber.`,
+        description: [
+          rssData ? `${rssData.feeds ?? 0} RSS-feed(s), ${rssData.newItems ?? 0} nye jobber` : null,
+          finnData ? `${finnData.upserted ?? 0} FINN-jobber oppdatert via RSS/API` : null,
+        ].filter(Boolean).join(". ") || "Ingen aktive feeder å sjekke.",
       });
       loadRss();
+      loadCoverage();
     } catch (e: any) {
       toast({ title: "Feilet", description: e.message, variant: "destructive" });
     } finally {
@@ -444,7 +483,7 @@ const Sources = () => {
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold">Kilder</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Auto-søk og RSS-feeds som overvåker jobbmarkedet for deg.
+            Arbeidsplassen hentes automatisk. FINN er mest stabilt med RSS fra lagrede søk.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -460,13 +499,13 @@ const Sources = () => {
             Full-match dekning
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Bred cache brukes som bakgrunnsdekning. Første matcher bruker profilstyrte Arbeidsplassen-søk og Finn/RSS-treff.
+            NAV-cache og FINN RSS/API brukes som kildelag før jobbene matches mot profilen din.
           </p>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[
-            { key: "arbeidsplassen", label: "Arbeidsplassen", action: "Oppdater bred NAV-cache" },
-            { key: "finn", label: "Finn", action: "Hent Finn fallback" },
+            { key: "arbeidsplassen", label: "Arbeidsplassen", action: "Oppdater NAV-cache" },
+            { key: "finn", label: "FINN RSS/API", action: "Sjekk FINN RSS/API" },
           ].map((s) => {
             const state = sourceStates.find((item) => item.provider === s.key);
             return (
@@ -488,16 +527,29 @@ const Sources = () => {
                     ) as Status}
                   />
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => runFullSource(s.key as "arbeidsplassen" | "finn")}
-                  disabled={fullRunning !== null}
-                >
-                  {fullRunning === s.key ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                  {s.action}
-                </Button>
+                <div className="mt-3 flex gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => runFullSource(s.key as "arbeidsplassen" | "finn")}
+                    disabled={fullRunning !== null}
+                  >
+                    {fullRunning === s.key ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                    {s.action}
+                  </Button>
+                  {s.key === "finn" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => runFullSource("finn", { htmlFallback: true })}
+                      disabled={fullRunning !== null}
+                      title="Ustabil fallback som leser offentlige FINN-søkeresultater når RSS/API ikke er nok."
+                    >
+                      {fullRunning === "finn-html" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <AlertTriangle className="w-4 h-4 mr-2" />}
+                      Prøv HTML-fallback
+                    </Button>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -617,17 +669,17 @@ const Sources = () => {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="auto" className="space-y-5">
+      <Tabs defaultValue="rss" className="space-y-5">
         <TabsList className="grid w-full grid-cols-2 max-w-md">
-          <TabsTrigger value="auto" className="gap-2">
-            <Sparkles className="w-3.5 h-3.5" />
-            Auto-søk
-            {autoItems.length > 0 && <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[10px]">{autoItems.length}</Badge>}
-          </TabsTrigger>
           <TabsTrigger value="rss" className="gap-2">
             <Rss className="w-3.5 h-3.5" />
-            RSS-feeds
+            FINN/RSS
             {feeds.length > 0 && <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[10px]">{feeds.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="auto" className="gap-2">
+            <Sparkles className="w-3.5 h-3.5" />
+            Avansert auto-søk
+            {autoItems.length > 0 && <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[10px]">{autoItems.length}</Badge>}
           </TabsTrigger>
         </TabsList>
 
@@ -637,15 +689,14 @@ const Sources = () => {
             <CardContent className="p-4 flex items-start gap-3">
               <Info className="w-4 h-4 mt-0.5 text-primary shrink-0" />
               <div className="text-xs text-muted-foreground">
-                La appen sjekke <strong>Finn, Arbeidsplassen og LinkedIn</strong> for deg. Mest pålitelig: Arbeidsplassen.
-                Auto-søk kjører <strong>automatisk hver time</strong>. Når en ny jobb scorer ≥ 90 får du varsel i bjella oppe til høyre og på dashbordet.
+                Avansert auto-søk er nyttig for NAV-søk du vil følge separat. FINN uten RSS/API kan bli blokkert, og LinkedIn krever manuell oppfølging.
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex-row items-center justify-between">
-              <CardTitle className="text-base">Nytt auto-søk</CardTitle>
+              <CardTitle className="text-base">Nytt avansert auto-søk</CardTitle>
               <Button variant="outline" size="sm" onClick={() => runAuto()} disabled={autoRunning !== null || autoItems.length === 0}>
                 {autoRunning === "all" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
                 Kjør alle nå
@@ -752,9 +803,9 @@ const Sources = () => {
             <CardContent className="p-4 flex items-start gap-3">
               <Info className="w-4 h-4 mt-0.5 text-primary shrink-0" />
               <div className="text-xs text-muted-foreground">
-                Bruk RSS når du allerede har et lagret søk på Finn eller andre sider. Sjekkes <strong>automatisk hver time</strong>.
+                FINN er mest stabilt via RSS fra lagrede søk. Andre RSS-feeder støttes også og sjekkes automatisk.
                 <br />
-                <strong>På finn.no:</strong> gjør et søk → "Lagre søk" → finn RSS-lenken under "Mine sider → Lagrede søk".
+                <strong>På finn.no:</strong> gjør et søk, lagre det, og lim inn RSS-lenken fra lagrede søk her.
               </div>
             </CardContent>
           </Card>

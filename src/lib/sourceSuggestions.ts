@@ -30,6 +30,19 @@ export const buildSourceSearchUrl = (
   ? buildArbeidsplassenSearchUrl(query, location)
   : buildFinnSearchUrl(query, location);
 
+export const isFinnSourceUrl = (url?: string | null) => {
+  if (!url?.trim()) return false;
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.hostname === "finn.no" || parsed.hostname.endsWith(".finn.no");
+  } catch {
+    return /\bfinn\.no\b/i.test(url);
+  }
+};
+
+export const rssIngestOwnerForUrl = (url?: string | null): "ingest-finn" | "poll-rss" =>
+  isFinnSourceUrl(url) ? "ingest-finn" : "poll-rss";
+
 export const isStrongSearchSignal = (signal: { category?: string; weight?: number }) =>
   (signal.weight ?? 0) >= 45 && ["role", "task", "skill", "industry"].includes(signal.category ?? "");
 

@@ -265,7 +265,7 @@ const Demo = () => {
             <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-primary/10 via-background to-background p-6 md:p-8 text-center space-y-3">
               <h2 className="text-xl md:text-2xl font-semibold tracking-tight">Klar for ekte matcher?</h2>
               <p className="text-sm text-muted-foreground max-w-xl mx-auto">
-                Logg inn for å hente jobber fra Finn, LinkedIn, NAV og Arbeidsplassen – og generere tilpasset CV og søknad.
+                Logg inn for å hente jobber fra NAV/Arbeidsplassen og FINN RSS – og generere tilpasset CV og søknad.
               </p>
               <div className="flex flex-col sm:flex-row gap-2 justify-center pt-1">
                 <Button size="lg" onClick={continueToSignup} className="h-12">

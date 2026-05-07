@@ -71,6 +71,24 @@ describe("full match helpers", () => {
       .toBeGreaterThan(rankExternalJobCandidate(generic, ["produktleder", "brukerinnsikt"], [], ["produktleder"]));
   });
 
+  it("uses NAV search tags and occupation metadata when ranking candidates", () => {
+    const tagged = {
+      provider: "arbeidsplassen",
+      external_id: "nav-4",
+      title: "Rådgiver",
+      description: "Tverrfaglig team.",
+      raw_data: {
+        properties: {
+          searchtags: [{ label: "Brukerinnsikt" }, { name: "Produktstrategi" }],
+        },
+        occupationList: [{ level1: "IT", level2: "Produktledelse" }],
+      },
+    };
+
+    expect(rankExternalJobCandidate(tagged, ["brukerinnsikt", "produktledelse"], [], ["produktledelse"]))
+      .toBeGreaterThan(0);
+  });
+
   it("requires a strong NAV term when matching Arbeidsplassen candidates", () => {
     const job = {
       provider: "arbeidsplassen",

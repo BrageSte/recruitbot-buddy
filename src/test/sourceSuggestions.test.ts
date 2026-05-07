@@ -4,6 +4,8 @@ import {
   buildFinnSearchUrl,
   buildProfileSearchQueries,
   buildSourceSearchText,
+  isFinnSourceUrl,
+  rssIngestOwnerForUrl,
   shouldAutoGenerateSourceSuggestions,
 } from "@/lib/sourceSuggestions";
 
@@ -40,5 +42,11 @@ describe("source suggestion helpers", () => {
     expect(shouldAutoGenerateSourceSuggestions(true, 3)).toBe(false);
     expect(shouldAutoGenerateSourceSuggestions(true, 3, true)).toBe(true);
     expect(shouldAutoGenerateSourceSuggestions(false, 0)).toBe(false);
+  });
+
+  it("routes Finn feeds to the Finn ingest instead of generic RSS polling", () => {
+    expect(isFinnSourceUrl("https://www.finn.no/job/search?q=frontend")).toBe(true);
+    expect(rssIngestOwnerForUrl("https://www.finn.no/job/search?feed=rss")).toBe("ingest-finn");
+    expect(rssIngestOwnerForUrl("https://example.com/jobs.xml")).toBe("poll-rss");
   });
 });

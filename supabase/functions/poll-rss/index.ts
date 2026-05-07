@@ -25,6 +25,7 @@ serve(async (req) => {
 
   const userIdFilter: string | null = body?.userId ?? null;
   const feedIdFilter: string | null = body?.feedId ?? null;
+  const includeFinnFeeds = Boolean(body?.includeFinnFeeds ?? body?.allowFinnLegacyRss ?? false);
 
   // Fetch active feeds (optionally filtered)
   let q = admin.from("rss_feeds").select("*").eq("is_active", true);
@@ -39,6 +40,19 @@ serve(async (req) => {
 
   for (const feed of feeds) {
     try {
+      if (!includeFinnFeeds && isFinnSourceUrl(feed.url)) {
+        await admin.from("rss_feeds").update({
+          last_checked_at: new Date().toISOString(),
+          last_error: null,
+        }).eq("id", feed.id);
+        results.push({
+          feed: feed.name,
+          skipped: true,
+          reason: "Finn RSS håndteres av ingest-finn for å unngå duplikater.",
+        });
+        continue;
+      }
+
       const isFinnHtml = /finn\.no\/job\/(search|fulltime\/search)/i.test(feed.url);
       const ua = isFinnHtml
         ? "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -192,6 +206,16 @@ function stripHtml(html: string): string {
 }
 
 type RssItem = { title: string; link: string; guid: string; description?: string; pubDate?: string };
+
+function isFinnSourceUrl(url?: string | null): boolean {
+  if (!url?.trim()) return false;
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.hostname === "finn.no" || parsed.hostname.endsWith(".finn.no");
+  } catch {
+    return /\bfinn\.no\b/i.test(url);
+  }
+}
 
 function parseRss(xml: string): RssItem[] {
   const items: RssItem[] = [];

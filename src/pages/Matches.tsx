@@ -164,7 +164,8 @@ const Matches = () => {
       const { data, error } = await supabase.functions.invoke("ingest-finn", {
         body: {
           includeUserFeeds: true,
-          includeHtmlSuggestions: true,
+          includeOfficialApi: true,
+          includeHtmlSuggestions: false,
           userId: user?.id,
           maxSuggestionsPerUser: 3,
           maxHitsPerSuggestion: 10,
@@ -173,7 +174,7 @@ const Matches = () => {
       if (error) throw error;
       const d: any = data;
       toast({
-        title: d.ok ? "Finn fallback hentet" : "Finn trenger tilgang",
+        title: d.ok ? "FINN RSS/API sjekket" : "FINN trenger RSS eller API",
         description: d.hint ?? `${d.upserted ?? 0} Finn-jobber oppdatert fra RSS.`,
       });
       await load();
@@ -263,7 +264,7 @@ const Matches = () => {
           </Button>
           <Button variant="outline" onClick={runFinnFallback} disabled={ingesting !== null}>
             {ingesting === "finn" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-            Finn fallback
+            Sjekk FINN RSS/API
           </Button>
           <Button onClick={runMatching} disabled={running}>
             {running ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}

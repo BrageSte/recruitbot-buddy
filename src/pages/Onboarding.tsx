@@ -20,12 +20,14 @@ import {
   ChevronDown,
   Check,
   CheckCircle2,
+  Copy,
   ExternalLink,
   FileText,
   Loader2,
   LogOut,
   MessageSquare,
   Plus,
+  Rss,
   Send,
   Sparkles,
   Target,
@@ -44,6 +46,7 @@ import {
 } from "@/lib/preOnboarding";
 import { normalizeWeights, type MatchPriority, weightsFromPriority } from "@/lib/onboardingWeights";
 import { linkedinImportStatusCopy, type LinkedInImportStatus } from "@/lib/linkedinImportStatus";
+import { buildSourceSearchText } from "@/lib/sourceSuggestions";
 
 type StepKey = "cv" | "questions" | "review" | "chat" | "setup";
 
@@ -126,6 +129,16 @@ type SetupMatchPreview = {
   } | null;
 };
 
+type OnboardingSourceSuggestion = {
+  id: string;
+  provider: "finn" | "arbeidsplassen";
+  name: string;
+  query: string;
+  location: string | null;
+  search_url: string;
+  reason: string | null;
+};
+
 type LinkedInDraft = {
   status?: LinkedInImportStatus;
   url?: string;
@@ -159,7 +172,8 @@ const setupLabels: Record<string, string> = {
   linkedin: "Sjekker LinkedIn",
   cv: "Lagrer CV",
   profile: "Lagrer profil",
-  sources: "Lager Finn-forslag",
+  sources: "Lager kildeforslag",
+  finnRss: "FINN RSS",
   arbeidsplassen: "Henter Arbeidsplassen",
   matching: "Matcher jobber",
 };
@@ -173,6 +187,7 @@ const emptySetupState: SetupState = {
   cv: { status: "pending" },
   profile: { status: "pending" },
   sources: { status: "pending" },
+  finnRss: { status: "pending" },
   arbeidsplassen: { status: "pending" },
   matching: { status: "pending" },
 };
@@ -182,6 +197,7 @@ const freshSetupState = (): SetupState => ({
   cv: { status: "pending" },
   profile: { status: "pending" },
   sources: { status: "pending" },
+  finnRss: { status: "pending" },
   arbeidsplassen: { status: "pending" },
   matching: { status: "pending" },
 });
@@ -312,6 +328,10 @@ const Onboarding = () => {
   const [setupState, setSetupState] = useState<SetupState>(freshSetupState);
   const [setupDone, setSetupDone] = useState(false);
   const [setupMatches, setSetupMatches] = useState<SetupMatchPreview[]>([]);
+  const [setupSourceSuggestions, setSetupSourceSuggestions] = useState<OnboardingSourceSuggestion[]>([]);
+  const [setupFinnRssName, setSetupFinnRssName] = useState("");
+  const [setupFinnRssUrl, setSetupFinnRssUrl] = useState("");
+  const [setupFinnRssSaving, setSetupFinnRssSaving] = useState(false);
   const [continuingMatching, setContinuingMatching] = useState(false);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const mountedRef = useRef(true);
@@ -343,6 +363,23 @@ const Onboarding = () => {
     return rows;
   }, [user]);
 
+  const loadSetupSourceSuggestions = useCallback(async () => {
+    if (!user) return [];
+    const { data, error } = await (supabase as any)
+      .from("source_suggestions")
+      .select("id, provider, name, query, location, search_url, reason")
+      .eq("user_id", user.id)
+      .eq("provider", "finn")
+      .neq("status", "dismissed")
+      .order("confidence", { ascending: false })
+      .limit(4);
+
+    if (error) return [];
+    const rows = (data ?? []) as OnboardingSourceSuggestion[];
+    if (mountedRef.current) setSetupSourceSuggestions(rows);
+    return rows;
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
     loadInitial();
@@ -363,6 +400,7 @@ const Onboarding = () => {
       if (!cancelled) await loadSetupMatches();
     };
 
+    void loadSetupSourceSuggestions();
     void refreshMatches();
     if (setupMatchingStatus !== "running" && !continuingMatching) return;
 
@@ -371,7 +409,7 @@ const Onboarding = () => {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [user, currentStep, setupMatchingStatus, continuingMatching, loadSetupMatches]);
+  }, [user, currentStep, setupMatchingStatus, continuingMatching, loadSetupMatches, loadSetupSourceSuggestions]);
 
   const persistRun = async (patch: Record<string, unknown>) => {
     if (!user) return null;
@@ -447,7 +485,7 @@ const Onboarding = () => {
       });
       setDraft(Object.keys(runRes.data.profile_draft ?? {}).length ? runRes.data.profile_draft : null);
       setChatMessages(normalizeChatMessages(runRes.data.chat_messages));
-      if (Object.keys(runRes.data.setup_state ?? {}).length) setSetupState(runRes.data.setup_state);
+      if (Object.keys(runRes.data.setup_state ?? {}).length) setSetupState({ ...freshSetupState(), ...runRes.data.setup_state });
       setLoading(false);
       return;
     }
@@ -773,6 +811,54 @@ const Onboarding = () => {
     });
   };
 
+  const copySetupSuggestionSearch = async (suggestion: OnboardingSourceSuggestion) => {
+    const text = buildSourceSearchText(suggestion.query, suggestion.location);
+    await navigator.clipboard.writeText(text);
+    toast({ title: "Søketekst kopiert", description: text });
+  };
+
+  const saveSetupFinnRss = async () => {
+    if (!user) return;
+    const url = setupFinnRssUrl.trim();
+    if (!url) {
+      toast({ title: "Lim inn RSS-lenke fra FINN først", variant: "destructive" });
+      return;
+    }
+
+    setSetupFinnRssSaving(true);
+    setSetupItem("finnRss", "running", "Kobler FINN RSS og sjekker treff.");
+    try {
+      const fallbackName = setupSourceSuggestions[0]?.name ?? "FINN lagret søk";
+      const { error: insertError } = await (supabase as any).from("rss_feeds").insert({
+        user_id: user.id,
+        name: setupFinnRssName.trim() || fallbackName,
+        url,
+      });
+      if (insertError) throw insertError;
+
+      const { data: finnData, error: finnError } = await supabase.functions.invoke("ingest-finn", {
+        body: { includeUserFeeds: true, includeOfficialApi: true, includeHtmlSuggestions: false, userId: user.id },
+      });
+      if (finnError) throw finnError;
+
+      const { error: matchError } = await supabase.functions.invoke("match-user-jobs", {
+        body: { provider: "finn", limit: 12, includeBroadCache: true, autoSaveVisible: true, materializeExisting: true },
+      });
+      if (matchError) throw matchError;
+
+      await loadSetupMatches();
+      setSetupFinnRssName("");
+      setSetupFinnRssUrl("");
+      setSetupItem("finnRss", "done", `${(finnData as any)?.upserted ?? 0} FINN-jobber sjekket via RSS/API.`);
+      toast({ title: "FINN RSS koblet", description: "Vi sjekket feeden og oppdaterte matchene dine." });
+    } catch (e: any) {
+      setSetupItem("finnRss", "error", e.message);
+      toast({ title: "Kunne ikke koble FINN RSS", description: e.message, variant: "destructive" });
+    } finally {
+      setSetupFinnRssSaving(false);
+    }
+  };
+
   const saveCvDraft = async () => {
     if (!user || !cvDraft) return;
     setSetupItem("cv", "running");
@@ -907,9 +993,26 @@ const Onboarding = () => {
       setSetupItem("sources", "running");
       try {
         await supabase.functions.invoke("suggest-source-feeds", { body: { force: true } });
-        setSetupItem("sources", "done");
+        const suggestions = await loadSetupSourceSuggestions();
+        setSetupItem("sources", "done", suggestions.length ? `${suggestions.length} FINN-søk foreslått.` : "Kildeforslag forsøkt opprettet.");
       } catch (e: any) {
         setSetupItem("sources", "error", e.message);
+      }
+
+      setSetupItem("finnRss", "running", "Sjekker eventuelle FINN RSS-feeder.");
+      try {
+        const { data, error } = await supabase.functions.invoke("ingest-finn", {
+          body: { includeUserFeeds: true, includeOfficialApi: true, includeHtmlSuggestions: false, userId: user.id },
+        });
+        if (error) throw error;
+        const upserted = (data as any)?.upserted ?? 0;
+        setSetupItem(
+          "finnRss",
+          "done",
+          upserted > 0 ? `${upserted} FINN-jobber oppdatert via RSS/API.` : "Valgfritt: legg inn RSS fra lagrede FINN-søk nå eller senere.",
+        );
+      } catch (e: any) {
+        setSetupItem("finnRss", "done", "FINN RSS kan legges inn senere uten at matching stopper.");
       }
 
       setSetupItem("arbeidsplassen", "running");
@@ -1527,6 +1630,17 @@ const Onboarding = () => {
                   ))}
                 </div>
 
+                <FinnRssSetupPanel
+                  suggestions={setupSourceSuggestions}
+                  rssName={setupFinnRssName}
+                  rssUrl={setupFinnRssUrl}
+                  saving={setupFinnRssSaving}
+                  onNameChange={setSetupFinnRssName}
+                  onUrlChange={setSetupFinnRssUrl}
+                  onSave={saveSetupFinnRss}
+                  onCopy={copySetupSuggestionSearch}
+                />
+
                 {(setupMatches.length > 0 || setupMatchingStatus === "running" || continuingMatching) && (
                   <div className="rounded-md border border-border bg-background p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
@@ -1698,6 +1812,83 @@ const MatchProfileSummary = ({ draft }: { draft: ProfileDraft }) => {
     </div>
   );
 };
+
+const FinnRssSetupPanel = ({
+  suggestions,
+  rssName,
+  rssUrl,
+  saving,
+  onNameChange,
+  onUrlChange,
+  onSave,
+  onCopy,
+}: {
+  suggestions: OnboardingSourceSuggestion[];
+  rssName: string;
+  rssUrl: string;
+  saving: boolean;
+  onNameChange: (value: string) => void;
+  onUrlChange: (value: string) => void;
+  onSave: () => void;
+  onCopy: (suggestion: OnboardingSourceSuggestion) => void;
+}) => (
+  <div className="rounded-md border border-border bg-background p-4 space-y-4">
+    <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div>
+        <div className="text-sm font-semibold flex items-center gap-2">
+          <Rss className="w-4 h-4 text-primary" />
+          Legg inn dine FINN-søk
+        </div>
+        <p className="text-sm text-muted-foreground mt-1">
+          FINN er mest stabilt når du limer inn RSS fra lagrede søk. Du kan hoppe over dette og legge det inn senere.
+        </p>
+      </div>
+      <Badge variant="outline" className="shrink-0">Valgfritt</Badge>
+    </div>
+
+    {suggestions.length > 0 && (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        {suggestions.map((suggestion) => (
+          <div key={suggestion.id} className="rounded-md border border-border bg-muted/30 p-3 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-sm font-medium truncate">{suggestion.name}</div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {buildSourceSearchText(suggestion.query, suggestion.location)}
+                </div>
+              </div>
+              <div className="flex gap-1 shrink-0">
+                <Button variant="ghost" size="sm" onClick={() => onCopy(suggestion)} aria-label="Kopier søketekst">
+                  <Copy className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="sm" asChild>
+                  <a href={suggestion.search_url} target="_blank" rel="noreferrer" aria-label="Åpne FINN-søk">
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                </Button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+
+    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)_auto] gap-2 items-end">
+      <div className="space-y-1">
+        <Label className="text-[11px]">Navn</Label>
+        <Input value={rssName} onChange={(event) => onNameChange(event.target.value)} placeholder="FINN - Produkt Oslo" />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-[11px]">RSS-lenke fra FINN</Label>
+        <Input value={rssUrl} onChange={(event) => onUrlChange(event.target.value)} placeholder="https://www.finn.no/..." />
+      </div>
+      <Button onClick={onSave} disabled={saving || !rssUrl.trim()}>
+        {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Rss className="w-4 h-4 mr-2" />}
+        Koble RSS
+      </Button>
+    </div>
+  </div>
+);
 
 const SummaryBlock = ({ title, value, children }: { title: string; value: string; children?: ReactNode }) => (
   <div className="rounded-md border border-border bg-card p-4">

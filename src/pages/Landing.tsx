@@ -73,7 +73,7 @@ const Hero = () => (
           Alt for jobbsøkingen din – på <span className="text-primary">ett sted</span>.
         </h1>
         <p className="text-base md:text-lg text-muted-foreground max-w-xl">
-          CV i Word, annonser på Finn og LinkedIn, søknadsbrev fra bunn hver gang. Jobbhjelpen samler alt – og hjelper deg å skrive bedre søknader basert på den du faktisk er.
+          CV i Word, annonser på Arbeidsplassen og Finn, søknadsbrev fra bunn hver gang. Jobbhjelpen samler alt – og hjelper deg å skrive bedre søknader basert på den du faktisk er.
         </p>
         <div className="flex flex-col sm:flex-row gap-2">
           <Button size="lg" asChild className="h-12">
@@ -89,7 +89,7 @@ const Hero = () => (
         </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Ingen kortinfo</span>
-          <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Annonser fra Finn, LinkedIn, NAV, Arbeidsplassen</span>
+          <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> NAV/Arbeidsplassen auto + FINN RSS</span>
           <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Eksport til PDF</span>
         </div>
       </motion.div>
@@ -125,7 +125,7 @@ const Problem = () => (
           },
           {
             t: "Annonser overalt",
-            d: "Finn, LinkedIn, NAV, Arbeidsplassen, Slack-grupper. Ingen oversikt over hva du har sett.",
+            d: "Finn, NAV, Arbeidsplassen og manuelle lenker. Ingen oversikt over hva du har sett.",
             i: Search,
           },
           {
@@ -189,7 +189,7 @@ const HowItWorks = () => (
           {
             n: "02",
             t: "Få jobbmatcher med score",
-            d: "Vi henter annonser fra Finn, LinkedIn, NAV og Arbeidsplassen, og scorer dem mot deg. Du ser hvorfor de passer – eller ikke.",
+            d: "Vi henter annonser fra NAV/Arbeidsplassen og FINN RSS/API, og scorer dem mot deg. Du ser hvorfor de passer – eller ikke.",
             mock: <MockMatches />,
             flip: true,
           },
@@ -231,7 +231,7 @@ const Features = () => (
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {[
-          { t: "Auto-søk fra flere kilder", d: "Arbeidsplassen, Finn, NAV og RSS, samlet ett sted.", i: Search },
+          { t: "NAV auto + FINN RSS", d: "Arbeidsplassen hentes automatisk, mens FINN er stabilt via lagrede RSS-søk.", i: Search },
           { t: "AI-rekrutterer", d: "Forklarer hvorfor en jobb matcher – og hva du bør fremheve.", i: Sparkles },
           { t: "Tilpasset CV per søknad", d: "Strukturert mal, ren PDF, ingenting kuttet midt i tekst.", i: FileText },
           { t: "Søknadsbrev fra din historie", d: "Brev som låner ord fra din ekte erfaring, ikke generisk AI.", i: Wand2 },
