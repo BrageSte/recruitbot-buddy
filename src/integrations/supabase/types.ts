@@ -777,6 +777,51 @@ export type Database = {
           },
         ]
       }
+      match_visibility_rules: {
+        Row: {
+          action: Database["public"]["Enums"]["match_visibility_rule_action"]
+          company_terms: string[]
+          created_at: string
+          description_terms: string[]
+          id: string
+          is_active: boolean
+          location_terms: string[]
+          name: string
+          source_terms: string[]
+          title_terms: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action?: Database["public"]["Enums"]["match_visibility_rule_action"]
+          company_terms?: string[]
+          created_at?: string
+          description_terms?: string[]
+          id?: string
+          is_active?: boolean
+          location_terms?: string[]
+          name: string
+          source_terms?: string[]
+          title_terms?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["match_visibility_rule_action"]
+          company_terms?: string[]
+          created_at?: string
+          description_terms?: string[]
+          id?: string
+          is_active?: boolean
+          location_terms?: string[]
+          name?: string
+          source_terms?: string[]
+          title_terms?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           application_id: string | null
@@ -906,6 +951,7 @@ export type Database = {
           id: string
           linkedin_url: string | null
           master_profile: string | null
+          match_min_visible_score: number
           notify_email: boolean
           notify_high_match_min_score: number
           notify_push: boolean
@@ -931,6 +977,7 @@ export type Database = {
           id?: string
           linkedin_url?: string | null
           master_profile?: string | null
+          match_min_visible_score?: number
           notify_email?: boolean
           notify_high_match_min_score?: number
           notify_push?: boolean
@@ -956,6 +1003,7 @@ export type Database = {
           id?: string
           linkedin_url?: string | null
           master_profile?: string | null
+          match_min_visible_score?: number
           notify_email?: boolean
           notify_high_match_min_score?: number
           notify_push?: boolean
@@ -1081,8 +1129,8 @@ export type Database = {
           created_at: string
           cursor_url: string | null
           last_checked_at: string | null
-          last_etag: string | null
           last_error: string | null
+          last_etag: string | null
           last_feed_url: string | null
           last_modified_at: string | null
           last_run_stats: Json
@@ -1095,8 +1143,8 @@ export type Database = {
           created_at?: string
           cursor_url?: string | null
           last_checked_at?: string | null
-          last_etag?: string | null
           last_error?: string | null
+          last_etag?: string | null
           last_feed_url?: string | null
           last_modified_at?: string | null
           last_run_stats?: Json
@@ -1109,8 +1157,8 @@ export type Database = {
           created_at?: string
           cursor_url?: string | null
           last_checked_at?: string | null
-          last_etag?: string | null
           last_error?: string | null
+          last_etag?: string | null
           last_feed_url?: string | null
           last_modified_at?: string | null
           last_run_stats?: Json
@@ -1118,63 +1166,6 @@ export type Database = {
           pending_last_modified_at?: string | null
           provider?: Database["public"]["Enums"]["external_job_provider"]
           updated_at?: string
-        }
-        Relationships: []
-      }
-      source_suggestions: {
-        Row: {
-          confidence: number
-          created_at: string
-          id: string
-          is_active: boolean
-          last_generated_at: string
-          location: string | null
-          metadata: Json
-          name: string
-          provider: Database["public"]["Enums"]["source_suggestion_provider"]
-          query: string
-          reason: string | null
-          rss_url: string | null
-          search_url: string
-          status: Database["public"]["Enums"]["source_suggestion_status"]
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          confidence?: number
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          last_generated_at?: string
-          location?: string | null
-          metadata?: Json
-          name: string
-          provider?: Database["public"]["Enums"]["source_suggestion_provider"]
-          query: string
-          reason?: string | null
-          rss_url?: string | null
-          search_url: string
-          status?: Database["public"]["Enums"]["source_suggestion_status"]
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          confidence?: number
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          last_generated_at?: string
-          location?: string | null
-          metadata?: Json
-          name?: string
-          provider?: Database["public"]["Enums"]["source_suggestion_provider"]
-          query?: string
-          reason?: string | null
-          rss_url?: string | null
-          search_url?: string
-          status?: Database["public"]["Enums"]["source_suggestion_status"]
-          updated_at?: string
-          user_id?: string
         }
         Relationships: []
       }
@@ -1250,6 +1241,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      source_suggestions: {
+        Row: {
+          confidence: number
+          created_at: string
+          id: string
+          is_active: boolean
+          last_generated_at: string
+          location: string | null
+          metadata: Json
+          name: string
+          provider: Database["public"]["Enums"]["source_suggestion_provider"]
+          query: string
+          reason: string | null
+          rss_url: string | null
+          search_url: string
+          status: Database["public"]["Enums"]["source_suggestion_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_generated_at?: string
+          location?: string | null
+          metadata?: Json
+          name: string
+          provider?: Database["public"]["Enums"]["source_suggestion_provider"]
+          query: string
+          reason?: string | null
+          rss_url?: string | null
+          search_url: string
+          status?: Database["public"]["Enums"]["source_suggestion_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_generated_at?: string
+          location?: string | null
+          metadata?: Json
+          name?: string
+          provider?: Database["public"]["Enums"]["source_suggestion_provider"]
+          query?: string
+          reason?: string | null
+          rss_url?: string | null
+          search_url?: string
+          status?: Database["public"]["Enums"]["source_suggestion_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       uploaded_files: {
         Row: {
@@ -1431,6 +1479,7 @@ export type Database = {
         | "offer"
         | "rejected"
         | "archived"
+      match_visibility_rule_action: "include" | "exclude"
       notification_kind:
         | "high_match_job"
         | "deadline_soon"
@@ -1452,7 +1501,7 @@ export type Database = {
         | "application"
         | "swipe"
         | "ai_suggested"
-      source_suggestion_provider: "finn" | "arbeidsplassen"
+      source_suggestion_provider: "finn"
       source_suggestion_status: "suggested" | "active" | "paused" | "dismissed"
       user_job_match_status: "new" | "saved" | "dismissed" | "archived"
     }
@@ -1626,6 +1675,7 @@ export const Constants = {
         "rejected",
         "archived",
       ],
+      match_visibility_rule_action: ["include", "exclude"],
       notification_kind: [
         "high_match_job",
         "deadline_soon",
@@ -1650,7 +1700,7 @@ export const Constants = {
         "swipe",
         "ai_suggested",
       ],
-      source_suggestion_provider: ["finn", "arbeidsplassen"],
+      source_suggestion_provider: ["finn"],
       source_suggestion_status: ["suggested", "active", "paused", "dismissed"],
       user_job_match_status: ["new", "saved", "dismissed", "archived"],
     },

@@ -1,135 +1,60 @@
+# Rydde opp i Landing.tsx
 
-# Landingsside + "test meg"-flyt for Jobbhjelpen
+## Hva er problemet i dag
 
-## Problem
+Forsiden har syv seksjoner som overlapper mye:
 
-Idag lander besøkende rett inn i `/start` (en pre-onboarding skjema-side) eller `/auth`. Det finnes ingen offentlig side som forklarer:
-- Hva produktet er
-- Hvilket problem det løser (CV, søknader, annonser spredt over mange steder)
-- Hvordan flyten fungerer (CV-opplasting → matcher → søknadsportal)
+- Hero, Problem, Solution, HowItWorks, Features, DemoBanner, Faq
+- "Tilpasset CV", "AI-rekrutterer" og "Søknadsbrev" nevnes i både Solution, HowItWorks og Features – tre ganger.
+- To CTA-blokker (Hero + DemoBanner) sier nesten det samme: "Prøv med din CV".
+- Footer gjentar lenker som allerede er i header.
+- Det er ikke tydelig nok i hero hva produktet faktisk *er* før man scroller.
 
-Vi trenger en ekte landingsside som selger produktet, og en lett "prøv det"-opplevelse før brukeren forplikter seg med e-post.
-
-## Løsning – overordnet
-
-Endre rotruting:
-- `/` (uinnlogget) → ny **Landing**-side
-- `/` (innlogget) → Dashboard som idag
-- `/start` → beholdes som dypere skjema-inngang (CTA fra landing fortsetter dit)
-- Ny `/demo` → "test meg"-flyt: lim inn CV-tekst eller velg eksempel-CV, se simulerte jobbmatcher med score, uten innlogging
-
-## Landing-siden (`/` for uinnlogget)
-
-Seksjoner, i rekkefølge:
-
-### 1. Hero
-- Overskrift: "Alt for jobbsøkingen din – på ett sted."
-- Underoverskrift: forklarer at CV, søknader og annonser idag er spredt på mange flater. Jobbhjelpen samler det.
-- Primær-CTA: "Prøv med din CV" → `/demo`
-- Sekundær-CTA: "Logg inn" → `/auth`
-- Visuelt: produkt-skjermbilde av Dashboard/Matches med score-badges (hentes via `browser--screenshot` av eksisterende sider, lagres i `public/screenshots/`)
-
-### 2. Problemet ("Før Jobbhjelpen")
-Tre kolonner med ikoner:
-- "CV i Word, Google Docs, LinkedIn" – aldri oppdatert samme sted
-- "Annonser på Finn, LinkedIn, Arbeidsplassen, NAV" – ingen oversikt
-- "Søknadsbrev fra bunn hver gang" – tar timer, treffer dårlig
-
-### 3. Løsningen ("Med Jobbhjelpen")
-Tre matchende kolonner:
-- Én CV som tilpasses hver søknad automatisk
-- Alle annonser samlet med AI-score mot din profil
-- Søknader skreddersys fra din ekte erfaring
-
-### 4. Slik fungerer det (3-stegs flyt)
-Visuell flyt med screenshots:
-1. **Last opp CV / fortell om deg selv** → screenshot av CV-import / onboarding
-2. **Få jobbmatcher med score** → screenshot av Matches med score-badges
-3. **Generér tilpasset CV og søknad** → screenshot av Tilpasset CV / Application detail
-
-### 5. Funksjoner (feature-grid)
-- Auto-søk fra Arbeidsplassen, Finn, NAV, RSS
-- AI-rekrutterer som forklarer hvorfor jobben matcher
-- Tilpasset CV per søknad (PDF-eksport)
-- Søknadsbrev-generator som bruker din ekte historie
-- Kalender for frister, intervjuer, oppfølginger
-- Pipeline: oppdaget → vurderer → utkast → sendt → svar → intervju
-
-### 6. "Test meg" / Demo-CTA-banner
-"Lim inn CVen din – se hvilke jobber som matcher – uten å lage konto."
-Knapp → `/demo`
-
-### 7. FAQ + sluttfooter
-- Er det gratis å prøve?
-- Hva skjer med dataen min?
-- Hvilke jobbkilder støttes?
-- Footer med lenke til logg inn / start.
-
-## Demo-flyten (`/demo`) – "test meg" uten innlogging
-
-Tre steg, alt klientside (ingen DB-skriv før innlogging):
-
-### Steg 1: Velg utgangspunkt
-- "Lim inn CV-tekst" (textarea)
-- "Bruk eksempel-CV" (3 personas: produktleder, frontend-utvikler, kundesuksess)
-- "Last opp PDF" (valgfritt – kan kalle eksisterende `import-cv` edge function anonymt; hvis det krever auth, gjøres dette kun via paste/eksempel i denne fasen)
-
-### Steg 2: Kort målintervju (3 spørsmål)
-- Hva slags rolle vil du ha?
-- Hvor (sted/remote)?
-- Dealbreakers?
-
-### Steg 3: Resultat – "Dine matcher"
-Viser 5-6 forhåndsvalgte ekte jobber (statisk seedet fra `public/demo-jobs.json`) sortert med score-badges (gjenbruk `<ScoreBadge />`). Score beregnes klientside fra enkel keyword-overlapp mellom CV-tekst og jobbtekst – nok til å demonstrere konseptet, ikke ekte AI.
-
-Hver match viser:
-- Tittel, firma, sted
-- Score-badge
-- 2-3 punkter "hvorfor matcher" (keyword-treff)
-- Knapp "Lag søknad" → trigger innloggings-CTA: "Logg inn for å generere skreddersydd CV og søknad"
-
-Bunn av siden: stor CTA "Lagre profilen og fortsett" → sender med via `savePreOnboardingDraft` til `/start` eller direkte `/auth`.
-
-## Tekniske endringer
+## Ny struktur (5 seksjoner i stedet for 7)
 
 ```text
-src/App.tsx
-  - / (uinnlogget) -> <Landing />
-  - / (innlogget)  -> <Dashboard /> (gjennom AppLayout)
-  - /demo          -> <Demo /> (offentlig)
-
-src/pages/Landing.tsx     (NY)
-src/pages/Demo.tsx        (NY)
-src/components/landing/   (NY)
-  Hero.tsx
-  ProblemSolution.tsx
-  HowItWorks.tsx
-  FeatureGrid.tsx
-  DemoBanner.tsx
-  Faq.tsx
-  Footer.tsx
-src/components/demo/
-  CvInputStep.tsx
-  GoalsStep.tsx
-  MatchesStep.tsx
-  scoring.ts            (enkel keyword-score)
-public/demo-jobs.json    (6 seedede jobber)
-public/screenshots/      (3-5 PNG av appen)
+1. Hero            – Hva det er + én CTA + ett mock-bilde
+2. Problem→Løsning – Side-ved-side "Før / Etter", erstatter dagens to seksjoner
+3. Slik fungerer det – 3 steg med mocks (uendret form, kortere tekst)
+4. FAQ             – Kort, 4 spørsmål
+5. Footer-CTA      – Én tydelig avslutning (erstatter DemoBanner + Footer-lenker)
 ```
 
-Rotrute-logikk: enklere er å lage en ny `RootRoute`-komponent som leser `useAuth()` og rendrer `Landing` eller redirecter til Dashboard. Beholder eksisterende `ProtectedRoute` uendret.
+Features-grid fjernes – innholdet flettes inn som korte stikkord under hvert "Slik fungerer det"-steg, så vi ikke lister samme funksjoner to ganger.
 
-## Designspråk
-Bruker eksisterende Tailwind-tokens og ui-komponenter (`Button`, `Badge`, `Card`). Dark/light følger tema. Stil matcher dagens `Start.tsx` (motion fra framer-motion, badges, lette borders) for konsistens.
+## Konkrete endringer i `src/pages/Landing.tsx`
 
-## Det dette IKKE inkluderer
-- Ekte AI-scoring i demo (gjøres med keyword-overlapp; ekte AI etter innlogging)
-- Ny PDF-eksport eller endringer i edge functions
-- A/B-testing eller analytics
+**Hero**
+- Tydeligere H1: "Jobbhjelpen samler CV, jobbannonser og søknader på ett sted."
+- Underrubrikk forklarer mekanikken i én setning: "Last opp CV-en din én gang. Vi henter relevante jobber fra Finn, NAV og Arbeidsplassen, scorer dem mot deg, og skriver tilpasset CV og søknad per jobb."
+- Behold én primær CTA ("Prøv med din CV") + én sekundær ("Logg inn"). Fjern "Kom i gang" her – den hører hjemme i bunn.
+- Behold MockMatches til høyre.
 
-## Etter godkjenning
-1. Generere screenshots fra eksisterende app via `browser--screenshot`.
-2. Bygge `Landing.tsx` med seksjoner.
-3. Bygge `Demo.tsx` med 3 steg + seed-jobber.
-4. Endre `App.tsx` rot-rute.
-5. Verifisere ingen regresjoner for innloggede brukere (de skal fortsatt lande på Dashboard).
+**Problem + Solution → ett "Før / Etter"-grid**
+- Venstre kolonne: 3 punkter "I dag" (CV på fem steder, annonser overalt, søknader fra bunn).
+- Høyre kolonne: 3 punkter "Med Jobbhjelpen" (én CV som tilpasses, én innboks for jobber med score, søknader på minutter).
+- Halverer antall ord, fjerner overlapp med Features.
+
+**HowItWorks (beholdes, strammes inn)**
+- 3 steg med mocks, men:
+  - Korte tekster (maks 2 setninger).
+  - Under hvert steg: 2-3 stikkord-chips med konkrete funksjoner (f.eks. under steg 2: "FINN RSS", "NAV/Arbeidsplassen", "AI-score med forklaring"). Dette erstatter Features-seksjonen.
+
+**Features-seksjon**: fjernes helt.
+
+**DemoBanner → slått sammen med footer-CTA**
+- Én avsluttende blokk med overskrift, kort tekst, én primær CTA ("Prøv demoen") og en lenke ("Eller logg inn").
+
+**FAQ**: beholdes som er, men kuttes til 4 spørsmål (allerede 4 – ok).
+
+**Footer**: forenkles til kun copyright + 2 lenker (Logg inn, Demo). "Kom i gang" fjernes (duplikat).
+
+## Ikke endret
+
+- Mock-komponenter (`MockMatches`, `MockCv`, `MockPipeline`) – brukes som de er.
+- Routing, auth-flyt, demo-side.
+- Designtokens / farger.
+
+## Resultat
+
+Fra ~290 linjer til ~180. Brukeren forstår innen første skjermbilde hva Jobbhjelpen er, og hver påstand sies kun én gang.
