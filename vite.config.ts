@@ -7,21 +7,27 @@ const manualChunkGroups: Record<string, string[]> = {
   "supabase-vendor": ["@supabase/"],
   "motion-vendor": ["framer-motion", "motion-dom"],
   "router-vendor": ["react-router", "@remix-run/router"],
-  "pdfkit-vendor": ["@react-pdf/pdfkit"],
-  "pdf-compression-vendor": ["pako", "brotli", "fflate", "@noble/ciphers", "js-md5"],
-  "fontkit-vendor": ["fontkit", "restructure"],
-  "pdf-reconciler-vendor": ["@react-pdf/reconciler", "@react-pdf/render"],
-  "pdf-layout-vendor": ["@react-pdf/layout", "yoga-layout", "@react-pdf/stylesheet"],
-  "pdf-text-vendor": ["@react-pdf/textkit", "hyphen", "linebreak", "bidi-js", "unicode-properties"],
-  "pdf-assets-vendor": [
-    "@react-pdf/image",
-    "@react-pdf/font",
-    "@react-pdf/primitives",
-    "@react-pdf/fns",
+  // @react-pdf packages have circular module initialization across their
+  // internals and font/image helpers. Keep the ecosystem together so Rollup
+  // does not create TDZ crashes between vendor chunks in production.
+  "pdf-vendor": [
+    "@react-pdf/",
+    "fontkit",
+    "restructure",
+    "pako",
+    "brotli",
+    "fflate",
+    "@noble/ciphers",
+    "js-md5",
     "jay-peg",
     "png-js",
     "events",
     "postcss-value-parser",
+    "yoga-layout",
+    "hyphen",
+    "linebreak",
+    "bidi-js",
+    "unicode-properties",
   ],
 };
 
