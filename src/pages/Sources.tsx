@@ -33,7 +33,10 @@ import {
   ExternalLink,
   Copy,
   Wand2,
+  Radar,
 } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
+import { KpiStrip } from "@/components/KpiStrip";
 import { formatDistanceToNow } from "date-fns";
 import { nb } from "date-fns/locale";
 
@@ -478,19 +481,20 @@ const Sources = () => {
   const totalFound = autoItems.reduce((s, a) => s + a.items_found, 0) + feeds.reduce((s, f) => s + f.items_found, 0);
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-6 lg:p-10 space-y-6">
-      <header className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-semibold">Kilder</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Arbeidsplassen hentes automatisk. FINN er mest stabilt med RSS fra lagrede søk.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Badge variant="outline">{totalActive} aktive</Badge>
-          <Badge variant="outline">{totalFound} treff totalt</Badge>
-        </div>
-      </header>
+    <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-10 space-y-6">
+      <PageHeader
+        icon={Radar}
+        title="Kilder"
+        description="Arbeidsplassen hentes automatisk. FINN er mest stabilt med RSS fra lagrede søk."
+      />
+      <KpiStrip
+        items={[
+          { label: "Aktive kilder", value: totalActive, icon: CheckCircle2, tone: "success" },
+          { label: "Treff totalt", value: totalFound, icon: Database, tone: "primary" },
+          { label: "Auto-søk", value: autoItems.length, icon: Search, tone: "default" },
+          { label: "RSS-feeder", value: feeds.length, icon: Rss, tone: "default" },
+        ]}
+      />
 
       <Card>
         <CardHeader>
