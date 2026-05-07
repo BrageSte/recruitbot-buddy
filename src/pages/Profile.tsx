@@ -301,13 +301,18 @@ const Profile = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6 lg:p-10 space-y-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold">Profil</h1>
-          <p className="text-muted-foreground text-sm mt-1">Kilden AI bruker for å score jobber og skrive søknader.</p>
+    <div className="max-w-4xl mx-auto p-4 md:p-6 lg:p-10 space-y-6">
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-elevated shrink-0">
+            <Sparkles className="w-5 h-5 text-primary-foreground" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Profil</h1>
+            <p className="text-muted-foreground text-sm mt-1">Kilden AI bruker for å score jobber og skrive søknader.</p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button asChild variant="outline">
             <Link to="/onboarding?rerun=1">
               <Wand2 className="w-4 h-4 mr-2" />

@@ -304,14 +304,19 @@ const Jobs = () => {
   const activeFilterCount = Object.values(config).filter((v) => v !== undefined && v !== null && v !== "" && (Array.isArray(v) ? v.length > 0 : true)).length;
 
   return (
-    <div className="max-w-6xl mx-auto p-6 lg:p-10 space-y-6">
-      <header className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-semibold">Jobber</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {filtered.length} av {jobs.length} jobber
-            {!showArchived && archivedCount > 0 && ` · ${archivedCount} arkivert skjult`}
-          </p>
+    <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-10 space-y-6">
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-elevated shrink-0">
+            <Layers className="w-5 h-5 text-primary-foreground" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Jobber</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              {filtered.length} av {jobs.length} jobber
+              {!showArchived && archivedCount > 0 && ` · ${archivedCount} arkivert skjult`}
+            </p>
+          </div>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button onClick={discoverJobs} disabled={discovering}>
