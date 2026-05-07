@@ -60,6 +60,28 @@ export const scoreDemoJobs = (
     .sort((a, b) => b.score - a.score);
 };
 
+export const DEMO_KEYWORDS_MAX_LEN = 240;
+
+export const buildDemoKeywords = (cvText: string, roles: string): string => {
+  const roleTokens = tokenize(roles ?? "");
+  const cvTokens = tokenize(cvText ?? "");
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const token of [...roleTokens, ...cvTokens]) {
+    if (seen.has(token)) continue;
+    seen.add(token);
+    ordered.push(token);
+  }
+
+  let result = "";
+  for (const token of ordered) {
+    const next = result ? `${result} ${token}` : token;
+    if (next.length > DEMO_KEYWORDS_MAX_LEN) break;
+    result = next;
+  }
+  return result;
+};
+
 export const SAMPLE_CVS: { id: string; label: string; text: string }[] = [
   {
     id: "pm",
