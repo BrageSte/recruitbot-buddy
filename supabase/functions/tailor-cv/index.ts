@@ -41,9 +41,10 @@ Du har lov til å:
 - Omformulere intro, beskrivelser og bullet points slik at de treffer stillingen bedre.
 - Endre rekkefølgen på elementer i listene.
 - Flytte mindre relevant innhold ned eller tone det ned i anbefalingene.
+- Utelate originalinnhold som er mindre relevant for akkurat denne stillingen.
 - Justere "section_order" slik at de viktigste avsnittene kommer først.
 
-Standard er å BEVARE MEST mulig av original CV. Ikke kutt bort erfaring, utdanning, prosjekter, språk, sertifikater eller ferdigheter bare fordi de er mindre relevante. Utelat kun innhold som er åpenbart irrelevant, duplisert eller skadelig for denne søknaden.
+Standard er å lage en relevant, jobbspesifikk CV-snapshot. Ikke legg hele original-CV-en inn bakerst for sikkerhets skyld. Bevar viktige fakta og kontekst, men prioriter det som styrker søknaden for denne rollen.
 
 CV-kvalitet og PDF-sikkerhet:
 - Tenk klassisk CV, ikke kampanje/landing page: rolig struktur, tydelige seksjoner, korte punkter.

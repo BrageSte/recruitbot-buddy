@@ -754,6 +754,7 @@ const ApplicationDetail = () => {
                           applicationId={app.id}
                           userId={app.user_id}
                           cv={effectiveCv}
+                          originalCv={cvTpl}
                           tweak={tweak}
                           onTweakChange={setTweak}
                         />

@@ -538,8 +538,8 @@ const ClassicSection = ({
   children: ReactNode;
   s: ClassicStyles;
 }) => (
-  <View style={s.section} minPresenceAhead={76}>
-    <View minPresenceAhead={76}>
+  <View style={s.section} minPresenceAhead={44}>
+    <View minPresenceAhead={44}>
       <Text style={s.sectionTitle}>{title}</Text>
     </View>
     {children}
@@ -553,7 +553,7 @@ const ExperienceBlock = ({ item, s }: { item: any; s: ClassicStyles }) => {
   const technologies = stringList(item.technologies);
 
   return (
-    <View style={s.item} minPresenceAhead={62}>
+    <View style={s.item} minPresenceAhead={44}>
       <View wrap={false} style={s.itemHeader}>
         <View style={s.itemMain}>
           {text(item.title) ? <Text style={s.itemTitle}>{text(item.title)}</Text> : null}

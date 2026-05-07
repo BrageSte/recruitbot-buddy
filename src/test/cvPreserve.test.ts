@@ -33,7 +33,7 @@ const originalCv = {
 };
 
 describe("buildPreservedCvSnapshot", () => {
-  it("keeps original CV items when AI returns a shorter tailored snapshot", () => {
+  it("allows AI to return a shorter relevant tailored snapshot", () => {
     const aiCv = {
       intro: "Tilpasset intro",
       experiences: [
@@ -54,17 +54,13 @@ describe("buildPreservedCvSnapshot", () => {
     const next = buildPreservedCvSnapshot(aiCv, originalCv);
 
     expect(next.intro).toBe("Tilpasset intro");
-    expect(next.experiences).toHaveLength(2);
+    expect(next.experiences).toHaveLength(1);
     expect(next.experiences[0].bullets).toEqual(["Ledet relevante leveranser for målgruppen"]);
-    expect(next.experiences[1].company).toBe("Sør AS");
-    expect(next.skills).toEqual([
-      { category: "Prosjekt", items: ["Prioritering", "Workshops"] },
-      { category: "Verktøy", items: ["Jira", "Miro"] },
-    ]);
-    expect(next.education).toHaveLength(1);
-    expect(next.languages).toHaveLength(1);
-    expect(next.projects).toHaveLength(1);
-    expect(next.certifications).toHaveLength(1);
+    expect(next.skills).toEqual([{ category: "Prosjekt", items: ["Prioritering"] }]);
+    expect(next.education).toEqual([]);
+    expect(next.languages).toEqual([]);
+    expect(next.projects).toEqual([]);
+    expect(next.certifications).toEqual([]);
   });
 
   it("keeps contact fields from the original CV even when AI returns changed values", () => {
@@ -76,5 +72,18 @@ describe("buildPreservedCvSnapshot", () => {
     expect(next.full_name).toBe("Kari Nordmann");
     expect(next.email).toBe("kari@example.com");
     expect(next.phone).toBe("+47 99 88 77 66");
+  });
+
+  it("falls back to original sections when AI returns invalid section data", () => {
+    const next = buildPreservedCvSnapshot(
+      {
+        experiences: [{}],
+        skills: [{ category: "Prosjekt", items: "Prioritering" }],
+      },
+      originalCv,
+    );
+
+    expect(next.experiences).toHaveLength(2);
+    expect(next.skills).toEqual(originalCv.skills);
   });
 });

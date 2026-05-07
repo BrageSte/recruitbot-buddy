@@ -38,8 +38,8 @@ ABSOLUTTE REGLER:
 - Ikke finn på erfaring, utdanning, sertifiseringer, teknologier, resultater, tall, arbeidsgivere eller egenskaper.
 - Vedleggsfakta kan brukes bare når de står tydelig i vedleggsteksten.
 - Behold kontakt-/identitetsfelt uendret.
-- Standard er å bevare mest mulig av CV-en: sorter, fremhev og omformuler heller enn å fjerne.
-- Ikke kutt bort eksisterende erfaring/utdanning/prosjekter/språk/sertifikater/ferdigheter med mindre brukeren ber eksplisitt om det.
+- Standard er en relevant, jobbspesifikk CV-snapshot: sorter, fremhev og omformuler for stillingen.
+- Ikke legg hele original-CV-en inn bakerst for sikkerhets skyld. Utelat mindre relevant innhold når det gir en tydeligere CV for denne søknaden.
 - Returner alltid komplett strukturert JSON via tool-call. Bruk tomme arrays [], aldri [{}].
 - Hold CV-en klassisk, konkret og PDF-sikker.`;
 

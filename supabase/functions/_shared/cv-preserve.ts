@@ -68,81 +68,26 @@ export function buildPreservedCvSnapshot(rawCv: unknown, originalCv: any, fallba
   const intro = str(raw.intro);
   if (intro) next.intro = intro;
 
-  applyPreservedArray(raw, next, original, "experiences", validExperiences, experienceKey);
-  applyPreservedArray(raw, next, original, "education", validEducation, educationKey);
-  applyPreservedSkillGroups(raw, next, original);
-  applyPreservedArray(raw, next, original, "languages", validLanguages, nameKey);
-  applyPreservedArray(raw, next, original, "projects", validProjects, nameKey);
-  applyPreservedArray(raw, next, original, "certifications", validCertifications, nameKey);
+  applyTailoredArray(raw, next, "experiences", validExperiences);
+  applyTailoredArray(raw, next, "education", validEducation);
+  applyTailoredArray(raw, next, "skills", validSkillGroups);
+  applyTailoredArray(raw, next, "languages", validLanguages);
+  applyTailoredArray(raw, next, "projects", validProjects);
+  applyTailoredArray(raw, next, "certifications", validCertifications);
 
   return next;
 }
 
-function applyPreservedArray(
+function applyTailoredArray(
   raw: Record<string, unknown>,
   target: any,
-  original: any,
   key: CvSectionKey,
   validator: (value: unknown) => any[],
-  keyFn: (item: any) => string,
 ) {
   if (!hasOwn(raw, key) || !Array.isArray(raw[key])) return;
-  const valid = validator(raw[key]);
-  const originalItems = arr(original[key]);
-
-  if (valid.length === 0) {
-    target[key] = originalItems;
-    return;
-  }
-
-  target[key] = appendMissingByKey(valid, originalItems, keyFn);
-}
-
-function applyPreservedSkillGroups(raw: Record<string, unknown>, target: any, original: any) {
-  if (!hasOwn(raw, "skills") || !Array.isArray(raw.skills)) return;
-  const valid = validSkillGroups(raw.skills);
-  const originalGroups = validSkillGroups(original.skills);
-
-  if (valid.length === 0) {
-    target.skills = originalGroups;
-    return;
-  }
-
-  const merged = valid.map((group) => ({ ...group, items: [...group.items] }));
-  const byCategory = new Map(merged.map((group) => [normalize(group.category), group]));
-
-  for (const originalGroup of originalGroups) {
-    const existing = byCategory.get(normalize(originalGroup.category));
-    if (!existing) {
-      merged.push(originalGroup);
-      byCategory.set(normalize(originalGroup.category), originalGroup);
-      continue;
-    }
-
-    const existingItems = new Set(existing.items.map(normalize));
-    for (const item of originalGroup.items) {
-      if (!existingItems.has(normalize(item))) {
-        existing.items.push(item);
-        existingItems.add(normalize(item));
-      }
-    }
-  }
-
-  target.skills = merged;
-}
-
-function appendMissingByKey(items: any[], originalItems: any[], keyFn: (item: any) => string) {
-  const seen = new Set(items.map(keyFn).filter(Boolean));
-  const merged = [...items];
-
-  for (const item of originalItems) {
-    const key = keyFn(item);
-    if (!key || seen.has(key)) continue;
-    merged.push(item);
-    seen.add(key);
-  }
-
-  return merged;
+  const rawArray = raw[key] as unknown[];
+  const valid = validator(rawArray);
+  if (rawArray.length === 0 || valid.length > 0) target[key] = valid;
 }
 
 export function validExperiences(value: unknown) {
@@ -223,20 +168,4 @@ function hasOwn(value: unknown, key: string) {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function normalize(value: unknown) {
-  return str(value).toLowerCase().replace(/\s+/g, " ");
-}
-
-function experienceKey(item: any) {
-  return [item?.title, item?.company, item?.start].map(normalize).join("|");
-}
-
-function educationKey(item: any) {
-  return [item?.degree, item?.institution].map(normalize).join("|");
-}
-
-function nameKey(item: any) {
-  return normalize(item?.name);
 }

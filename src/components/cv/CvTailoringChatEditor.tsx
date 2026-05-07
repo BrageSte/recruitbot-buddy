@@ -1,11 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { CvData } from "@/components/cv/types";
-import { Loader2, RotateCcw, Sparkles, Undo2, Wand2 } from "lucide-react";
+import {
+  formatOriginalCvItemsForInstruction,
+  getOmittedOriginalCvItems,
+} from "@/components/cv/cvInclusionDiff";
+import { ListChecks, Loader2, RotateCcw, Sparkles, Undo2, Wand2 } from "lucide-react";
 
 type Turn = {
   id: string;
@@ -22,6 +27,7 @@ interface CvTailoringChatEditorProps {
   applicationId: string;
   userId?: string;
   cv: CvData;
+  originalCv?: CvData | null;
   tweak?: any;
   onTweakChange: (nextTweak: any) => void;
 }
@@ -47,6 +53,7 @@ export const CvTailoringChatEditor = ({
   applicationId,
   userId,
   cv,
+  originalCv,
   tweak,
   onTweakChange,
 }: CvTailoringChatEditorProps) => {
@@ -55,34 +62,63 @@ export const CvTailoringChatEditor = ({
   const [focusSection, setFocusSection] = useState("auto");
   const [busy, setBusy] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
+  const [selectedOriginalItemIds, setSelectedOriginalItemIds] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const omittedGroups = useMemo(
+    () => getOmittedOriginalCvItems(originalCv, cv),
+    [originalCv, cv],
+  );
+  const omittedItems = useMemo(() => omittedGroups.flatMap((group) => group.items), [omittedGroups]);
+  const omittedItemById = useMemo(
+    () => new Map(omittedItems.map((item) => [item.id, item])),
+    [omittedItems],
+  );
+  const omittedItemIds = useMemo(() => omittedItems.map((item) => item.id).join("|"), [omittedItems]);
+  const selectedOmittedItems = selectedOriginalItemIds
+    .map((id) => omittedItemById.get(id))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
   useEffect(() => {
     setTurns([]);
     setInput("");
     setFocusSection("auto");
+    setSelectedOriginalItemIds([]);
   }, [applicationId]);
+
+  useEffect(() => {
+    setSelectedOriginalItemIds((ids) => ids.filter((id) => omittedItemById.has(id)));
+  }, [omittedItemById, omittedItemIds]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [turns, busy]);
 
-  const send = async (instructionRaw: string) => {
+  const send = async (
+    instructionRaw: string,
+    options?: { displayInstruction?: string; focusSection?: string; onApplied?: () => void },
+  ) => {
     const instruction = instructionRaw.trim();
     if (!instruction || busy) return;
 
     const turnId = crypto.randomUUID();
     const before = cv;
+    const activeFocusSection = options?.focusSection ?? focusSection;
     setTurns((items) => [
       ...items,
-      { id: turnId, instruction, focusSection, status: "pending", before },
+      {
+        id: turnId,
+        instruction: options?.displayInstruction ?? instruction,
+        focusSection: activeFocusSection,
+        status: "pending",
+        before,
+      },
     ]);
     setInput("");
     setBusy(true);
 
     try {
       const { data, error } = await supabase.functions.invoke("edit-tailored-cv", {
-        body: { applicationId, instruction, focusSection },
+        body: { applicationId, instruction, focusSection: activeFocusSection },
       });
       if (error) throw error;
 
@@ -91,6 +127,7 @@ export const CvTailoringChatEditor = ({
       if (!response.tweak?.tailored_cv) throw new Error("Tomt svar");
 
       onTweakChange(response.tweak);
+      options?.onApplied?.();
       setTurns((items) =>
         items.map((item) =>
           item.id === turnId
@@ -114,6 +151,29 @@ export const CvTailoringChatEditor = ({
     } finally {
       setBusy(false);
     }
+  };
+
+  const toggleOriginalItem = (id: string, checked: boolean) => {
+    setSelectedOriginalItemIds((ids) => {
+      if (checked) return ids.includes(id) ? ids : [...ids, id];
+      return ids.filter((itemId) => itemId !== id);
+    });
+  };
+
+  const includeSelectedOriginalItems = () => {
+    if (selectedOmittedItems.length === 0 || busy) return;
+    const instruction = [
+      "Flett inn disse valgte elementene fra ORIGINAL CV i den tilpassede CV-snapshoten.",
+      "Integrer dem i riktig seksjon, omformuler kort og relevant for stillingen, og plasser dem der de passer best. Ikke lim dem bare inn nederst.",
+      "VALGTE_ORIGINAL_CV_ELEMENTER_JSON:",
+      formatOriginalCvItemsForInstruction(selectedOmittedItems),
+    ].join("\n\n");
+
+    send(instruction, {
+      displayInstruction: `Flett inn ${selectedOmittedItems.length} valgte fra original-CV`,
+      focusSection: "auto",
+      onApplied: () => setSelectedOriginalItemIds([]),
+    });
   };
 
   const undo = async (turn: Turn) => {
@@ -181,6 +241,89 @@ export const CvTailoringChatEditor = ({
           ))}
         </select>
       </div>
+
+      {originalCv && (
+        <div className="border-b border-border bg-background px-3 py-3">
+          <div className="mb-2 flex items-start gap-2">
+            <ListChecks className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-medium">Utelatt fra original-CV</div>
+                {omittedItems.length > 0 && (
+                  <div className="shrink-0 text-[11px] text-muted-foreground">
+                    {selectedOmittedItems.length}/{omittedItems.length} valgt
+                  </div>
+                )}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Velg det AI bør flette inn i denne versjonen.
+              </div>
+            </div>
+          </div>
+
+          {omittedItems.length === 0 ? (
+            <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+              AI har med alle gjenkjennelige originalelementer.
+            </div>
+          ) : (
+            <div className="max-h-56 space-y-3 overflow-y-auto pr-1">
+              {omittedGroups.map((group) => (
+                <div key={group.section} className="space-y-1.5">
+                  <div className="text-[11px] font-medium uppercase text-muted-foreground">
+                    {group.label}
+                  </div>
+                  <div className="space-y-1">
+                    {group.items.map((item) => (
+                      <label
+                        key={item.id}
+                        className="flex min-h-11 cursor-pointer items-start gap-2 rounded-md border border-border/70 bg-muted/20 px-2.5 py-2 transition-colors hover:bg-accent/50"
+                      >
+                        <Checkbox
+                          checked={selectedOriginalItemIds.includes(item.id)}
+                          onCheckedChange={(checked) => toggleOriginalItem(item.id, checked === true)}
+                          disabled={busy}
+                          className="mt-0.5"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs font-medium">{item.label}</span>
+                          {item.detail && (
+                            <span className="block truncate text-[11px] text-muted-foreground">
+                              {item.detail}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {omittedItems.length > 0 && (
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedOriginalItemIds([])}
+                disabled={busy || selectedOmittedItems.length === 0}
+                className="h-8 px-2 text-xs"
+              >
+                Fjern valg
+              </Button>
+              <Button
+                size="sm"
+                onClick={includeSelectedOriginalItems}
+                disabled={busy || selectedOmittedItems.length === 0}
+                className="h-8 px-2 text-xs"
+              >
+                {busy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
+                Flett inn valgte
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div ref={scrollRef} className="min-h-[180px] flex-1 space-y-2 overflow-y-auto p-3">
         {turns.length === 0 && !busy && (
