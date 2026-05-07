@@ -11,9 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Loader2, Save, Plus, Trash2, GripVertical, Upload, Sparkles, FileText, Download, Star, Copy, Pencil, ArrowUp, ArrowDown, RotateCcw } from "lucide-react";
 import { DEFAULT_SECTION_ORDER, SECTION_LABELS, type CvSectionKey } from "@/components/cv/types";
 import { CvStylePicker } from "@/components/cv/CvStylePicker";
-import { CvPdfPreview } from "@/components/cv/pdf/CvPdfPreview";
-import { CvPdfDocument } from "@/components/cv/pdf/CvPdfDocument";
-import { downloadPdfDocument } from "@/components/cv/exportPdf";
+import { DeferredCvPdfPreview } from "@/components/cv/pdf/DeferredPdfPreview";
 import { CvStyleId } from "@/components/cv/cvStyles";
 
 type Experience = {
@@ -95,6 +93,7 @@ const CvTemplate = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [renameOpen, setRenameOpen] = useState(false);
@@ -389,10 +388,19 @@ const CvTemplate = () => {
   };
 
   const exportPdf = async () => {
-    await downloadPdfDocument(
-      <CvPdfDocument cv={cv as any} styleId={cv.cv_style} />,
-      `CV-${(cv.full_name || "uten-navn").replace(/\s+/g, "-")}.pdf`
-    );
+    setExportingPdf(true);
+    try {
+      const [{ downloadPdfDocument }, { CvPdfDocument }] = await Promise.all([
+        import("@/components/cv/exportPdf"),
+        import("@/components/cv/pdf/CvPdfDocument"),
+      ]);
+      await downloadPdfDocument(
+        <CvPdfDocument cv={cv as any} styleId={cv.cv_style} />,
+        `CV-${(cv.full_name || "uten-navn").replace(/\s+/g, "-")}.pdf`
+      );
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -440,7 +448,10 @@ const CvTemplate = () => {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={exportPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
+          <Button variant="outline" onClick={exportPdf} disabled={exportingPdf}>
+            {exportingPdf ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+            PDF
+          </Button>
           <Button onClick={save} disabled={saving}>
             {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
             Lagre
@@ -552,7 +563,7 @@ const CvTemplate = () => {
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">Forhåndsvisning</CardTitle></CardHeader>
         <CardContent>
-          <CvPdfPreview cv={cv as any} styleId={cv.cv_style} />
+          <DeferredCvPdfPreview cv={cv as any} styleId={cv.cv_style} />
         </CardContent>
       </Card>
 

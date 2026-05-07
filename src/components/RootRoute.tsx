@@ -1,10 +1,19 @@
+import { Suspense, lazy } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/AppLayout";
-import Landing from "@/pages/Landing";
+import { RouteFallback } from "@/components/RouteFallback";
+
+const Landing = lazy(() => import("@/pages/Landing"));
 
 export const RootRoute = () => {
   const { user, loading } = useAuth();
   if (loading) return null;
-  if (!user) return <Landing />;
+  if (!user) {
+    return (
+      <Suspense fallback={<RouteFallback fullscreen />}>
+        <Landing />
+      </Suspense>
+    );
+  }
   return <AppLayout />;
 };

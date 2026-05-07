@@ -11,10 +11,7 @@ import { AlertCircle, ArrowLeft, CheckCircle2, Clock3, Download, FileText, Histo
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CvStylePicker } from "@/components/cv/CvStylePicker";
-import { CvPdfPreview, LetterPdfPreview } from "@/components/cv/pdf/CvPdfPreview";
-import { CvPdfDocument } from "@/components/cv/pdf/CvPdfDocument";
-import { LetterPdfDocument } from "@/components/cv/pdf/LetterPdfDocument";
-import { downloadPdfDocument } from "@/components/cv/exportPdf";
+import { DeferredCvPdfPreview, DeferredLetterPdfPreview } from "@/components/cv/pdf/DeferredPdfPreview";
 import { CvStyleId } from "@/components/cv/cvStyles";
 import { ApplicationChatEditor } from "@/components/cv/ApplicationChatEditor";
 import { CvTailoringChatEditor } from "@/components/cv/CvTailoringChatEditor";
@@ -111,6 +108,7 @@ const ApplicationDetail = () => {
   const [activeTab, setActiveTab] = useState("letter");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState<"letter" | "cv" | null>(null);
   const [tailoring, setTailoring] = useState(false);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [applyingAttachments, setApplyingAttachments] = useState<"letter" | "cv" | "both" | null>(null);
@@ -332,23 +330,41 @@ const ApplicationDetail = () => {
   }).length;
 
   const exportLetterPdf = async () => {
-    await downloadPdfDocument(
-      <LetterPdfDocument
-        cv={cvTpl ?? {}}
-        text={text}
-        jobTitle={app?.jobs?.title}
-        company={app?.jobs?.company}
-        styleId={styleId}
-      />,
-      `Soknad-${app?.jobs?.company || "selskap"}.pdf`
-    );
+    setExportingPdf("letter");
+    try {
+      const [{ downloadPdfDocument }, { LetterPdfDocument }] = await Promise.all([
+        import("@/components/cv/exportPdf"),
+        import("@/components/cv/pdf/LetterPdfDocument"),
+      ]);
+      await downloadPdfDocument(
+        <LetterPdfDocument
+          cv={cvTpl ?? {}}
+          text={text}
+          jobTitle={app?.jobs?.title}
+          company={app?.jobs?.company}
+          styleId={styleId}
+        />,
+        `Soknad-${app?.jobs?.company || "selskap"}.pdf`
+      );
+    } finally {
+      setExportingPdf(null);
+    }
   };
   const exportCvPdf = async () => {
     if (!effectiveCv) return;
-    await downloadPdfDocument(
-      <CvPdfDocument cv={effectiveCv} styleId={styleId} />,
-      `CV-${cvTpl?.full_name || "uten-navn"}.pdf`
-    );
+    setExportingPdf("cv");
+    try {
+      const [{ downloadPdfDocument }, { CvPdfDocument }] = await Promise.all([
+        import("@/components/cv/exportPdf"),
+        import("@/components/cv/pdf/CvPdfDocument"),
+      ]);
+      await downloadPdfDocument(
+        <CvPdfDocument cv={effectiveCv} styleId={styleId} />,
+        `CV-${cvTpl?.full_name || "uten-navn"}.pdf`
+      );
+    } finally {
+      setExportingPdf(null);
+    }
   };
 
 
@@ -503,7 +519,10 @@ const ApplicationDetail = () => {
                   {showTextTools ? <PanelRightClose className="w-4 h-4 mr-2" /> : <PanelRightOpen className="w-4 h-4 mr-2" />}
                   Tekstverktøy
                 </Button>
-                <Button variant="outline" size="sm" onClick={exportLetterPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
+                <Button variant="outline" size="sm" onClick={exportLetterPdf} disabled={exportingPdf !== null}>
+                  {exportingPdf === "letter" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                  PDF
+                </Button>
                 <Button size="sm" onClick={save} disabled={saving}><Save className="w-4 h-4 mr-2" /> Lagre</Button>
                 {app.status === "draft" && <Button size="sm" onClick={() => setStatus("sent")}><Send className="w-4 h-4 mr-2" /> Marker som sendt</Button>}
               </div>
@@ -556,7 +575,7 @@ const ApplicationDetail = () => {
               <div className={`grid grid-cols-1 gap-5 ${showTextTools ? "xl:grid-cols-[minmax(0,1fr)_340px]" : ""}`}>
                 <div className="min-w-0">
                   {preview ? (
-                    <LetterPdfPreview
+                    <DeferredLetterPdfPreview
                       cv={cvTpl ?? {}}
                       text={text}
                       jobTitle={app.jobs?.title}
@@ -625,11 +644,14 @@ const ApplicationDetail = () => {
                   {isTailored && (
                     <Button variant="ghost" size="sm" onClick={resetTailoredCv}>Bruk original</Button>
                   )}
-                  <Button variant="outline" size="sm" onClick={exportCvPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
+                  <Button variant="outline" size="sm" onClick={exportCvPdf} disabled={exportingPdf !== null}>
+                    {exportingPdf === "cv" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                    PDF
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <CvPdfPreview cv={effectiveCv} styleId={styleId} />
+                <DeferredCvPdfPreview cv={effectiveCv} styleId={styleId} />
               </CardContent>
             </Card>
           )}
@@ -717,12 +739,15 @@ const ApplicationDetail = () => {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-base">Forhåndsvisning – tilpasset CV</CardTitle>
-                    <Button variant="outline" size="sm" onClick={exportCvPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
+                    <Button variant="outline" size="sm" onClick={exportCvPdf} disabled={exportingPdf !== null}>
+                      {exportingPdf === "cv" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                      PDF
+                    </Button>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
                       <div className="min-w-0">
-                        <CvPdfPreview cv={effectiveCv} styleId={styleId} />
+                        <DeferredCvPdfPreview cv={effectiveCv} styleId={styleId} />
                       </div>
                       <div className="min-w-0 xl:sticky xl:top-4 xl:h-[min(80vh,1100px)]">
                         <CvTailoringChatEditor

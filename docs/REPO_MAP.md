@@ -282,17 +282,17 @@ Current test coverage does not exercise product behavior. Add tests around data 
 
 ## Local Commands
 
-From `package.json`:
+From `package.json` (Bun is the canonical package manager for this repo):
 
-- `npm run dev`: local Vite app.
-- `npm run build`: production build.
-- `npm run build:dev`: development-mode build.
-- `npm run lint`: ESLint.
-- `npm run test`: Vitest one-shot.
-- `npm run test:watch`: Vitest watch mode.
-- `npm run preview`: preview production build.
+- `bun dev`: local Vite app.
+- `bun run build`: production build.
+- `bun run build:dev`: development-mode build.
+- `bun run lint`: ESLint.
+- `bun run test`: Vitest one-shot.
+- `bun run test:watch`: Vitest watch mode.
+- `bun run preview`: preview production build.
 
-If these commands fail with `command not found`, install dependencies first with the chosen package manager.
+If these commands fail with `command not found`, install Bun and project dependencies first.
 
 ## Known Governance Gaps
 
