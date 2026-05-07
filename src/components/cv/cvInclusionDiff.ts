@@ -34,7 +34,7 @@ export function getOmittedOriginalCvItems(
       originalCv.experiences ?? [],
       new Set((tailored.experiences ?? []).map(experienceKey)),
       experienceKey,
-      (item) => ({
+      (item: any) => ({
         label: compact([item.title]).join(""),
         detail: compact([item.company, fmtRange(item.start, item.end, item.current)]).join(" · "),
       }),
@@ -44,7 +44,7 @@ export function getOmittedOriginalCvItems(
       originalCv.education ?? [],
       new Set((tailored.education ?? []).map(educationKey)),
       educationKey,
-      (item) => ({
+      (item: any) => ({
         label: compact([item.degree]).join(""),
         detail: compact([item.institution, fmtRange(item.start, item.end)]).join(" · "),
       }),
@@ -55,21 +55,21 @@ export function getOmittedOriginalCvItems(
       originalCv.languages ?? [],
       new Set((tailored.languages ?? []).map(nameKey)),
       nameKey,
-      (item) => ({ label: item.name, detail: item.level }),
+      (item: any) => ({ label: item.name, detail: item.level }),
     ),
     omittedGroup(
       "projects",
       originalCv.projects ?? [],
       new Set((tailored.projects ?? []).map(nameKey)),
       nameKey,
-      (item) => ({ label: item.name, detail: item.description }),
+      (item: any) => ({ label: item.name, detail: item.description }),
     ),
     omittedGroup(
       "certifications",
       originalCv.certifications ?? [],
       new Set((tailored.certifications ?? []).map(nameKey)),
       nameKey,
-      (item) => ({ label: item.name, detail: compact([item.issuer, item.date]).join(" · ") }),
+      (item: any) => ({ label: item.name, detail: compact([item.issuer, item.date]).join(" · ") }),
     ),
   ].filter((group) => group.items.length);
 
