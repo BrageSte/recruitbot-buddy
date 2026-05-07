@@ -1,60 +1,105 @@
-# Rydde opp i Landing.tsx
+## Mål
 
-## Hva er problemet i dag
+Gi alle interne sider (Søknader, Jobber, Kalender, Kilder, CV, Profil, Søknad-detalj) samme polerte, innbydende uttrykk som forsiden og dashbordet — samme header, KPI-strip, kort, tomme tilstander, hover-effekter, ikoner og fargetokens.
 
-Forsiden har syv seksjoner som overlapper mye:
+## Felles designspråk (gjeldende for alle sider)
 
-- Hero, Problem, Solution, HowItWorks, Features, DemoBanner, Faq
-- "Tilpasset CV", "AI-rekrutterer" og "Søknadsbrev" nevnes i både Solution, HowItWorks og Features – tre ganger.
-- To CTA-blokker (Hero + DemoBanner) sier nesten det samme: "Prøv med din CV".
-- Footer gjentar lenker som allerede er i header.
-- Det er ikke tydelig nok i hero hva produktet faktisk *er* før man scroller.
+- **Sidecontainer:** `max-w-6xl mx-auto p-4 md:p-6 lg:p-10 space-y-8` (Dashboard har `max-w-7xl` — beholdes)
+- **Header:** ikon-chip i `bg-gradient-primary` + H1 (`text-2xl md:text-3xl font-semibold tracking-tight`) + kort underlinje, knapper høyrejustert
+- **KPI-strip:** 3–4 kort med ikon, tall (tabular-nums), liten label — samme stil som Dashboard
+- **Kort:** `Card` med `hover:shadow-elevated transition-shadow` og venstre fargestripe (`border-l-2`) for status der det gir mening
+- **Tomme tilstander:** `Card` med stort ikon, overskrift, beskrivelse og CTA-knapp (ikke bare "Ingen treff")
+- **Status-piller:** gjenbruk samme `STATUS_TONE`-palett som i Søknader/Jobber (en delt helper `src/lib/statusStyles.ts`)
+- **Loading:** `Skeleton`-rader i stedet for "Laster…"-tekst
+- **Footer-linje:** liten "Tips: …"-stripe nederst der det er nyttig (lik DailyCoachPanel)
 
-## Ny struktur (5 seksjoner i stedet for 7)
+## Endringer per side
+
+### 1. `src/pages/Applications.tsx` (hovedfokus)
+
+Nåværende side er flat: enkel header, faner, listekort uten ikon eller hover-aksent.
+
+Ny struktur:
 
 ```text
-1. Hero            – Hva det er + én CTA + ett mock-bilde
-2. Problem→Løsning – Side-ved-side "Før / Etter", erstatter dagens to seksjoner
-3. Slik fungerer det – 3 steg med mocks (uendret form, kortere tekst)
-4. FAQ             – Kort, 4 spørsmål
-5. Footer-CTA      – Én tydelig avslutning (erstatter DemoBanner + Footer-lenker)
+┌─ Header (ikon-chip + tittel + "Ny søknad fra jobb"-CTA)
+├─ KPI-strip: Utkast | Sendt | Svar/Intervju | Tilbud
+├─ Tabs (samme som i dag, men full bredde + telleboble til høyre)
+├─ Søk + sortering (ny: input + DropdownMenu "Sorter etter")
+├─ Liste — kort med:
+│    · venstre fargestripe etter status
+│    · ikon (FileText/Send/CalendarClock/Award)
+│    · tittel · firma · status-pille · sendt-dato · score-badge
+│    · hover:shadow-elevated
+└─ Tom tilstand: ikon, "Ingen søknader ennå", CTA "Finn jobber" → /jobs
 ```
 
-Features-grid fjernes – innholdet flettes inn som korte stikkord under hvert "Slik fungerer det"-steg, så vi ikke lister samme funksjoner to ganger.
+Konkret:
+- Bytt header til samme mønster som Jobs/Dashboard (gradient-ikon-chip).
+- Legg til KPI-rad over Tabs.
+- Legg til søk + sortering (created_desc, sent_desc, status, deadline).
+- Forsterk listekortene med venstre stripe basert på `STATUS_TONE`, ScoreBadge når `match_score` finnes, og frist-info når jobben har deadline.
+- Erstatt `Loader2`-spinner med 5 `Skeleton`-rader.
+- Forbedre tom tilstand med CTA til `/jobs`.
 
-## Konkrete endringer i `src/pages/Landing.tsx`
+### 2. `src/pages/Jobs.tsx`
 
-**Hero**
-- Tydeligere H1: "Jobbhjelpen samler CV, jobbannonser og søknader på ett sted."
-- Underrubrikk forklarer mekanikken i én setning: "Last opp CV-en din én gang. Vi henter relevante jobber fra Finn, NAV og Arbeidsplassen, scorer dem mot deg, og skriver tilpasset CV og søknad per jobb."
-- Behold én primær CTA ("Prøv med din CV") + én sekundær ("Logg inn"). Fjern "Kom i gang" her – den hører hjemme i bunn.
-- Behold MockMatches til høyre.
+- Header får samme gradient-ikon-chip og to-linjes undertekst.
+- Knappene grupperes: primær "Finn nye jobber" + ikon-knapper for sortering/filter/sveip i en `border rounded-md`-toolbar.
+- KPI-strip: Nye denne uka · Topp-matcher (≥80) · Ufullstendige · Arkivert.
+- Listekort får venstre fargestripe etter status (samme palett) og hover-shadow.
+- Tom tilstand: "Ingen matcher ennå — kjør Finn nye jobber" med stor CTA.
 
-**Problem + Solution → ett "Før / Etter"-grid**
-- Venstre kolonne: 3 punkter "I dag" (CV på fem steder, annonser overalt, søknader fra bunn).
-- Høyre kolonne: 3 punkter "Med Jobbhjelpen" (én CV som tilpasses, én innboks for jobber med score, søknader på minutter).
-- Halverer antall ord, fjerner overlapp med Features.
+### 3. `src/pages/CalendarPage.tsx`
 
-**HowItWorks (beholdes, strammes inn)**
-- 3 steg med mocks, men:
-  - Korte tekster (maks 2 setninger).
-  - Under hvert steg: 2-3 stikkord-chips med konkrete funksjoner (f.eks. under steg 2: "FINN RSS", "NAV/Arbeidsplassen", "AI-score med forklaring"). Dette erstatter Features-seksjonen.
+- Header får ikon-chip + KPI: I dag · Denne uka · Frister 7d · Intervjuer.
+- "Lag mål"-knapp blir primærknapp øverst til høyre.
+- Tom tilstand på agenda-fanen får ikon + tekst + CTA "Sett ukesmål".
 
-**Features-seksjon**: fjernes helt.
+### 4. `src/pages/Sources.tsx`
 
-**DemoBanner → slått sammen med footer-CTA**
-- Én avsluttende blokk med overskrift, kort tekst, én primær CTA ("Prøv demoen") og en lenke ("Eller logg inn").
+- Header med ikon-chip + KPI: Aktive feeds · Auto-søk · Treff sist 24t · Feil.
+- Hver feed/auto-søk-rad får venstre stripe etter `last_status` (grønn/gul/rød/grå) og hover-shadow.
 
-**FAQ**: beholdes som er, men kuttes til 4 spørsmål (allerede 4 – ok).
+### 5. `src/pages/CvTemplate.tsx`
 
-**Footer**: forenkles til kun copyright + 2 lenker (Logg inn, Demo). "Kom i gang" fjernes (duplikat).
+- Header får ikon-chip + KPI: Varianter · Standard-stil · Sist redigert.
+- Variant-listen blir kortgrid med hover-shadow og "stjerne for standard".
+- Stor "Last opp CV"-zone matcher Demo-siden (dashed border, Upload-ikon).
 
-## Ikke endret
+### 6. `src/pages/Profile.tsx`
 
-- Mock-komponenter (`MockMatches`, `MockCv`, `MockPipeline`) – brukes som de er.
-- Routing, auth-flyt, demo-side.
-- Designtokens / farger.
+- Header med ikon-chip + kort beskrivelse "Din profil styrer matching, CV og søknader".
+- Seksjoner i kort med tydelige overskrifter (Stil, Vekter, Regler, Auto-apply, Filer).
+- Lagre-knapp blir sticky nederst på mobil.
 
-## Resultat
+### 7. `src/pages/ApplicationDetail.tsx`
 
-Fra ~290 linjer til ~180. Brukeren forstår innen første skjermbilde hva Jobbhjelpen er, og hver påstand sies kun én gang.
+- Top-bar (Tilbake | Tittel | Status-velger | Lagre/Send) får samme rounded toolbar som Jobs.
+- Tabs får samme stil som Søknader-fanene.
+- Vedleggs-rader får venstre stripe etter `extraction_status`.
+
+### 8. Nye hjelpere
+
+- `src/lib/statusStyles.ts` — eksporterer `APPLICATION_STATUS_TONE`, `JOB_STATUS_TONE`, `SOURCE_STATUS_TONE` og en `statusStripe(status)`-funksjon (returnerer Tailwind-klasser for `border-l-*`).
+- `src/components/PageHeader.tsx` — gjenbrukbar header (ikon-chip, tittel, undertekst, action-slot). Brukes i alle sider over.
+- `src/components/KpiStrip.tsx` — gjenbrukbart KPI-grid (4 kolonner på desktop, 2 på mobil).
+- `src/components/EmptyState.tsx` — ikon + tittel + tekst + CTA.
+
+## Det som ikke endres
+
+- Forretningslogikk, queries, ruting, AuthProvider, AppLayout, Landing, Demo, Dashboard (allerede polert).
+- Design-tokens i `index.css` — alt eksisterer allerede.
+- Mobil-meny / sidebar.
+
+## Tekniske notater
+
+- Alle nye komponenter er rene TSX uten ekstra avhengigheter.
+- Bruker eksisterende `Card`, `Button`, `Badge`, `Skeleton`, `DropdownMenu` fra shadcn.
+- Ingen migreringer eller edge functions endres.
+
+## Rekkefølge
+
+1. Lag delte komponenter (`PageHeader`, `KpiStrip`, `EmptyState`, `statusStyles.ts`).
+2. Refaktorér `Applications.tsx` (synlig effekt umiddelbart).
+3. Oppdatér `Jobs`, `CalendarPage`, `Sources`, `CvTemplate`, `Profile`, `ApplicationDetail` til samme mønster.

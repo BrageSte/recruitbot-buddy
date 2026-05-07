@@ -428,11 +428,16 @@ const CvTemplate = () => {
   if (loading) return <div className="p-8 flex items-center gap-2 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Laster…</div>;
 
   return (
-    <div className="max-w-6xl mx-auto p-6 lg:p-10 space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold">CV</h1>
-          <p className="text-muted-foreground text-sm mt-1">Lag flere CV-varianter (formell, uformell, design, akademisk…). Velg per søknad — eller la AI velge.</p>
+    <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-10 space-y-6">
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-elevated shrink-0">
+            <FileText className="w-5 h-5 text-primary-foreground" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">CV</h1>
+            <p className="text-muted-foreground text-sm mt-1">Lag flere CV-varianter (formell, uformell, design, akademisk…). Velg per søknad — eller la AI velge.</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={exportPdf}><Download className="w-4 h-4 mr-2" /> PDF</Button>
