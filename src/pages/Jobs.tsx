@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { useToast } from "@/hooks/use-toast";
 import { evaluateMatchVisibility, type MatchVisibilityRule } from "@/lib/matchVisibility";
+import { JOB_STATUS_STRIPE } from "@/lib/statusStyles";
 import { discoveryToastDescription, matchStatusForJobStatus, statusToFeedbackDecision } from "@/lib/jobDiscovery";
 import { Plus, Loader2, Sparkles, ExternalLink, Filter, Bookmark, Trash2, X, Send, ChevronDown, Layers, ArrowUpDown, Archive, ArchiveRestore, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
@@ -532,7 +533,7 @@ const JobListItem = ({
 
   return (
     <Link to={`/jobs/${j.id}`} className="block">
-              <Card className="hover:shadow-elevated transition-shadow">
+              <Card className={`hover:shadow-elevated transition-shadow border-l-2 ${JOB_STATUS_STRIPE[j.status] ?? "border-l-muted-foreground/30"}`}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-4">
                     <ScoreBadge score={j.match_score} className="mt-0.5 text-sm px-2.5 py-1" />
