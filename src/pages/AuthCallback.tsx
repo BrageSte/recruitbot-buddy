@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { DEFAULT_POST_AUTH_TARGET, takePostAuthTarget } from "@/lib/authRedirect";
 import {
   answersFromPreOnboardingDraft,
   clearPreOnboardingDraft,
@@ -23,7 +24,7 @@ const AuthCallback = () => {
       if (!session?.user) {
         setMessage("Kunne ikke bekrefte lenken. Prøv å sende en ny innloggingslenke.");
         window.setTimeout(() => {
-          if (!cancelled) navigate("/auth", { replace: true });
+          if (!cancelled) navigate("/login", { replace: true });
         }, 1800);
         return;
       }
@@ -70,7 +71,12 @@ const AuthCallback = () => {
         clearPreOnboardingDraft();
       }
 
-      if (!cancelled) navigate("/onboarding", { replace: true });
+      if (!cancelled) {
+        const storedTarget = takePostAuthTarget();
+        navigate(hasUsefulPreOnboardingDraft(draft) ? "/onboarding" : storedTarget || DEFAULT_POST_AUTH_TARGET, {
+          replace: true,
+        });
+      }
     };
 
     void finish();

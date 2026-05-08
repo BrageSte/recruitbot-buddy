@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { useState } from "react";
 
 const nav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/portal", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/jobs", label: "Jobber", icon: Briefcase },
   { to: "/applications", label: "Søknader", icon: FileText },
   { to: "/calendar", label: "Kalender", icon: CalendarDays },
@@ -77,7 +77,7 @@ export const AppLayout = () => {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate("/start", { replace: true });
+    navigate("/", { replace: true });
   };
 
   return (

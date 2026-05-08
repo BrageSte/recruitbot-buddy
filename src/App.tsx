@@ -8,7 +8,6 @@ import { AuthProvider } from "@/hooks/AuthProvider";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/AppLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { RootRoute } from "@/components/RootRoute";
 import { RouteFallback } from "@/components/RouteFallback";
 
 const Auth = lazy(() => import("./pages/Auth"));
@@ -48,17 +47,17 @@ const App = () => (
             <Routes>
               <Route path="/start" element={renderRoute(<Start />, true)} />
               <Route path="/demo" element={renderRoute(<Demo />, true)} />
-              <Route path="/landing" element={renderRoute(<Landing />, true)} />
-              <Route path="/auth" element={renderRoute(<Auth />, true)} />
+              <Route path="/" element={renderRoute(<Landing />, true)} />
+              <Route path="/landing" element={<Navigate to="/" replace />} />
+              <Route path="/login" element={renderRoute(<Auth />, true)} />
+              <Route path="/auth" element={<Navigate to="/login" replace />} />
               <Route path="/auth/callback" element={renderRoute(<AuthCallback />, true)} />
               <Route
                 path="/onboarding"
                 element={<ProtectedRoute>{renderRoute(<Onboarding />, true)}</ProtectedRoute>}
               />
-              <Route path="/" element={<RootRoute />}>
-                <Route index element={renderRoute(<Dashboard />)} />
-              </Route>
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                <Route path="/portal" element={renderRoute(<Dashboard />)} />
                 <Route path="/matches" element={<Navigate to="/jobs" replace />} />
                 <Route path="/jobs" element={renderRoute(<Jobs />)} />
                 <Route path="/jobs/swipe" element={renderRoute(<JobSwipe />)} />

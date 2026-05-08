@@ -145,7 +145,7 @@ const Start = () => {
           <div className="font-semibold">Jobbhjelpen</div>
         </div>
         <Button variant="ghost" size="sm" asChild>
-          <Link to="/auth">Logg inn</Link>
+          <Link to="/login">Logg inn</Link>
         </Button>
       </header>
 

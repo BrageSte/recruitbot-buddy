@@ -12,8 +12,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MockMatches, MockCv, MockPipeline } from "@/components/landing/MockApp";
+import { useAuth } from "@/hooks/useAuth";
 
 const Landing = () => {
+  const { user } = useAuth();
+  const accountHref = user ? "/portal" : "/login";
+  const accountLabel = user ? "Åpne portal" : "Logg inn";
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="px-4 md:px-8 h-16 flex items-center justify-between border-b border-border/70 sticky top-0 bg-background/85 backdrop-blur z-30">
@@ -28,7 +33,7 @@ const Landing = () => {
             <a href="#hvordan">Hvordan</a>
           </Button>
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/auth">Logg inn</Link>
+            <Link to={accountHref}>{accountLabel}</Link>
           </Button>
           <Button size="sm" asChild>
             <Link to="/demo">Prøv med din CV</Link>
@@ -36,7 +41,7 @@ const Landing = () => {
         </nav>
       </header>
 
-      <Hero />
+      <Hero accountHref={accountHref} accountLabel={accountLabel} />
       <BeforeAfter />
       <HowItWorks />
       <Faq />
@@ -46,14 +51,14 @@ const Landing = () => {
         <div>© {new Date().getFullYear()} Jobbhjelpen</div>
         <div className="flex gap-4">
           <Link to="/demo" className="hover:text-foreground">Test meg</Link>
-          <Link to="/auth" className="hover:text-foreground">Logg inn</Link>
+          <Link to={accountHref} className="hover:text-foreground">{accountLabel}</Link>
         </div>
       </footer>
     </div>
   );
 };
 
-const Hero = () => (
+const Hero = ({ accountHref, accountLabel }: { accountHref: string; accountLabel: string }) => (
   <section className="px-4 md:px-8 lg:px-14 py-12 md:py-20">
     <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-10 lg:gap-14 items-center">
       <motion.div
@@ -76,8 +81,8 @@ const Hero = () => (
             </Link>
           </Button>
           <Button size="lg" variant="outline" asChild className="h-12">
-            <Link to="/auth">
-              Logg inn <ArrowRight className="w-4 h-4 ml-2" />
+            <Link to={accountHref}>
+              {accountLabel} <ArrowRight className="w-4 h-4 ml-2" />
             </Link>
           </Button>
         </div>

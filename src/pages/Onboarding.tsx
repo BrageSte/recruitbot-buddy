@@ -1691,7 +1691,7 @@ const Onboarding = () => {
 
                 <div className="flex items-center justify-end gap-2 flex-wrap">
                   <Button variant="outline" asChild>
-                    <Link to="/">Dashboard</Link>
+                    <Link to="/portal">Dashboard</Link>
                   </Button>
                   {canOpenMatches ? (
                     <Button asChild>

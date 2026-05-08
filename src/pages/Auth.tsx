@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Briefcase, KeyRound, Loader2, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,10 +8,25 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  DEFAULT_POST_AUTH_TARGET,
+  postAuthTargetFromLocation,
+  storePostAuthTarget,
+  takePostAuthTarget,
+} from "@/lib/authRedirect";
 import { loadPreOnboardingDraft, savePreOnboardingDraft } from "@/lib/preOnboarding";
+
+type AuthLocationState = {
+  from?: {
+    pathname?: string;
+    search?: string;
+    hash?: string;
+  };
+};
 
 const Auth = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, signIn, sendMagicLink } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -20,10 +35,13 @@ const Auth = () => {
   const [password, setPassword] = useState("");
 
   useEffect(() => {
+    const target = postAuthTargetFromLocation((location.state as AuthLocationState | null)?.from);
+    storePostAuthTarget(target);
+  }, [location.state]);
+
+  useEffect(() => {
     if (!user) return;
-    const target = sessionStorage.getItem("post_auth_target");
-    if (target) sessionStorage.removeItem("post_auth_target");
-    navigate(target || "/onboarding", { replace: true });
+    navigate(takePostAuthTarget() || DEFAULT_POST_AUTH_TARGET, { replace: true });
   }, [user, navigate]);
 
   const handleMagicLink = async (event: React.FormEvent) => {
@@ -48,15 +66,13 @@ const Auth = () => {
     setLoading(false);
     if (error) {
       toast({ title: "Innlogging feilet", description: error.message, variant: "destructive" });
-    } else {
-      navigate("/onboarding", { replace: true });
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-subtle p-4">
       <div className="w-full max-w-md">
-        <Link to="/start" className="flex items-center justify-center gap-2 mb-8">
+        <Link to="/" className="flex items-center justify-center gap-2 mb-8">
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-elevated">
             <Briefcase className="w-5 h-5 text-primary-foreground" />
           </div>

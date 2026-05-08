@@ -267,7 +267,7 @@ const Demo = () => {
         </Link>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/auth">Logg inn</Link>
+            <Link to="/login">Logg inn</Link>
           </Button>
         </div>
       </header>
@@ -499,7 +499,7 @@ const Demo = () => {
                   <Wand2 className="w-4 h-4 mr-2" /> Lagre profilen og fortsett
                 </Button>
                 <Button size="lg" variant="outline" asChild className="h-12">
-                  <Link to="/auth">Jeg har konto</Link>
+                  <Link to="/login">Jeg har konto</Link>
                 </Button>
               </div>
             </div>
