@@ -81,6 +81,20 @@ type SourceSuggestion = {
   is_active: boolean;
 };
 
+type MatchRun = {
+  id: string;
+  status: string;
+  provider: string | null;
+  total_estimate: number;
+  scanned_count: number;
+  candidate_count: number;
+  scored_count: number;
+  visible_count: number;
+  last_error: string | null;
+  completed_at: string | null;
+  created_at: string;
+};
+
 const SOURCE_LABEL: Record<Source, string> = {
   finn: "Finn.no",
   arbeidsplassen: "Arbeidsplassen (NAV)",
@@ -102,6 +116,7 @@ const Sources = () => {
   const [autoLocation, setAutoLocation] = useState("");
   const [sourceStates, setSourceStates] = useState<any[]>([]);
   const [externalCounts, setExternalCounts] = useState<Record<string, number>>({});
+  const [matchRun, setMatchRun] = useState<MatchRun | null>(null);
   const [fullRunning, setFullRunning] = useState<string | null>(null);
   const [sourceSuggestions, setSourceSuggestions] = useState<SourceSuggestion[]>([]);
   const [suggestionsEnabled, setSuggestionsEnabled] = useState(true);
@@ -216,7 +231,7 @@ const Sources = () => {
     }
     await supabase.from("source_suggestions").update({ status: "active" as any, is_active: true }).eq("id", suggestion.id);
     await supabase.functions.invoke("ingest-finn", {
-      body: { includeUserFeeds: true, includeOfficialApi: true, includeHtmlSuggestions: false, userId: user.id },
+      body: { includeUserFeeds: true, includeOfficialApi: false, includeHtmlSuggestions: false, userId: user.id },
     });
     toast({ title: "RSS koblet" });
     loadSuggestions(false);
@@ -231,7 +246,7 @@ const Sources = () => {
   };
 
   const loadCoverage = useCallback(async () => {
-    const [states, arbeidsplassenCount, finnCount] = await Promise.all([
+    const [states, arbeidsplassenCount, finnCount, runRes] = await Promise.all([
       supabase.from("source_ingest_state").select("*"),
       supabase
         .from("external_jobs")
@@ -243,13 +258,23 @@ const Sources = () => {
         .select("id", { count: "exact", head: true })
         .eq("provider", "finn" as any)
         .eq("status", "active" as any),
+      user
+        ? (supabase as any)
+            .from("user_match_runs")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
     setSourceStates(states.data ?? []);
     setExternalCounts({
       arbeidsplassen: arbeidsplassenCount.count ?? 0,
       finn: finnCount.count ?? 0,
     });
-  }, []);
+    setMatchRun((runRes.data ?? null) as MatchRun | null);
+  }, [user]);
 
   const runFullSource = async (source: "arbeidsplassen" | "finn", options: { htmlFallback?: boolean } = {}) => {
     const runKey = source === "finn" && options.htmlFallback ? "finn-html" : source;
@@ -263,7 +288,7 @@ const Sources = () => {
         : await supabase.functions.invoke("ingest-finn", {
             body: {
               includeUserFeeds: true,
-              includeOfficialApi: true,
+              includeOfficialApi: false,
               includeHtmlSuggestions: Boolean(options.htmlFallback),
               userId: user?.id,
               maxSuggestionsPerUser: 3,
@@ -394,7 +419,7 @@ const Sources = () => {
       setRssUrl("");
       if (rssIngestOwnerForUrl(rssUrl) === "ingest-finn") {
         await supabase.functions.invoke("ingest-finn", {
-          body: { includeUserFeeds: true, includeOfficialApi: true, includeHtmlSuggestions: false, userId: user.id },
+          body: { includeUserFeeds: true, includeOfficialApi: false, includeHtmlSuggestions: false, userId: user.id },
         });
         loadCoverage();
       }
@@ -433,7 +458,7 @@ const Sources = () => {
 
       if (hasFinnFeeds) {
         const { data, error } = await supabase.functions.invoke("ingest-finn", {
-          body: { includeUserFeeds: true, includeOfficialApi: true, includeHtmlSuggestions: false, userId: user!.id },
+          body: { includeUserFeeds: true, includeOfficialApi: false, includeHtmlSuggestions: false, userId: user!.id },
         });
         if (error) throw error;
         finnData = data;
@@ -506,57 +531,66 @@ const Sources = () => {
             NAV-cache og FINN RSS/API brukes som kildelag før jobbene matches mot profilen din.
           </p>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {[
-            { key: "arbeidsplassen", label: "Arbeidsplassen", action: "Oppdater NAV-cache" },
-            { key: "finn", label: "FINN RSS/API", action: "Sjekk FINN RSS/API" },
-          ].map((s) => {
-            const state = sourceStates.find((item) => item.provider === s.key);
-            return (
-              <div key={s.key} className="border border-border rounded-md p-3 bg-muted/20">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium text-sm">{s.label}</div>
-                    <div className="text-2xl font-semibold mt-2">{externalCounts[s.key] ?? 0}</div>
-                    <div className="text-xs text-muted-foreground">aktive annonser i cache</div>
-                    {state?.last_error && <div className="text-xs text-warning mt-2 line-clamp-2">{state.last_error}</div>}
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[
+              { key: "arbeidsplassen", label: "Arbeidsplassen", action: "Oppdater NAV-cache" },
+              { key: "finn", label: "FINN RSS/API", action: "Sjekk FINN RSS/API" },
+            ].map((s) => {
+              const state = sourceStates.find((item) => item.provider === s.key);
+              return (
+                <div key={s.key} className="border border-border rounded-md p-3 bg-muted/20">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-sm">{s.label}</div>
+                      <div className="text-2xl font-semibold mt-2">{externalCounts[s.key] ?? 0}</div>
+                      <div className="text-xs text-muted-foreground">aktive annonser i cache</div>
+                      {state?.last_error && <div className="text-xs text-warning mt-2 line-clamp-2">{state.last_error}</div>}
+                    </div>
+                    <StatusBadge
+                      s={(
+                        state?.last_status === "partial"
+                          ? "ok"
+                          : state?.last_status === "needs_access"
+                          ? "blocked"
+                          : state?.last_status ?? "pending"
+                      ) as Status}
+                    />
                   </div>
-                  <StatusBadge
-                    s={(
-                      state?.last_status === "partial"
-                        ? "ok"
-                        : state?.last_status === "needs_access"
-                        ? "blocked"
-                        : state?.last_status ?? "pending"
-                    ) as Status}
-                  />
-                </div>
-                <div className="mt-3 flex gap-2 flex-wrap">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => runFullSource(s.key as "arbeidsplassen" | "finn")}
-                    disabled={fullRunning !== null}
-                  >
-                    {fullRunning === s.key ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                    {s.action}
-                  </Button>
-                  {s.key === "finn" && (
+                  <div className="mt-3 flex gap-2 flex-wrap">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      onClick={() => runFullSource("finn", { htmlFallback: true })}
+                      onClick={() => runFullSource(s.key as "arbeidsplassen" | "finn")}
                       disabled={fullRunning !== null}
-                      title="Ustabil fallback som leser offentlige FINN-søkeresultater når RSS/API ikke er nok."
                     >
-                      {fullRunning === "finn-html" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <AlertTriangle className="w-4 h-4 mr-2" />}
-                      Prøv HTML-fallback
+                      {fullRunning === s.key ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                      {s.action}
                     </Button>
-                  )}
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+
+          {matchRun && (
+            <div className="border border-border rounded-md p-3 bg-background">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-medium text-sm">
+                    Siste fullscan {matchRun.status === "completed" ? "ferdig" : matchRun.status === "failed" ? "feilet" : "pågår"}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {matchRun.scanned_count}/{Math.max(matchRun.total_estimate, matchRun.scanned_count)} aktive jobber vurdert · {matchRun.candidate_count} kandidater · {matchRun.visible_count} synlige
+                  </div>
+                  {matchRun.last_error && <div className="text-xs text-destructive mt-1">{matchRun.last_error}</div>}
+                </div>
+                <Badge variant={matchRun.status === "completed" ? "secondary" : matchRun.status === "failed" ? "destructive" : "outline"}>
+                  {matchRun.status}
+                </Badge>
               </div>
-            );
-          })}
+            </div>
+          )}
         </CardContent>
       </Card>
 

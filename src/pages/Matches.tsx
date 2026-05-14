@@ -28,6 +28,20 @@ import { nb } from "date-fns/locale";
 
 type MatchRow = any;
 type Provider = "arbeidsplassen" | "finn";
+type MatchRun = {
+  id: string;
+  status: string;
+  provider: string | null;
+  total_estimate: number;
+  scanned_count: number;
+  candidate_count: number;
+  scored_count: number;
+  visible_count: number;
+  jobs_created_count: number;
+  last_error: string | null;
+  completed_at: string | null;
+  created_at: string;
+};
 
 const PROVIDER_LABEL: Record<Provider, string> = {
   arbeidsplassen: "Arbeidsplassen",
@@ -53,11 +67,12 @@ const Matches = () => {
   const [running, setRunning] = useState(false);
   const [ingesting, setIngesting] = useState<Provider | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [matchRun, setMatchRun] = useState<MatchRun | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const [matchRes, stateRes, arbeidsplassenCount, finnCount, profileRes, rulesRes] = await Promise.all([
+    const [matchRes, stateRes, arbeidsplassenCount, finnCount, profileRes, rulesRes, runRes] = await Promise.all([
       supabase
         .from("user_job_matches")
         .select("*, external_jobs(*)")
@@ -82,6 +97,13 @@ const Matches = () => {
         .select("*")
         .eq("user_id", user.id)
         .eq("is_active", true),
+      (supabase as any)
+        .from("user_match_runs")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
     setMatches((matchRes.data ?? []) as any[]);
     setStates(stateRes.data ?? []);
@@ -93,6 +115,7 @@ const Matches = () => {
       arbeidsplassen: arbeidsplassenCount.count ?? 0,
       finn: finnCount.count ?? 0,
     });
+    setMatchRun((runRes.data ?? null) as MatchRun | null);
     setLoading(false);
   }, [user]);
 
@@ -164,7 +187,7 @@ const Matches = () => {
       const { data, error } = await supabase.functions.invoke("ingest-finn", {
         body: {
           includeUserFeeds: true,
-          includeOfficialApi: true,
+          includeOfficialApi: false,
           includeHtmlSuggestions: false,
           userId: user?.id,
           maxSuggestionsPerUser: 3,
@@ -189,7 +212,15 @@ const Matches = () => {
     setRunning(true);
     try {
       const { data, error } = await supabase.functions.invoke("match-user-jobs", {
-        body: { limit: 25, minVisibleScore: minScore, includeBroadCache: true, autoSaveVisible: true, materializeExisting: true },
+        body: {
+          mode: "hybrid",
+          initialLimit: 20,
+          enqueueFullScan: true,
+          minVisibleScore: minScore,
+          includeBroadCache: true,
+          autoSaveVisible: true,
+          materializeExisting: true,
+        },
       });
       if (error) throw error;
       const d: any = data;
@@ -304,6 +335,28 @@ const Matches = () => {
           </Link>
         </div>
       </section>
+
+      {matchRun && (
+        <section className="border border-border rounded-md bg-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <div className="font-medium text-sm">
+              Fullscan {matchRun.status === "completed" ? "ferdig" : matchRun.status === "failed" ? "feilet" : "pågår"}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {matchRun.scanned_count}/{Math.max(matchRun.total_estimate, matchRun.scanned_count)} aktive jobber vurdert · {matchRun.candidate_count} kandidater · {matchRun.scored_count} scoret · {matchRun.visible_count} synlige
+            </p>
+            {matchRun.last_error && <p className="text-xs text-destructive mt-1">{matchRun.last_error}</p>}
+          </div>
+          <div className="w-full md:w-64 h-2 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{
+                width: `${matchRun.total_estimate > 0 ? Math.min(100, Math.round((matchRun.scanned_count / matchRun.total_estimate) * 100)) : matchRun.status === "completed" ? 100 : 0}%`,
+              }}
+            />
+          </div>
+        </section>
+      )}
 
       <section className="border border-border rounded-md bg-card p-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>

@@ -84,7 +84,7 @@ export async function runAi(options: AiRunOptions): Promise<AiResult> {
     await logAiRun(options, {
       provider,
       model,
-      usage: { input: 0, output: 0, provider, model },
+      usage: { input: 0, output: 0 },
       latencyMs: Date.now() - started,
       requestHash,
       validationStatus: "provider_error",

@@ -42,6 +42,9 @@ verify_jwt = false
 [functions.match-user-jobs]
 verify_jwt = true
 
+[functions.process-match-runs]
+verify_jwt = false
+
 [functions.match-anonymous]
 verify_jwt = false
 

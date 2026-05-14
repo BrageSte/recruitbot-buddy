@@ -25,6 +25,21 @@ type FilterConfig = {
   hasRisks?: boolean | null; deadlineDays?: number | null; search?: string;
 };
 
+type MatchRun = {
+  id: string;
+  status: string;
+  provider: string | null;
+  total_estimate: number;
+  scanned_count: number;
+  candidate_count: number;
+  scored_count: number;
+  visible_count: number;
+  jobs_created_count: number;
+  last_error: string | null;
+  completed_at: string | null;
+  created_at: string;
+};
+
 const STATUSES = [
   { v: "discovered", label: "Oppdaget" }, { v: "considering", label: "Vurderer" },
   { v: "applied", label: "Søkt" }, { v: "interview", label: "Intervju" },
@@ -67,6 +82,7 @@ const Jobs = () => {
   const [visibilityRules, setVisibilityRules] = useState<MatchVisibilityRule[]>([]);
   const [profileMinScore, setProfileMinScore] = useState(65);
   const [loading, setLoading] = useState(true);
+  const [matchRun, setMatchRun] = useState<MatchRun | null>(null);
   const [config, setConfig] = useState<FilterConfig>({});
   const [showFilters, setShowFilters] = useState(false);
   const [saveName, setSaveName] = useState("");
@@ -81,7 +97,7 @@ const Jobs = () => {
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const [j, f, p, r] = await Promise.all([
+    const [j, f, p, r, mr] = await Promise.all([
       supabase.from("jobs").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("saved_filters").select("*").eq("user_id", user.id).order("sort_order"),
       supabase.from("profiles").select("match_min_visible_score").eq("user_id", user.id).maybeSingle(),
@@ -90,10 +106,18 @@ const Jobs = () => {
         .select("*")
         .eq("user_id", user.id)
         .eq("is_active", true),
+      (supabase as any)
+        .from("user_match_runs")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
     setJobs(j.data ?? []);
     setFilters((f.data ?? []) as any);
     setVisibilityRules((r.data ?? []) as any);
+    setMatchRun((mr.data ?? null) as MatchRun | null);
     const nextMinScore = (p.data as any)?.match_min_visible_score ?? 65;
     setProfileMinScore(nextMinScore);
     setConfig((current) => (Object.keys(current).length === 0 ? { minScore: nextMinScore } : current));
@@ -203,7 +227,7 @@ const Jobs = () => {
       const finn = await supabase.functions.invoke("ingest-finn", {
         body: {
           includeUserFeeds: true,
-          includeOfficialApi: true,
+          includeOfficialApi: false,
           includeHtmlSuggestions: false,
           userId: user.id,
           maxSuggestionsPerUser: 3,
@@ -216,7 +240,9 @@ const Jobs = () => {
 
       const { data, error } = await supabase.functions.invoke("match-user-jobs", {
         body: {
-          limit: 30,
+          mode: "hybrid",
+          initialLimit: 20,
+          enqueueFullScan: true,
           minVisibleScore: config.minScore ?? profileMinScore,
           includeBroadCache: true,
           autoSaveVisible: true,
@@ -397,6 +423,30 @@ const Jobs = () => {
           </Dialog>
         </div>
       </header>
+
+      {matchRun && (
+        <section className="rounded-md border border-border bg-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium">
+              Fullscan {matchRun.status === "completed" ? "ferdig" : matchRun.status === "failed" ? "feilet" : "pågår"}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {matchRun.scanned_count}/{Math.max(matchRun.total_estimate, matchRun.scanned_count)} aktive jobber vurdert · {matchRun.candidate_count} kandidater · {matchRun.visible_count} synlige
+            </p>
+            {matchRun.last_error && <p className="text-xs text-destructive mt-1">{matchRun.last_error}</p>}
+          </div>
+          <div className="w-full md:w-64">
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{
+                  width: `${matchRun.total_estimate > 0 ? Math.min(100, Math.round((matchRun.scanned_count / matchRun.total_estimate) * 100)) : matchRun.status === "completed" ? 100 : 0}%`,
+                }}
+              />
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Saved filters chips */}
       {filters.length > 0 && (

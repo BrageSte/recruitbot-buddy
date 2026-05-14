@@ -310,7 +310,7 @@ async function loadFinnItems(body: any, admin: any): Promise<LoadedFinnItems> {
 
   const endpoint = Deno.env.get("FINN_API_ENDPOINT");
   const key = Deno.env.get("FINN_API_KEY");
-  if (endpoint && key && body.includeOfficialApi !== false) {
+  if (endpoint && key && body.includeOfficialApi === true) {
     const resp = await fetch(endpoint, {
       headers: {
         Accept: "application/json",
@@ -425,6 +425,7 @@ serve(async (req) => {
     let upserted = 0;
     let skipped = 0;
     let linksRecorded = 0;
+    let inactiveExpired = 0;
     const seen = new Set<string>();
 
     for (const item of items) {
@@ -478,6 +479,42 @@ serve(async (req) => {
       }
     }
 
+    const today = new Date().toISOString().slice(0, 10);
+    const staleCutoff = new Date(Date.now() - 45 * 86400000).toISOString();
+    const { count: expiredDeadlineCount } = await admin
+      .from("external_jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("provider", "finn")
+      .eq("status", "active")
+      .not("deadline", "is", null)
+      .lt("deadline", today);
+    if ((expiredDeadlineCount ?? 0) > 0) {
+      const { error } = await admin
+        .from("external_jobs")
+        .update({ status: "inactive" })
+        .eq("provider", "finn")
+        .eq("status", "active")
+        .not("deadline", "is", null)
+        .lt("deadline", today);
+      if (!error) inactiveExpired += expiredDeadlineCount ?? 0;
+    }
+
+    const { count: staleCount } = await admin
+      .from("external_jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("provider", "finn")
+      .eq("status", "active")
+      .lt("last_seen_at", staleCutoff);
+    if ((staleCount ?? 0) > 0) {
+      const { error } = await admin
+        .from("external_jobs")
+        .update({ status: "inactive" })
+        .eq("provider", "finn")
+        .eq("status", "active")
+        .lt("last_seen_at", staleCutoff);
+      if (!error) inactiveExpired += staleCount ?? 0;
+    }
+
     const hint = hints.length > 0 ? hints.join(" ") : null;
     const status = blocked ? "blocked" : hint && upserted === 0 ? "needs_access" : hint ? "partial" : "ok";
     await admin.from("source_ingest_state").upsert(
@@ -492,6 +529,7 @@ serve(async (req) => {
           upserted,
           skipped,
           linksRecorded,
+          inactiveExpired,
           blocked,
         },
       },
@@ -506,6 +544,7 @@ serve(async (req) => {
       upserted,
       skipped,
       linksRecorded,
+      inactiveExpired,
       hint,
       blocked,
     });

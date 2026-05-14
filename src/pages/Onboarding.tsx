@@ -129,6 +129,21 @@ type SetupMatchPreview = {
   } | null;
 };
 
+type SetupMatchRun = {
+  id: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  provider: "arbeidsplassen" | "finn" | null;
+  total_estimate: number;
+  scanned_count: number;
+  candidate_count: number;
+  scored_count: number;
+  visible_count: number;
+  jobs_created_count: number;
+  last_error: string | null;
+  created_at: string;
+  completed_at: string | null;
+};
+
 type OnboardingSourceSuggestion = {
   id: string;
   provider: "finn" | "arbeidsplassen";
@@ -178,8 +193,7 @@ const setupLabels: Record<string, string> = {
   matching: "Matcher jobber",
 };
 
-const INITIAL_SETUP_MATCH_LIMIT = 6;
-const BACKGROUND_SETUP_MATCH_LIMIT = 30;
+const INITIAL_SETUP_MATCH_LIMIT = 20;
 const SETUP_MATCH_PREVIEW_LIMIT = 6;
 
 const emptySetupState: SetupState = {
@@ -328,6 +342,7 @@ const Onboarding = () => {
   const [setupState, setSetupState] = useState<SetupState>(freshSetupState);
   const [setupDone, setSetupDone] = useState(false);
   const [setupMatches, setSetupMatches] = useState<SetupMatchPreview[]>([]);
+  const [setupMatchRun, setSetupMatchRun] = useState<SetupMatchRun | null>(null);
   const [setupSourceSuggestions, setSetupSourceSuggestions] = useState<OnboardingSourceSuggestion[]>([]);
   const [setupFinnRssName, setSetupFinnRssName] = useState("");
   const [setupFinnRssUrl, setSetupFinnRssUrl] = useState("");
@@ -380,6 +395,25 @@ const Onboarding = () => {
     return rows;
   }, [user]);
 
+  const loadSetupMatchRun = useCallback(async () => {
+    if (!user) return null;
+    const { data, error } = await (supabase as any)
+      .from("user_match_runs")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) return null;
+    const row = data as SetupMatchRun | null;
+    if (mountedRef.current) {
+      setSetupMatchRun(row);
+      if (row && !["queued", "running"].includes(row.status)) setContinuingMatching(false);
+    }
+    return row;
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
     loadInitial();
@@ -397,7 +431,9 @@ const Onboarding = () => {
     if (!user || currentStep !== "setup") return;
     let cancelled = false;
     const refreshMatches = async () => {
-      if (!cancelled) await loadSetupMatches();
+      if (!cancelled) {
+        await Promise.all([loadSetupMatches(), loadSetupMatchRun()]);
+      }
     };
 
     void loadSetupSourceSuggestions();
@@ -409,7 +445,7 @@ const Onboarding = () => {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [user, currentStep, setupMatchingStatus, continuingMatching, loadSetupMatches, loadSetupSourceSuggestions]);
+  }, [user, currentStep, setupMatchingStatus, continuingMatching, loadSetupMatches, loadSetupMatchRun, loadSetupSourceSuggestions]);
 
   const persistRun = async (patch: Record<string, unknown>) => {
     if (!user) return null;
@@ -837,16 +873,24 @@ const Onboarding = () => {
       if (insertError) throw insertError;
 
       const { data: finnData, error: finnError } = await supabase.functions.invoke("ingest-finn", {
-        body: { includeUserFeeds: true, includeOfficialApi: true, includeHtmlSuggestions: false, userId: user.id },
+        body: { includeUserFeeds: true, includeOfficialApi: false, includeHtmlSuggestions: false, userId: user.id },
       });
       if (finnError) throw finnError;
 
       const { error: matchError } = await supabase.functions.invoke("match-user-jobs", {
-        body: { provider: "finn", limit: 12, includeBroadCache: true, autoSaveVisible: true, materializeExisting: true },
+        body: {
+          provider: "finn",
+          mode: "provider_scan",
+          initialLimit: INITIAL_SETUP_MATCH_LIMIT,
+          enqueueFullScan: true,
+          includeBroadCache: true,
+          autoSaveVisible: true,
+          materializeExisting: true,
+        },
       });
       if (matchError) throw matchError;
 
-      await loadSetupMatches();
+      await Promise.all([loadSetupMatches(), loadSetupMatchRun()]);
       setSetupFinnRssName("");
       setSetupFinnRssUrl("");
       setSetupItem("finnRss", "done", `${(finnData as any)?.upserted ?? 0} FINN-jobber sjekket via RSS/API.`);
@@ -975,6 +1019,7 @@ const Onboarding = () => {
     setSetupState(initialSetup);
     setSetupDone(false);
     setSetupMatches([]);
+    setSetupMatchRun(null);
     setContinuingMatching(false);
     await updateStep("setup", "applying");
     await persistRun({ setup_state: initialSetup });
@@ -1002,7 +1047,7 @@ const Onboarding = () => {
       setSetupItem("finnRss", "running", "Sjekker eventuelle FINN RSS-feeder.");
       try {
         const { data, error } = await supabase.functions.invoke("ingest-finn", {
-          body: { includeUserFeeds: true, includeOfficialApi: true, includeHtmlSuggestions: false, userId: user.id },
+          body: { includeUserFeeds: true, includeOfficialApi: false, includeHtmlSuggestions: false, userId: user.id },
         });
         if (error) throw error;
         const upserted = (data as any)?.upserted ?? 0;
@@ -1027,17 +1072,25 @@ const Onboarding = () => {
       setSetupItem("matching", "running");
       try {
         const { data, error } = await supabase.functions.invoke("match-user-jobs", {
-          body: { limit: INITIAL_SETUP_MATCH_LIMIT, includeBroadCache: true, autoSaveVisible: true, materializeExisting: true },
+          body: {
+            mode: "hybrid",
+            initialLimit: INITIAL_SETUP_MATCH_LIMIT,
+            enqueueFullScan: true,
+            includeBroadCache: true,
+            autoSaveVisible: true,
+            materializeExisting: true,
+          },
         });
         if (error) throw error;
-        const firstMatches = await loadSetupMatches();
+        const [firstMatches, latestRun] = await Promise.all([loadSetupMatches(), loadSetupMatchRun()]);
         setSetupItem(
           "matching",
           "done",
           firstMatches.length > 0
-            ? `${firstMatches.length} matcher klare nå`
+            ? `${firstMatches.length} matcher klare nå${latestRun?.total_estimate ? `, fullscan ${latestRun.scanned_count}/${latestRun.total_estimate}` : ""}`
             : `${(data as any)?.scored ?? 0} jobber scoret`,
         );
+        if ((data as any)?.backgroundRunId) setContinuingMatching(true);
         firstMatchingOk = true;
       } catch (e: any) {
         setSetupItem("matching", "error", e.message);
@@ -1046,37 +1099,8 @@ const Onboarding = () => {
       setSetupDone(true);
       toast({
         title: firstMatchingOk ? "De første matchene er klare" : "Interesseprofilen er klar",
-        description: firstMatchingOk ? "Vi fortsetter å finne flere i bakgrunnen." : "Du kan prøve matching igjen fra Jobber.",
+        description: firstMatchingOk ? "Fullskanningen fortsetter i bakgrunnen." : "Du kan prøve matching igjen fra Jobber.",
       });
-
-      const continueMatching = async () => {
-        if (!mountedRef.current) return;
-        setContinuingMatching(true);
-        setSetupItem(
-          "matching",
-          "running",
-          "Vi finner flere jobber til deg. De kommer fortløpende her.",
-        );
-        try {
-          const { data, error } = await supabase.functions.invoke("match-user-jobs", {
-            body: { limit: BACKGROUND_SETUP_MATCH_LIMIT, includeBroadCache: true, autoSaveVisible: true, materializeExisting: true },
-          });
-          if (error) throw error;
-          const latestMatches = await loadSetupMatches();
-          setSetupItem(
-            "matching",
-            "done",
-            latestMatches.length > 0
-              ? `${latestMatches.length} matcher vises, flere ligger i jobblisten`
-              : `${(data as any)?.scored ?? 0} nye jobber scoret`,
-          );
-        } catch (e: any) {
-          setSetupItem("matching", "error", e.message);
-        } finally {
-          if (mountedRef.current) setContinuingMatching(false);
-        }
-      };
-      if (firstMatchingOk) void continueMatching();
     } catch (e: any) {
       toast({ title: "Kunne ikke lagre onboarding", description: e.message, variant: "destructive" });
     } finally {
@@ -1649,12 +1673,12 @@ const Onboarding = () => {
                           <Briefcase className="w-4 h-4 text-primary" />
                           Første matcher
                         </div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {setupMatches.length > 0
-                            ? "Vi finner flere jobber til deg. De kommer fortløpende her."
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {setupMatches.length > 0
+                            ? "Fullskanningen går gjennom hele aktive jobb-cachet. Nye relevante treff kommer fortløpende."
                             : "Ser gjennom de første jobbene som passer profilen din."}
-                        </p>
-                      </div>
+                      </p>
+                    </div>
                       {(setupMatchingStatus === "running" || continuingMatching) && (
                         <Badge variant="secondary" className="shrink-0">
                           <Loader2 className="w-3 h-3 mr-1 animate-spin" />
@@ -1662,6 +1686,35 @@ const Onboarding = () => {
                         </Badge>
                       )}
                     </div>
+
+                    {setupMatchRun && (
+                      <div className="rounded-md border border-border bg-muted/30 p-3">
+                        <div className="flex items-center justify-between gap-3 text-xs">
+                          <span className="font-medium">
+                            Fullscan {setupMatchRun.status === "completed" ? "ferdig" : setupMatchRun.status === "failed" ? "feilet" : "pågår"}
+                          </span>
+                          <span className="text-muted-foreground tabular-nums">
+                            {setupMatchRun.scanned_count}/{Math.max(setupMatchRun.total_estimate, setupMatchRun.scanned_count)} vurdert
+                          </span>
+                        </div>
+                        <Progress
+                          value={
+                            setupMatchRun.total_estimate > 0
+                              ? Math.min(100, Math.round((setupMatchRun.scanned_count / setupMatchRun.total_estimate) * 100))
+                              : setupMatchRun.status === "completed"
+                              ? 100
+                              : 0
+                          }
+                          className="h-2 mt-2"
+                        />
+                        <div className="text-xs text-muted-foreground mt-2">
+                          {setupMatchRun.candidate_count} kandidater · {setupMatchRun.scored_count} scoret · {setupMatchRun.visible_count} synlige
+                        </div>
+                        {setupMatchRun.last_error && (
+                          <div className="text-xs text-destructive mt-2">{setupMatchRun.last_error}</div>
+                        )}
+                      </div>
+                    )}
 
                     {setupMatches.length > 0 ? (
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">

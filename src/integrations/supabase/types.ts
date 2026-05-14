@@ -1335,6 +1335,133 @@ export type Database = {
         }
         Relationships: []
       }
+      user_match_run_candidates: {
+        Row: {
+          created_at: string
+          external_job_id: string
+          id: string
+          last_error: string | null
+          lexical_rank: number
+          match_id: string | null
+          run_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          external_job_id: string
+          id?: string
+          last_error?: string | null
+          lexical_rank?: number
+          match_id?: string | null
+          run_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          external_job_id?: string
+          id?: string
+          last_error?: string | null
+          lexical_rank?: number
+          match_id?: string | null
+          run_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_match_run_candidates_external_job_id_fkey"
+            columns: ["external_job_id"]
+            isOneToOne: false
+            referencedRelation: "external_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_match_run_candidates_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "user_job_matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_match_run_candidates_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "user_match_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_match_runs: {
+        Row: {
+          candidate_count: number
+          completed_at: string | null
+          created_at: string
+          cursor_external_job_id: string | null
+          id: string
+          jobs_created_count: number
+          last_error: string | null
+          min_visible_score: number
+          mode: string
+          profile_hash: string
+          provider: Database["public"]["Enums"]["external_job_provider"] | null
+          scanned_count: number
+          scored_count: number
+          started_at: string | null
+          status: string
+          total_estimate: number
+          updated_at: string
+          user_id: string
+          visible_count: number
+        }
+        Insert: {
+          candidate_count?: number
+          completed_at?: string | null
+          created_at?: string
+          cursor_external_job_id?: string | null
+          id?: string
+          jobs_created_count?: number
+          last_error?: string | null
+          min_visible_score?: number
+          mode?: string
+          profile_hash: string
+          provider?: Database["public"]["Enums"]["external_job_provider"] | null
+          scanned_count?: number
+          scored_count?: number
+          started_at?: string | null
+          status?: string
+          total_estimate?: number
+          updated_at?: string
+          user_id: string
+          visible_count?: number
+        }
+        Update: {
+          candidate_count?: number
+          completed_at?: string | null
+          created_at?: string
+          cursor_external_job_id?: string | null
+          id?: string
+          jobs_created_count?: number
+          last_error?: string | null
+          min_visible_score?: number
+          mode?: string
+          profile_hash?: string
+          provider?: Database["public"]["Enums"]["external_job_provider"] | null
+          scanned_count?: number
+          scored_count?: number
+          started_at?: string | null
+          status?: string
+          total_estimate?: number
+          updated_at?: string
+          user_id?: string
+          visible_count?: number
+        }
+        Relationships: []
+      }
       user_job_matches: {
         Row: {
           computed_at: string
@@ -1344,6 +1471,7 @@ export type Database = {
           job_id: string | null
           match_reasoning: Json
           match_score: number | null
+          profile_hash: string | null
           risk_flags: string[] | null
           score_culture: number | null
           score_enthusiasm: number | null
@@ -1361,6 +1489,7 @@ export type Database = {
           job_id?: string | null
           match_reasoning?: Json
           match_score?: number | null
+          profile_hash?: string | null
           risk_flags?: string[] | null
           score_culture?: number | null
           score_enthusiasm?: number | null
@@ -1378,6 +1507,7 @@ export type Database = {
           job_id?: string | null
           match_reasoning?: Json
           match_score?: number | null
+          profile_hash?: string | null
           risk_flags?: string[] | null
           score_culture?: number | null
           score_enthusiasm?: number | null
@@ -1501,7 +1631,7 @@ export type Database = {
         | "application"
         | "swipe"
         | "ai_suggested"
-      source_suggestion_provider: "finn"
+      source_suggestion_provider: "finn" | "arbeidsplassen"
       source_suggestion_status: "suggested" | "active" | "paused" | "dismissed"
       user_job_match_status: "new" | "saved" | "dismissed" | "archived"
     }
@@ -1700,7 +1830,7 @@ export const Constants = {
         "swipe",
         "ai_suggested",
       ],
-      source_suggestion_provider: ["finn"],
+      source_suggestion_provider: ["finn", "arbeidsplassen"],
       source_suggestion_status: ["suggested", "active", "paused", "dismissed"],
       user_job_match_status: ["new", "saved", "dismissed", "archived"],
     },
