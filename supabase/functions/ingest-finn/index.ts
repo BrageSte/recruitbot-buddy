@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, json, normalizeDeadline, stripHtml } from "../_shared/full-match.ts";
 
-const UA = "RecruitBuddyFullMatch/1.0";
+const UA = "SoklyFullMatch/1.0";
 const HTML_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 type FinnItem = {

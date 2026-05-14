@@ -660,7 +660,7 @@ const ApplicationDetail = () => {
         <TabsContent value="cv" className="space-y-4 mt-4">
           {!tweak ? (
             <Card><CardContent className="p-8 text-center space-y-4">
-              <p className="text-sm text-muted-foreground">Ingen CV-tilpasning ennå. Jobbhjelpen bruker CV-malen din og foreslår endringer skreddersydd til denne stillingen.</p>
+              <p className="text-sm text-muted-foreground">Ingen CV-tilpasning ennå. Søkly bruker CV-malen din og foreslår endringer skreddersydd til denne stillingen.</p>
               <Button onClick={tailorCv} disabled={tailoring}>
                 {tailoring ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Tilpasser…</> : <><Sparkles className="w-4 h-4 mr-2" /> Tilpass CV</>}
               </Button>

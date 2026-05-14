@@ -65,7 +65,7 @@ export const questionsFromPreOnboardingDraft = (): DraftQuestion[] => [
   {
     id: "target_roles",
     title: "Hva vil du finne?",
-    prompt: "Hvilke roller, fagområder eller stillingstitler skal Jobbhjelpen lete etter?",
+    prompt: "Hvilke roller, fagområder eller stillingstitler skal Søkly lete etter?",
     placeholder: "f.eks. produktleder, frontend, kundesuksess, prosjektkoordinator",
     required: true,
   },

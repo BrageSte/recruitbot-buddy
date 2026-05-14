@@ -263,7 +263,7 @@ const Demo = () => {
           <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center">
             <Briefcase className="w-4 h-4" />
           </div>
-          <div className="font-semibold">Jobbhjelpen</div>
+          <div className="font-semibold">Søkly</div>
         </Link>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" asChild>
@@ -561,7 +561,7 @@ const NextInAppPreview = ({ compact = false }: { compact?: boolean }) => (
   <aside className={`rounded-xl border border-border/70 bg-muted/25 p-4 md:p-5 space-y-4 ${compact ? "" : "lg:sticky lg:top-6"}`}>
     <div>
       <div className="text-xs font-medium uppercase text-muted-foreground">Etter innlogging</div>
-      <h3 className="text-base font-semibold mt-1">Slik fortsetter Jobbhjelpen</h3>
+      <h3 className="text-base font-semibold mt-1">Slik fortsetter Søkly</h3>
     </div>
     <ul className="space-y-3">
       {NEXT_IN_APP.map(({ icon: Icon, title, body }) => (

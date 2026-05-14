@@ -2,7 +2,7 @@
 
 ## Working Name
 
-RecruitBuddy / JobHunter AI.
+Søkly.
 
 The product is a job-search portal with an AI recruiter. It helps a job seeker treat job hunting like focused work instead of a pile of tabs, documents, deadlines, and repeated one-off applications.
 

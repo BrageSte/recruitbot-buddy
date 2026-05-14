@@ -92,7 +92,7 @@ serve(async (req) => {
       resp = await fetch(url, {
         signal: controller.signal,
         headers: {
-          "User-Agent": "Mozilla/5.0 Jobbhjelpen/1.0",
+          "User-Agent": "Mozilla/5.0 Sokly/1.0",
           Accept: "text/html,application/xhtml+xml",
         },
       });

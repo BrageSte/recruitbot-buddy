@@ -1,7 +1,7 @@
 import { normalizeDeadline, stripHtml } from "./full-match.ts";
 
 const NAV_SEARCH_URL = "https://arbeidsplassen.nav.no/stillinger/api/search";
-const UA = "RecruitBuddyFullMatch/1.0";
+const UA = "SoklyFullMatch/1.0";
 
 export type NavSearchHit = {
   external_id: string;

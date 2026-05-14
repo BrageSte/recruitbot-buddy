@@ -26,7 +26,7 @@ const Landing = () => {
           <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center">
             <Briefcase className="w-4 h-4" />
           </div>
-          <div className="font-semibold">Jobbhjelpen</div>
+          <div className="font-semibold">Søkly</div>
         </Link>
         <nav className="flex items-center gap-1 sm:gap-2">
           <Button variant="ghost" size="sm" asChild>
@@ -48,7 +48,7 @@ const Landing = () => {
       <FinalCta />
 
       <footer className="border-t border-border/70 py-6 px-4 md:px-8 text-sm text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div>© {new Date().getFullYear()} Jobbhjelpen</div>
+        <div>© {new Date().getFullYear()} Søkly</div>
         <div className="flex gap-4">
           <Link to="/demo" className="hover:text-foreground">Test meg</Link>
           <Link to={accountHref} className="hover:text-foreground">{accountLabel}</Link>
@@ -72,7 +72,7 @@ const Hero = ({ accountHref, accountLabel }: { accountHref: string; accountLabel
           Jobbsøking på <span className="text-primary">ett sted</span>.
         </h1>
         <p className="text-base md:text-lg text-muted-foreground max-w-xl">
-          Last opp CV-en din én gang. Jobbhjelpen henter relevante jobber fra Finn, NAV og Arbeidsplassen, scorer dem mot deg, og skriver tilpasset CV og søknad – per jobb.
+          Last opp CV-en din én gang. Søkly henter relevante jobber fra Finn, NAV og Arbeidsplassen, scorer dem mot deg, og skriver tilpasset CV og søknad – per jobb.
         </p>
         <div className="flex flex-col sm:flex-row gap-2">
           <Button size="lg" asChild className="h-12">
@@ -139,7 +139,7 @@ const BeforeAfter = () => {
             </ul>
           </div>
           <div className="rounded-lg border border-primary/30 bg-background p-6 shadow-sm shadow-primary/5">
-            <div className="text-sm font-medium text-primary mb-4">Med Jobbhjelpen</div>
+            <div className="text-sm font-medium text-primary mb-4">Med Søkly</div>
             <ul className="space-y-3">
               {after.map((a, i) => (
                 <li key={i} className="flex gap-3 text-sm">
@@ -251,7 +251,7 @@ const FinalCta = () => (
         Lim inn CV-en din. Se matchene.
       </h2>
       <p className="text-muted-foreground max-w-2xl mx-auto">
-        Ingen konto, ingen e-post. Du får en smakebit på hvordan Jobbhjelpen scorer deg mot ekte stillinger – på under to minutter.
+        Ingen konto, ingen e-post. Du får en smakebit på hvordan Søkly scorer deg mot ekte stillinger – på under to minutter.
       </p>
       <div className="pt-2">
         <Button size="lg" asChild className="h-12">

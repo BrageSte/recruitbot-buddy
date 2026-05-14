@@ -31,7 +31,7 @@ const SidebarContent = ({ email, onSignOut, onNavigate }: SidebarContentProps) =
           <Sparkles className="w-4 h-4 text-primary-foreground" />
         </div>
         <div className="min-w-0">
-          <div className="font-semibold text-sm leading-tight">Jobbhjelpen</div>
+          <div className="font-semibold text-sm leading-tight">Søkly</div>
           <div className="text-[11px] text-muted-foreground leading-tight">Assistent</div>
         </div>
       </div>
@@ -93,7 +93,7 @@ export const AppLayout = () => {
           <div className="w-7 h-7 rounded-lg bg-gradient-primary flex items-center justify-center shadow-elevated">
             <Sparkles className="w-3.5 h-3.5 text-primary-foreground" />
           </div>
-          <div className="font-semibold text-sm">Jobbhjelpen</div>
+          <div className="font-semibold text-sm">Søkly</div>
         </div>
         <div className="flex items-center gap-1">
           <NotificationBell />

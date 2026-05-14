@@ -46,7 +46,7 @@ async function fetchFeedPage(url: string, token: string, since?: string | null, 
   const headers: Record<string, string> = {
     Accept: "application/json",
     Authorization: `Bearer ${token}`,
-    "User-Agent": "RecruitBuddyFullMatch/1.0",
+    "User-Agent": "SoklyFullMatch/1.0",
   };
   if (since) headers["If-Modified-Since"] = since;
   if (etag) headers["If-None-Match"] = etag;
@@ -71,7 +71,7 @@ async function fetchJson(url: string, token: string) {
     headers: {
       Accept: "application/json",
       Authorization: `Bearer ${token}`,
-      "User-Agent": "RecruitBuddyFullMatch/1.0",
+      "User-Agent": "SoklyFullMatch/1.0",
     },
   });
   if (!resp.ok) throw new Error(`NAV detail svarte HTTP ${resp.status}`);

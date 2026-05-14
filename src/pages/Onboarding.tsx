@@ -1375,7 +1375,7 @@ const Onboarding = () => {
                   Matchprofil
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Se over hva Jobbhjelpen skal lete etter. Tall og finjusteringer kan endres senere.
+                  Se over hva Søkly skal lete etter. Tall og finjusteringer kan endres senere.
                 </p>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -1774,7 +1774,7 @@ const MatchProfileSummary = ({ draft }: { draft: ProfileDraft }) => {
 
       <div className="rounded-md border border-border bg-card p-4 space-y-3">
         <div>
-          <div className="text-sm font-semibold">Hvordan Jobbhjelpen bør matche deg</div>
+          <div className="text-sm font-semibold">Hvordan Søkly bør matche deg</div>
           <p className="text-sm text-muted-foreground mt-1 whitespace-pre-line">
             {draft.rules_green || "Treff på ønsket rolle, arbeidsoppgaver, ferdigheter og praktiske rammer."}
           </p>

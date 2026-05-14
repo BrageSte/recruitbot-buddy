@@ -56,7 +56,7 @@ serve(async (req) => {
       const isFinnHtml = /finn\.no\/job\/(search|fulltime\/search)/i.test(feed.url);
       const ua = isFinnHtml
         ? "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        : "JobHunterAI/1.0";
+        : "Sokly/1.0";
       const resp = await fetch(feed.url, {
         redirect: "follow",
         headers: {
@@ -98,7 +98,7 @@ serve(async (req) => {
           let raw = `${item.title}\n\n${stripHtml(item.description ?? "")}`;
           if (item.link && raw.length < 800) {
             try {
-              const r = await fetch(item.link, { headers: { "User-Agent": "JobHunterAI/1.0" } });
+              const r = await fetch(item.link, { headers: { "User-Agent": "Sokly/1.0" } });
               const html = await r.text();
               raw = stripHtml(html).slice(0, 12000);
             } catch { /* keep RSS-only text */ }

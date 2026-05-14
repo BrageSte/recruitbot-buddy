@@ -142,7 +142,7 @@ const Start = () => {
           <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center">
             <Briefcase className="w-4 h-4" />
           </div>
-          <div className="font-semibold">Jobbhjelpen</div>
+          <div className="font-semibold">Søkly</div>
         </div>
         <Button variant="ghost" size="sm" asChild>
           <Link to="/login">Logg inn</Link>
@@ -289,7 +289,7 @@ const Start = () => {
                 <div>
                   <div className="font-medium">Sjekk e-posten din</div>
                   <p className="text-muted-foreground mt-1">
-                    Åpne lenken på denne enheten, så fortsetter Jobbhjelpen med matchene du nettopp så.
+                    Åpne lenken på denne enheten, så fortsetter Søkly med matchene du nettopp så.
                   </p>
                 </div>
               </motion.div>

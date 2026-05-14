@@ -76,7 +76,7 @@ const Auth = () => {
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-elevated">
             <Briefcase className="w-5 h-5 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-semibold">Jobbhjelpen</h1>
+          <h1 className="text-2xl font-semibold">Søkly</h1>
         </Link>
 
         <Card className="shadow-elevated">

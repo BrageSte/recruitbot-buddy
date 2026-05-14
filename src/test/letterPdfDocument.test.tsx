@@ -30,7 +30,7 @@ describe("LetterPdfDocument", () => {
         cv={sampleCv}
         text={sampleLetter}
         jobTitle="Senior produktdesigner"
-        company="RecruitBuddy"
+        company="Søkly"
         styleId={styleId}
       />
     );

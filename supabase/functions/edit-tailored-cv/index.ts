@@ -3,6 +3,13 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { recordAiValidation, runAi } from "../_shared/ai.ts";
+import {
+  CV_EDIT_PROMPT_VERSION,
+  editTailoredCvTool,
+  getCvEditSystemPrompt,
+} from "../_shared/prompts/cv.ts";
+import { findUnsupportedCvFacts, normalizeAiMode } from "../_shared/no-quality-rules.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,29 +18,6 @@ const corsHeaders = {
 };
 
 const ALLOWED_SECTIONS = ["experiences", "education", "skills", "languages", "projects", "certifications"];
-
-const SYS = `Du er en presis CV-redaktør for norske, jobbspesifikke CV-tilpasninger.
-
-Brukeren gir feedback på en AI-tilpasset CV for én konkret søknad. Rediger bare den jobbspesifikke CV-snapshoten, aldri den originale CV-malen.
-
-ABSOLUTTE REGLER:
-- Ikke finn på erfaring, utdanning, sertifiseringer, teknologier, resultater, tall, arbeidsgivere, ansvarsnivå eller personlige egenskaper.
-- Bruk ORIGINAL CV som faktagrunnlag. CURRENT TAILORED CV er teksten som skal forbedres.
-- Hvis brukeren ber om noe som ikke støttes av fakta, gjør den nærmeste trygge endringen og forklar kort i notes.
-- Behold kontakt-/identitetsfelt som navn, e-post, telefon, lenker, lokasjon og bilde uendret.
-- Returner alltid komplett, strukturert JSON via tool-call. Ingen markdown-kodeblokker eller fri tekst.
-- Bruk tomme arrays [] for tomme seksjoner. Aldri returner [{}].
-- Hold CV-en klassisk, kort, konkret og PDF-sikker. Korte bullets, ingen kampanjespråk.
-- Standard er en relevant, jobbspesifikk CV-snapshot. Ikke legg hele original-CV-en inn bakerst for sikkerhets skyld.
-- Når brukeren ber om å flette inn valgte elementer fra ORIGINAL CV, integrer dem i riktig seksjon, omformuler dem for stillingen og plasser dem der de passer best. Ikke lim dem bare inn nederst.
-
-Du kan:
-- gjøre intro/headline mer relevant;
-- omformulere beskrivelser og bullets;
-- korte ned, sortere, omprioritere, utelate mindre relevant innhold eller tone ned eksisterende innhold;
-- endre section_order for denne søknaden.
-
-Svar på norsk.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -56,6 +40,7 @@ serve(async (req) => {
     const applicationId = String(body.applicationId ?? "").trim();
     const instruction = String(body.instruction ?? "").trim();
     const focusSection = String(body.focusSection ?? "auto").trim();
+    const mode = normalizeAiMode(body.mode);
 
     if (!applicationId) return json({ error: "applicationId påkrevd" }, 400);
     if (!instruction) return json({ error: "instruction påkrevd" }, 400);
@@ -102,9 +87,6 @@ serve(async (req) => {
     );
     currentCv.section_order = currentSectionOrder;
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY mangler" }, 500);
-
     const context = [
       `FOKUSOMRÅDE: ${focusSection || "auto"}`,
       `BRUKERFEEDBACK:\n${instruction}`,
@@ -123,45 +105,36 @@ serve(async (req) => {
       }, null, 2)}`,
     ].join("\n");
 
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: SYS },
-          { role: "user", content: context },
-        ],
-        tools: [toolDefinition()],
-        tool_choice: { type: "function", function: { name: "edit_tailored_cv" } },
-      }),
+    const aiResult = await runAi({
+      feature: "edit_tailored_cv",
+      tier: "balanced",
+      mode,
+      promptVersion: CV_EDIT_PROMPT_VERSION,
+      userId: user.id,
+      supabase,
+      system: getCvEditSystemPrompt(),
+      user: context,
+      tools: [editTailoredCvTool],
+      toolChoice: { name: "edit_tailored_cv" },
+      maxOutputTokens: 3500,
     });
 
-    if (!aiResp.ok) {
-      if (aiResp.status === 429) return json({ error: "AI rate limit. Prøv igjen om litt." }, 429);
-      if (aiResp.status === 402) return json({ error: "AI-kreditter brukt opp." }, 402);
-      const t = await aiResp.text();
-      console.error("AI error", aiResp.status, t);
-      return json({ error: "AI-feil" }, 500);
-    }
-
-    const aiData = await aiResp.json();
-    const call = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!call) return json({ error: "AI returnerte ikke struktur" }, 500);
-
-    let parsed: any;
-    try {
-      parsed = JSON.parse(call.function.arguments);
-    } catch (e) {
-      console.error("Failed to parse AI output", e, call.function.arguments);
-      return json({ error: "AI returnerte ugyldig JSON" }, 500);
-    }
+    const parsed: any = aiResult.toolCalls[0]?.arguments;
+    if (!parsed) return json({ error: "AI returnerte ikke struktur" }, 500);
 
     const nextCv = cleanAiCv(parsed.tailored_cv, currentCv, originalCv);
     const nextSectionOrder = cleanSectionOrder(parsed.section_order).length
       ? cleanSectionOrder(parsed.section_order)
       : currentSectionOrder;
     nextCv.section_order = nextSectionOrder;
+    const unsupportedFacts = findUnsupportedCvFacts(nextCv, originalCv);
+    await recordAiValidation(
+      supabase,
+      aiResult.runId,
+      unsupportedFacts.length ? "failed" : "passed",
+      unsupportedFacts.join("\n") || undefined,
+    );
+    if (unsupportedFacts.length) return json({ error: "AI foreslo CV-fakta som ikke finnes i original-CV-en.", details: unsupportedFacts }, 500);
 
     const nextIntro = str(parsed.tailored_intro) || str(nextCv.intro) || str(existingTweak?.tailored_intro) || null;
     const nextHighlights = hasOwn(parsed, "highlight_experiences")

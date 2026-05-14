@@ -1,6 +1,6 @@
-# RecruitBuddy — Claude Code Instructions
+# Søkly — Claude Code Instructions
 
-RecruitBuddy er en jobbsøk-portal der jobbsøkere styrer jobs, søknader, CV og kalender fra ett dashboard, drevet av Supabase + Edge Functions.
+Søkly er en norsk jobbsøker-portal der jobbsøkere styrer jobs, søknader, CV og kalender fra ett dashboard, drevet av Supabase + Edge Functions.
 
 Full arkitektur: [.github/copilot-instructions.md](.github/copilot-instructions.md) · Produktvisjon: [docs/PROJECT_MEANING.md](docs/PROJECT_MEANING.md) · Prinsipper: [docs/PRODUCT_PRINCIPLES.md](docs/PRODUCT_PRINCIPLES.md)
 

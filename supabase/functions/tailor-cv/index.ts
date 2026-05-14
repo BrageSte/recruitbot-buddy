@@ -14,6 +14,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { recordAiValidation, runAi } from "../_shared/ai.ts";
 import {
   buildPreservedCvSnapshot,
   cleanSectionOrder,
@@ -21,47 +22,17 @@ import {
   strArr,
   validRephrases,
 } from "../_shared/cv-preserve.ts";
+import {
+  CV_TAILOR_PROMPT_VERSION,
+  getCvTailoringSystemPrompt,
+  tailorCvTool,
+} from "../_shared/prompts/cv.ts";
+import { findUnsupportedCvFacts, normalizeAiMode } from "../_shared/no-quality-rules.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const SYS = `Du tilpasser en CV til en spesifikk stilling. ABSOLUTT REGEL: Aldri finn på erfaring, utdanning, sertifiseringer eller ferdigheter som ikke finnes i mal-en.
-
-Du SKAL produsere et komplett, strukturert "tailored_cv"-objekt med samme felter som mal-en. Strukturen MÅ matche mal-en eksakt:
-- experiences[]: { title, company, location?, start, end?, current?, description?, bullets?: string[], technologies?: string[] }
-- education[]:   { degree, institution, start, end?, description? }
-- skills[]:      { category: string, items: string[] }   ← items MÅ være en array av strenger
-- languages[]:   { name: string, level: string }
-- projects[]:    { name, description, url?, technologies?: string[] }
-- certifications[]: { name, issuer, date?, url? }
-
-Du har lov til å:
-- Omformulere intro, beskrivelser og bullet points slik at de treffer stillingen bedre.
-- Endre rekkefølgen på elementer i listene.
-- Flytte mindre relevant innhold ned eller tone det ned i anbefalingene.
-- Utelate originalinnhold som er mindre relevant for akkurat denne stillingen.
-- Justere "section_order" slik at de viktigste avsnittene kommer først.
-
-Standard er å lage en relevant, jobbspesifikk CV-snapshot. Ikke legg hele original-CV-en inn bakerst for sikkerhets skyld. Bevar viktige fakta og kontekst, men prioriter det som styrker søknaden for denne rollen.
-
-CV-kvalitet og PDF-sikkerhet:
-- Tenk klassisk CV, ikke kampanje/landing page: rolig struktur, tydelige seksjoner, korte punkter.
-- Ikke lag lange avsnitt inni bullets. Bruk konkrete, lesbare setninger.
-- Behold kronologi og kontekst slik at leseren forstår arbeidsgiver, rolle og tidsrom.
-- Ikke bruk markdown, emoji eller visuell pynt i structured JSON-feltene.
-- Ikke returner ekstremt lange URL-er eller kontakttekst i nye felt.
-
-ABSOLUTT FORBUDT:
-- Returnere tomme objekter ({}) i listene.
-- Hoppe over obligatoriske felt som title/company i experiences eller category/items i skills.
-- Returnere "items" som noe annet enn en array av strenger.
-
-Hvis du ikke har noe meningsfylt å returnere for et avsnitt, returner en tom array [] for det avsnittet — IKKE [{}].
-
-I tillegg skal du levere korte AI-anbefalinger og en markdown-versjon for arkiv. Svar på norsk.`;
-const STYLE_RULES = `Språkregler: skriv konkret, arbeidsgiverrettet og uten floskler. Ikke bruk "jeg brenner for", "lidenskapelig opptatt av" eller tom entusiasme.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -80,7 +51,9 @@ serve(async (req) => {
     const user = userData.user;
     if (!user) return json({ error: "Ikke autentisert" }, 401);
 
-    const { applicationId } = await req.json();
+    const body = await req.json();
+    const { applicationId } = body;
+    const mode = normalizeAiMode(body.mode);
     if (!applicationId) return json({ error: "applicationId påkrevd" }, 400);
 
     const [{ data: app }, { data: profile }] = await Promise.all([
@@ -107,170 +80,24 @@ serve(async (req) => {
     }
     if (!cv) return json({ error: "Du må opprette en CV-mal først." }, 400);
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) return json({ error: "LOVABLE_API_KEY mangler" }, 500);
-
     const ctx = `CV-MAL (JSON):\n${JSON.stringify(cv, null, 2)}\n\nMASTER-PROFIL:\n${profile?.master_profile ?? ""}\n\nSTIL-GUIDE:\n${profile?.style_guide ?? ""}\n\nSTILLING:\nTittel: ${app.jobs.title}\nSelskap: ${app.jobs.company ?? ""}\nBeskrivelse:\n${app.jobs.description ?? ""}\nAI-oppsummering: ${app.jobs.ai_summary ?? ""}`;
 
-    // Stricter schema — each list item now has required fields.
-    // Many models (Gemini included) need the required hint to avoid
-    // returning placeholder empty objects.
-    const tailoredCvSchema = {
-      type: "object",
-      description: "Tilpasset CV-snapshot. Kun ekte data fra mal-en, omformulert/sortert/filtrert. Bruk tomme arrays [], aldri [{}].",
-      properties: {
-        intro: { type: "string" },
-        headline: { type: "string" },
-        experiences: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              title: { type: "string" },
-              company: { type: "string" },
-              location: { type: "string" },
-              start: { type: "string" },
-              end: { type: "string" },
-              current: { type: "boolean" },
-              description: { type: "string" },
-              bullets: { type: "array", items: { type: "string" } },
-              technologies: { type: "array", items: { type: "string" } },
-            },
-            required: ["title", "company"],
-          },
-        },
-        education: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              degree: { type: "string" },
-              institution: { type: "string" },
-              start: { type: "string" },
-              end: { type: "string" },
-              description: { type: "string" },
-            },
-            required: ["degree", "institution"],
-          },
-        },
-        skills: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              category: { type: "string" },
-              items: { type: "array", items: { type: "string" } },
-            },
-            required: ["category", "items"],
-          },
-        },
-        languages: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: { name: { type: "string" }, level: { type: "string" } },
-            required: ["name", "level"],
-          },
-        },
-        projects: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              description: { type: "string" },
-              url: { type: "string" },
-              technologies: { type: "array", items: { type: "string" } },
-            },
-            required: ["name", "description"],
-          },
-        },
-        certifications: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              issuer: { type: "string" },
-              date: { type: "string" },
-              url: { type: "string" },
-            },
-            required: ["name", "issuer"],
-          },
-        },
-      },
-      required: ["intro"],
-    };
-
-    const tool = {
-      type: "function",
-      function: {
-        name: "tailor_cv",
-        parameters: {
-          type: "object",
-          properties: {
-            tailored_cv: tailoredCvSchema,
-            section_order: {
-              type: "array",
-              items: { type: "string", enum: ["experiences", "education", "skills", "languages", "projects", "certifications"] },
-            },
-            tailored_intro: { type: "string" },
-            highlight_experiences: { type: "array", items: { type: "string" } },
-            deemphasize: { type: "array", items: { type: "string" } },
-            prioritize_skills: { type: "array", items: { type: "string" } },
-            rephrase_suggestions: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  context: { type: "string" },
-                  before: { type: "string" },
-                  after: { type: "string" },
-                },
-                required: ["context", "before", "after"],
-              },
-            },
-            tailored_cv_markdown: { type: "string" },
-            notes: { type: "string" },
-          },
-          required: ["tailored_cv", "section_order", "tailored_intro", "highlight_experiences", "deemphasize", "prioritize_skills", "rephrase_suggestions", "tailored_cv_markdown"],
-        },
-      },
-    };
-
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: `${SYS}\n\n${STYLE_RULES}` },
-          { role: "user", content: ctx },
-        ],
-        tools: [tool],
-        tool_choice: { type: "function", function: { name: "tailor_cv" } },
-      }),
+    const aiResult = await runAi({
+      feature: "tailor_cv",
+      tier: "balanced",
+      mode,
+      promptVersion: CV_TAILOR_PROMPT_VERSION,
+      userId: user.id,
+      supabase,
+      system: getCvTailoringSystemPrompt(),
+      user: ctx,
+      tools: [tailorCvTool],
+      toolChoice: { name: "tailor_cv" },
+      maxOutputTokens: 3500,
     });
 
-    if (!aiResp.ok) {
-      if (aiResp.status === 429) return json({ error: "AI rate limit. Prøv igjen om litt." }, 429);
-      if (aiResp.status === 402) return json({ error: "AI-kreditter brukt opp." }, 402);
-      const t = await aiResp.text();
-      console.error("AI error", aiResp.status, t);
-      return json({ error: "AI-feil" }, 500);
-    }
-
-    const aiData = await aiResp.json();
-    const call = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!call) return json({ error: "AI returnerte ikke struktur" }, 500);
-
-    let parsed: any;
-    try {
-      parsed = JSON.parse(call.function.arguments);
-    } catch (e) {
-      console.error("Failed to parse AI output", e, call.function.arguments);
-      return json({ error: "AI returnerte ugyldig JSON" }, 500);
-    }
+    const parsed: any = aiResult.toolCalls[0]?.arguments;
+    if (!parsed) return json({ error: "AI returnerte ikke struktur" }, 500);
 
     const aiIntro = str(parsed.tailored_cv?.intro) || str(parsed.tailored_intro);
     const tailoredCv: any = buildPreservedCvSnapshot(
@@ -278,6 +105,14 @@ serve(async (req) => {
       cv,
       cv,
     );
+    const unsupportedFacts = findUnsupportedCvFacts(tailoredCv, cv);
+    await recordAiValidation(
+      supabase,
+      aiResult.runId,
+      unsupportedFacts.length ? "failed" : "passed",
+      unsupportedFacts.join("\n") || undefined,
+    );
+    if (unsupportedFacts.length) return json({ error: "AI foreslo CV-fakta som ikke finnes i original-CV-en.", details: unsupportedFacts }, 500);
 
     const nextSectionOrder = cleanSectionOrder(parsed.section_order);
 

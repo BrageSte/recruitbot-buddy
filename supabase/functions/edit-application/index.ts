@@ -1,4 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { recordAiValidation, runAi } from "../_shared/ai.ts";
+import { APPLICATION_EDIT_PROMPT_VERSION, getApplicationEditSystemPrompt } from "../_shared/prompts/application.ts";
+import {
+  buildQualityRewriteInstruction,
+  normalizeAiMode,
+  validateNorwegianDraft,
+} from "../_shared/no-quality-rules.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,24 +14,12 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `Du er en presis tekstredaktør for norske jobbsøknader. Brukeren gir deg gjeldende søknadstekst og en instruksjon på naturlig språk (f.eks. "gjør avsnittet om erfaring mer personlig", "fjern alle bindestreker", "kortere og mer direkte").
-
-Regler:
-- Du returnerer KUN den fullstendige, oppdaterte søknadsteksten — ingen forklaringer, ingen overskrifter, ingen markdown-kodeblokker, ingen "Her er den nye teksten:".
-- Behold avsnittsstruktur og linjeskift med mindre instruksjonen ber om noe annet.
-- Behold språk (norsk bokmål med mindre originalen er noe annet).
-- Ikke finn på fakta som ikke står i originalen eller i jobbkonteksten.
-- Skriv mer om hva arbeidsgiver får, ikke bare hva kandidaten ønsker.
-- Bruk gjerne "dere" når teksten retter seg mot arbeidsgiveren.
-- Unngå floskler som "jeg brenner for", "lidenskapelig opptatt av", "spennende mulighet" og tom motivasjon.
-- Hvis brukeren markerer kun et utvalg av teksten (mellom <SELECTION>...</SELECTION>), endre KUN den delen og bytt den ut i hele teksten — returner hele dokumentet.
-- Hvis instruksjonen er uklar, gjør den mest sannsynlige tolkningen og utfør endringen.`;
-
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { currentText, instruction, selection, jobTitle, company, jobDescription } = await req.json();
+    const { currentText, instruction, selection, jobTitle, company, jobDescription, mode: rawMode } = await req.json();
+    const mode = normalizeAiMode(rawMode);
 
     if (typeof currentText !== "string" || !currentText.trim()) {
       return new Response(JSON.stringify({ error: "currentText er påkrevd" }), {
@@ -38,8 +34,16 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY ikke konfigurert");
+    const authHeader = req.headers.get("Authorization");
+    const supabase = authHeader
+      ? createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
+          { global: { headers: { Authorization: authHeader } } },
+        )
+      : undefined;
+    const { data: userData } = supabase ? await supabase.auth.getUser() : { data: { user: null } as any };
+    const user = userData.user;
 
     const userParts: string[] = [];
     if (jobTitle || company) {
@@ -58,50 +62,52 @@ serve(async (req) => {
     userParts.push(`\nInstruksjon fra bruker:\n${instruction.trim()}`);
     userParts.push(`\nReturner hele den oppdaterte søknadsteksten — ingenting annet.`);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userParts.join("\n") },
-        ],
-      }),
+    const aiResult = await runAi({
+      feature: "edit_application",
+      tier: "balanced",
+      mode,
+      promptVersion: APPLICATION_EDIT_PROMPT_VERSION,
+      userId: user?.id ?? null,
+      supabase,
+      system: getApplicationEditSystemPrompt(),
+      user: userParts.join("\n"),
+      maxOutputTokens: 1500,
     });
 
-    if (response.status === 429) {
-      return new Response(JSON.stringify({ error: "For mange forespørsler – prøv igjen om litt." }), {
-        status: 429,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    let newText = aiResult.text ?? "";
+    newText = stripMarkdownFences(newText);
+
+    let quality = validateNorwegianDraft(newText, mode);
+    if (!quality.ok) {
+      const rewrite = await runAi({
+        feature: "edit_application",
+        tier: "balanced",
+        mode,
+        promptVersion: `${APPLICATION_EDIT_PROMPT_VERSION}:rewrite`,
+        userId: user?.id ?? null,
+        supabase,
+        system: getApplicationEditSystemPrompt(),
+        user: buildQualityRewriteInstruction(newText, quality, mode),
+        maxOutputTokens: 1500,
       });
+      newText = stripMarkdownFences(rewrite.text ?? "");
+      quality = validateNorwegianDraft(newText, mode);
     }
-    if (response.status === 402) {
-      return new Response(JSON.stringify({ error: "AI-kreditt brukt opp – legg til kreditt i Lovable Cloud." }), {
-        status: 402,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (!response.ok) {
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      return new Response(JSON.stringify({ error: "AI-feil" }), {
+    await recordAiValidation(
+      supabase,
+      aiResult.runId,
+      quality.ok ? (quality.warnings.length ? "warning" : "passed") : "failed",
+      [...quality.errors, ...quality.warnings].join("\n") || undefined,
+    );
+
+    if (!newText) {
+      return new Response(JSON.stringify({ error: "Tomt svar fra AI" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const data = await response.json();
-    let newText: string = data?.choices?.[0]?.message?.content ?? "";
-
-    // Strip accidental markdown fences
-    newText = newText.replace(/^```[a-zA-Z]*\n?/, "").replace(/\n?```\s*$/, "").trim();
-
-    if (!newText) {
-      return new Response(JSON.stringify({ error: "Tomt svar fra AI" }), {
+    if (!quality.ok) {
+      return new Response(JSON.stringify({ error: "AI-output passerte ikke kvalitetsreglene." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -118,3 +124,7 @@ serve(async (req) => {
     });
   }
 });
+
+function stripMarkdownFences(value: string) {
+  return value.replace(/^```[a-zA-Z]*\n?/, "").replace(/\n?```\s*$/, "").trim();
+}

@@ -1,5 +1,11 @@
 # Dashboard and Onboarding Plan
 
+> **Strategisk forankring (mai 2026):** Denne planen lever under den oppdaterte posisjonen
+> "Søkly = norsk jobbsøker-operativsystem" — se [STRATEGY.md](./STRATEGY.md),
+> [BUSINESS_CASE.md](./BUSINESS_CASE.md) og [MARKET_ANALYSIS.md](./MARKET_ANALYSIS.md).
+> Dashboard og onboarding skal nå spesielt løfte tre ting: **transparent match**,
+> **norsk-modus tailoring (privat/offentlig/"uten søknadsbrev")** og **synlig datakontroll**.
+
 ## Product Intent
 
 The app should help the user work on getting a job as if job searching is a job.
@@ -355,14 +361,16 @@ Primary headline direction:
 - "Jobbsoking gjort enkelt"
 - "Jobb med a fa jobb, uten kaoset"
 
-Core value props:
+Core value props (oppdatert mai 2026):
 
-- collect jobs from multiple sources;
-- track applications, deadlines, and follow-ups;
-- generate honest tailored drafts from your profile and CV;
-- get daily next actions from an AI recruiter.
+- transparent match — vi viser deg krav-for-krav hvorfor en jobb passer (eller ikke);
+- norsk-modus for CV og søknad — privat sektor, offentlig sektor, eller "uten søknadsbrev";
+- jobflow — frister, oppfølging, neste handling, alt på ett sted;
+- ærlige drafts fra ditt eget CV — ingen oppdiktet erfaring;
+- datakontroll synlig i UI — slett, eksporter, slå av modellæring.
 
 Avoid positioning as merely "AI writes cover letters." That is a feature, not the product.
+Søkly er et **norsk jobbsøker-operativsystem**, ikke en AI-generator.
 
 ## Near-Term Product Backlog
 
@@ -409,7 +417,20 @@ To evaluate next:
 ## Decision Questions for Next Step
 
 - Is this currently for personal use first, public SaaS later, or both immediately?
+  *(Avklart i [BUSINESS_CASE.md](./BUSINESS_CASE.md): personal first → soft launch → public SaaS over 12 mnd.)*
 - Should Lovable remain the AI gateway, or should the app own a provider-neutral AI layer?
 - Should the first deploy be fastest possible or production-shaped from the start?
 - Should onboarding be dashboard-based first or a dedicated route?
-- What is the canonical product name: RecruitBuddy, JobHunter AI, or another name?
+  *(Foreslått: dashboard setup mode først; ekstrahér til /onboarding hvis state-logikken vokser.)*
+- What is the canonical product name?
+  *(Arbeidsnavn: **Søkly**. Lås etter domene/foretak/varemerke-sjekk — se [STRATEGY.md](./STRATEGY.md) → Navnvurdering.)*
+
+## Anbefalte oppdateringer ut fra ny strategi
+
+Etter markedsanalysen mai 2026 bør backloggen prioritere:
+
+1. **Match-forklaring i dashboard og jobbdetalj** — vis krav-for-krav (dekket / delvis / mangler) med evidens fra CV. Dette er Søklys signatur og bør være det første brukeren ser etter at en jobb er parsed.
+2. **Norsk-modus i tailoring-flow** — eksplisitt valg mellom privat sektor, offentlig sektor og "uten søknadsbrev" (CV-first). Default styres av jobbkilde og bransje hvis mulig.
+3. **Privacy-card på dashboard og i innstillinger** — synlig datakontroll: slett, eksporter, "ikke til modelltrening"-toggle, audit log. Ikke gjem dette i en juridisk fotnote.
+4. **Source health med kildeprioritet** — Arbeidsplassen/NAV først, deretter utvalgte arbeidsgiversider. Manuelle fallbacks tydelig kommunisert.
+5. **Onboarding setter forventning om transparens, ikke automasjon** — første tekst brukeren leser bør si "vi viser deg hvorfor", ikke "vi skriver søknaden for deg".

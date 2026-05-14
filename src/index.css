@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* JobHunter AI design system — calm, professional, Linear/Notion-inspired.
+/* Søkly design system — calm, professional, Linear/Notion-inspired.
    All colors HSL. */
 
 @layer base {
@@ -161,5 +161,4 @@
 .prose-app ol { @apply list-decimal pl-5 my-2 space-y-1; }
 .prose-app code { @apply bg-muted px-1 py-0.5 rounded text-xs; }
 .prose-app a { @apply text-primary underline; }
-
 
