@@ -20,6 +20,33 @@ function clampInt(value: unknown, fallback: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.round(n)));
 }
 
+function timingSafeEqual(a: string, b: string) {
+  const encoder = new TextEncoder();
+  const left = encoder.encode(a);
+  const right = encoder.encode(b);
+  if (left.length !== right.length) return false;
+
+  let diff = 0;
+  for (let i = 0; i < left.length; i++) {
+    diff |= left[i] ^ right[i];
+  }
+  return diff === 0;
+}
+
+function authorizeCronRequest(req: Request) {
+  const expected = Deno.env.get("PROCESS_MATCH_RUNS_CRON_SECRET")?.trim();
+  if (!expected) {
+    return json({ error: "PROCESS_MATCH_RUNS_CRON_SECRET is not configured" }, 500);
+  }
+
+  const provided = req.headers.get("x-cron-secret")?.trim() ?? "";
+  if (!provided || !timingSafeEqual(provided, expected)) {
+    return json({ error: "Unauthorized" }, 401);
+  }
+
+  return null;
+}
+
 async function countActiveJobs(admin: any, provider?: string | null) {
   let query = admin
     .from("external_jobs")
@@ -246,10 +273,8 @@ async function processRun(admin: any, run: any, maxScanRows: number, maxScore: n
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  const admin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  const unauthorized = authorizeCronRequest(req);
+  if (unauthorized) return unauthorized;
 
   let body: any = {};
   try {
@@ -257,6 +282,15 @@ serve(async (req) => {
   } catch {
     body = {};
   }
+
+  if (body.healthcheck === true) {
+    return json({ ok: true, mode: "healthcheck" });
+  }
+
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
 
   const maxScanRows = clampInt(body.maxScanRows, 500, 1, 2000);
   const maxScore = clampInt(body.maxScore, 25, 1, 50);
