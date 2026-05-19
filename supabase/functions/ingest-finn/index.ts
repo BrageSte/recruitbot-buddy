@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, json, normalizeDeadline, stripHtml } from "../_shared/full-match.ts";
+import { cleanupStaleJobs } from "../_shared/stale-jobs.ts";
 
 const UA = "SoklyFullMatch/1.0";
 const HTML_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -425,7 +426,6 @@ serve(async (req) => {
     let upserted = 0;
     let skipped = 0;
     let linksRecorded = 0;
-    let inactiveExpired = 0;
     const seen = new Set<string>();
 
     for (const item of items) {
@@ -479,41 +479,8 @@ serve(async (req) => {
       }
     }
 
-    const today = new Date().toISOString().slice(0, 10);
-    const staleCutoff = new Date(Date.now() - 45 * 86400000).toISOString();
-    const { count: expiredDeadlineCount } = await admin
-      .from("external_jobs")
-      .select("id", { count: "exact", head: true })
-      .eq("provider", "finn")
-      .eq("status", "active")
-      .not("deadline", "is", null)
-      .lt("deadline", today);
-    if ((expiredDeadlineCount ?? 0) > 0) {
-      const { error } = await admin
-        .from("external_jobs")
-        .update({ status: "inactive" })
-        .eq("provider", "finn")
-        .eq("status", "active")
-        .not("deadline", "is", null)
-        .lt("deadline", today);
-      if (!error) inactiveExpired += expiredDeadlineCount ?? 0;
-    }
-
-    const { count: staleCount } = await admin
-      .from("external_jobs")
-      .select("id", { count: "exact", head: true })
-      .eq("provider", "finn")
-      .eq("status", "active")
-      .lt("last_seen_at", staleCutoff);
-    if ((staleCount ?? 0) > 0) {
-      const { error } = await admin
-        .from("external_jobs")
-        .update({ status: "inactive" })
-        .eq("provider", "finn")
-        .eq("status", "active")
-        .lt("last_seen_at", staleCutoff);
-      if (!error) inactiveExpired += staleCount ?? 0;
-    }
+    const cleanup = await cleanupStaleJobs(admin);
+    const inactiveExpired = cleanup.externalExpiredInactivated + cleanup.externalStaleInactivated;
 
     const hint = hints.length > 0 ? hints.join(" ") : null;
     const status = blocked ? "blocked" : hint && upserted === 0 ? "needs_access" : hint ? "partial" : "ok";
@@ -530,6 +497,7 @@ serve(async (req) => {
           skipped,
           linksRecorded,
           inactiveExpired,
+          cleanup,
           blocked,
         },
       },
@@ -545,6 +513,7 @@ serve(async (req) => {
       skipped,
       linksRecorded,
       inactiveExpired,
+      cleanup,
       hint,
       blocked,
     });

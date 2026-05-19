@@ -44,6 +44,7 @@ import {
   savePreOnboardingDraft,
   type PreOnboardingDraft,
 } from "@/lib/preOnboarding";
+import { isActiveNotExpiredExternalJob, todayDateString } from "@/lib/staleJobs";
 import { normalizeWeights, type MatchPriority, weightsFromPriority } from "@/lib/onboardingWeights";
 import { linkedinImportStatusCopy, type LinkedInImportStatus } from "@/lib/linkedinImportStatus";
 import { buildSourceSearchText } from "@/lib/sourceSuggestions";
@@ -124,6 +125,7 @@ type SetupMatchPreview = {
     location?: string | null;
     provider?: string | null;
     source_url?: string | null;
+    status?: string | null;
     deadline?: string | null;
     raw_data?: any;
   } | null;
@@ -363,9 +365,10 @@ const Onboarding = () => {
 
   const loadSetupMatches = useCallback(async () => {
     if (!user) return [];
+    const today = todayDateString();
     const { data, error } = await (supabase as any)
       .from("user_job_matches")
-      .select("id, match_score, status, match_reasoning, external_jobs(title, company, location, provider, source_url, deadline, raw_data)")
+      .select("id, match_score, status, match_reasoning, external_jobs(title, company, location, provider, source_url, status, deadline, raw_data)")
       .eq("user_id", user.id)
       .neq("status", "dismissed")
       .neq("status", "archived")
@@ -373,7 +376,9 @@ const Onboarding = () => {
       .limit(SETUP_MATCH_PREVIEW_LIMIT);
 
     if (error) return [];
-    const rows = ((data ?? []) as SetupMatchPreview[]).filter((match) => typeof match.match_score === "number");
+    const rows = ((data ?? []) as SetupMatchPreview[])
+      .filter((match) => typeof match.match_score === "number")
+      .filter((match) => isActiveNotExpiredExternalJob(match.external_jobs, today));
     if (mountedRef.current) setSetupMatches(rows);
     return rows;
   }, [user]);

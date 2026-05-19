@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { evaluateMatchVisibility, type MatchVisibilityRule, type MatchVisibilityResult } from "@/lib/matchVisibility";
+import { isActiveNotExpiredExternalJob, todayDateString } from "@/lib/staleJobs";
 import {
   AlertTriangle,
   ArrowRight,
@@ -72,6 +73,7 @@ const Matches = () => {
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    const today = todayDateString();
     const [matchRes, stateRes, arbeidsplassenCount, finnCount, profileRes, rulesRes, runRes] = await Promise.all([
       supabase
         .from("user_job_matches")
@@ -85,12 +87,14 @@ const Matches = () => {
         .from("external_jobs")
         .select("id", { count: "exact", head: true })
         .eq("provider", "arbeidsplassen" as any)
-        .eq("status", "active" as any),
+        .eq("status", "active" as any)
+        .or(`deadline.is.null,deadline.gte.${today}`),
       supabase
         .from("external_jobs")
         .select("id", { count: "exact", head: true })
         .eq("provider", "finn" as any)
-        .eq("status", "active" as any),
+        .eq("status", "active" as any)
+        .or(`deadline.is.null,deadline.gte.${today}`),
       supabase.from("profiles").select("match_min_visible_score").eq("user_id", user.id).maybeSingle(),
       supabase
         .from("match_visibility_rules")
@@ -105,7 +109,7 @@ const Matches = () => {
         .limit(1)
         .maybeSingle(),
     ]);
-    setMatches((matchRes.data ?? []) as any[]);
+    setMatches(((matchRes.data ?? []) as any[]).filter((match) => isActiveNotExpiredExternalJob(match.external_jobs, today)));
     setStates(stateRes.data ?? []);
     setVisibilityRules((rulesRes.data ?? []) as any[]);
     const nextMinScore = (profileRes.data as any)?.match_min_visible_score ?? 65;
@@ -145,14 +149,15 @@ const Matches = () => {
           includeRuleName: liveVisibility.includeRuleName ?? storedVisibility.includeRuleName ?? null,
           excludeRuleName: liveVisibility.excludeRuleName ?? storedVisibility.excludeRuleName ?? null,
         };
-        const passesFilter = visibility.visible && !visibility.excludeRuleName && match.status !== "archived";
+        const activeExternal = isActiveNotExpiredExternalJob(job);
+        const passesFilter = activeExternal && visibility.visible && !visibility.excludeRuleName && match.status !== "archived";
         return { ...match, _visibility: visibility, _passesFilter: passesFilter };
       }),
     [matches, minScore, visibilityRules],
   );
 
   const activeMatches = useMemo(
-    () => decoratedMatches.filter((m) => m.status !== "archived"),
+    () => decoratedMatches.filter((m) => m.status !== "archived" && isActiveNotExpiredExternalJob(m.external_jobs)),
     [decoratedMatches],
   );
 

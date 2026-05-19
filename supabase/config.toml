@@ -45,6 +45,9 @@ verify_jwt = true
 [functions.process-match-runs]
 verify_jwt = false
 
+[functions.cleanup-stale-jobs]
+verify_jwt = false
+
 [functions.match-anonymous]
 verify_jwt = false
 

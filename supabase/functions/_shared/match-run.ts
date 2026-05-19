@@ -245,6 +245,10 @@ export async function saveMatchToPipeline(
   if (!match?.external_jobs) throw new Error("Match ikke funnet");
 
   const external = match.external_jobs;
+  if (external.status !== "active" || !activeNotExpiredFilter(external)) {
+    throw new Error("Jobben er ikke lenger aktiv eller søknadsfristen er utløpt.");
+  }
+
   const { data: existing } = await admin
     .from("jobs")
     .select("id,status")

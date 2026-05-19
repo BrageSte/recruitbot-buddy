@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { evaluateMatchVisibility, type MatchVisibilityRule } from "@/lib/matchVisibility";
 import { JOB_STATUS_STRIPE } from "@/lib/statusStyles";
 import { discoveryToastDescription, matchStatusForJobStatus, statusToFeedbackDecision } from "@/lib/jobDiscovery";
+import { isVisiblePipelineJob, todayDateString } from "@/lib/staleJobs";
 import { Plus, Loader2, Sparkles, ExternalLink, Filter, Bookmark, Trash2, X, Send, ChevronDown, Layers, ArrowUpDown, Archive, ArchiveRestore, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 
@@ -97,8 +98,9 @@ const Jobs = () => {
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    const today = todayDateString();
     const [j, f, p, r, mr] = await Promise.all([
-      supabase.from("jobs").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("jobs").select("*, external_jobs(status, deadline)").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("saved_filters").select("*").eq("user_id", user.id).order("sort_order"),
       supabase.from("profiles").select("match_min_visible_score").eq("user_id", user.id).maybeSingle(),
       supabase
@@ -114,7 +116,7 @@ const Jobs = () => {
         .limit(1)
         .maybeSingle(),
     ]);
-    setJobs(j.data ?? []);
+    setJobs(((j.data ?? []) as any[]).filter((job) => isVisiblePipelineJob(job, today)));
     setFilters((f.data ?? []) as any);
     setVisibilityRules((r.data ?? []) as any);
     setMatchRun((mr.data ?? null) as MatchRun | null);
@@ -127,7 +129,9 @@ const Jobs = () => {
   useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => {
+    const today = todayDateString();
     const list = jobs.filter((j) => {
+      if (!isVisiblePipelineJob(j, today)) return false;
       // Hide archived by default unless user toggled or explicitly filters on it
       if (!showArchived && j.status === "archived" && !config.status?.includes("archived")) return false;
       if (config.status?.length && !config.status.includes(j.status)) return false;

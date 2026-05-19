@@ -17,6 +17,7 @@ import {
   loadMatchContext,
   saveMatchToPipeline,
 } from "../_shared/match-run.ts";
+import { cleanupStaleJobs } from "../_shared/stale-jobs.ts";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -249,7 +250,7 @@ async function loadUserSourceHitIds(admin: any, userId: string, provider: string
   if (provider) query = query.eq("provider", provider);
   const { data, error } = await query;
   if (error) throw error;
-  return new Set((data ?? []).map((row: any) => row.external_job_id).filter(Boolean));
+  return new Set<string>((data ?? []).map((row: any) => row.external_job_id).filter(Boolean).map(String));
 }
 
 async function loadCandidateJobs(admin: any, userId: string, provider: string | null, profileSearchIds: Set<string>, includeBroadCache: boolean) {
@@ -315,16 +316,18 @@ serve(async (req) => {
       body = {};
     }
 
+    const cleanup = body.skipCleanup === true ? null : await cleanupStaleJobs(admin);
+
     if (body.action === "save-match") {
       if (!body.matchId) return json({ error: "matchId påkrevd" }, 400);
       const materialized = await saveMatchToPipeline(admin, user.id, body.matchId);
-      return json({ ok: true, jobId: materialized.jobId, ...materialized });
+      return json({ ok: true, ...materialized, cleanup });
     }
 
     if (body.action === "dismiss-match") {
       if (!body.matchId) return json({ error: "matchId påkrevd" }, 400);
       await dismissMatch(admin, user.id, body.matchId, body.note);
-      return json({ ok: true });
+      return json({ ok: true, cleanup });
     }
 
     const limit = clampLimit(body.limit ?? body.initialLimit);
@@ -594,7 +597,7 @@ serve(async (req) => {
       if (pendingErr) throw pendingErr;
 
       for (const pending of pendingMatches ?? []) {
-        const external = pending.external_jobs;
+        const external = Array.isArray(pending.external_jobs) ? pending.external_jobs[0] : pending.external_jobs;
         if (!external) continue;
         const matchVisibility = evaluateMatchVisibility(
           external,
@@ -665,6 +668,7 @@ serve(async (req) => {
       profileHash,
       totalEstimate: backgroundRun?.total_estimate ?? totalEstimate ?? externalJobs.length,
       scannedCount: backgroundRun?.scanned_count ?? externalJobs.length,
+      cleanup,
     });
   } catch (e) {
     console.error("match-user-jobs error", e);

@@ -17,6 +17,7 @@ import {
   SOURCE_PROVIDER_LABEL,
   type SourceSuggestionProvider,
 } from "@/lib/sourceSuggestions";
+import { todayDateString } from "@/lib/staleJobs";
 import {
   Loader2,
   Plus,
@@ -246,18 +247,21 @@ const Sources = () => {
   };
 
   const loadCoverage = useCallback(async () => {
+    const today = todayDateString();
     const [states, arbeidsplassenCount, finnCount, runRes] = await Promise.all([
       supabase.from("source_ingest_state").select("*"),
       supabase
         .from("external_jobs")
         .select("id", { count: "exact", head: true })
         .eq("provider", "arbeidsplassen" as any)
-        .eq("status", "active" as any),
+        .eq("status", "active" as any)
+        .or(`deadline.is.null,deadline.gte.${today}`),
       supabase
         .from("external_jobs")
         .select("id", { count: "exact", head: true })
         .eq("provider", "finn" as any)
-        .eq("status", "active" as any),
+        .eq("status", "active" as any)
+        .or(`deadline.is.null,deadline.gte.${today}`),
       user
         ? (supabase as any)
             .from("user_match_runs")

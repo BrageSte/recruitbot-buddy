@@ -7,6 +7,7 @@ import {
   rankCandidate,
   tokenize,
 } from "../_shared/full-match.ts";
+import { activeNotExpiredFilter } from "../_shared/match-run.ts";
 
 const CANDIDATE_POOL = 300;
 const MAX_LIMIT = 6;
@@ -114,6 +115,7 @@ serve(async (req) => {
   }
 
   const ranked = pool
+    .filter(activeNotExpiredFilter)
     .map((job) => ({ job, score: rankCandidate(job, terms, negativeTerms) }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score)

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { DailyCoachPanel } from "@/components/DailyCoachPanel";
 import { buildDailyCoach, type CoachSourceHealth } from "@/lib/dailyCoach";
+import { isVisiblePipelineJob, todayDateString } from "@/lib/staleJobs";
 import {
   Sparkles,
   Calendar as CalendarIcon,
@@ -41,6 +42,7 @@ type Job = {
   status: string;
   deadline: string | null;
   created_at: string;
+  external_jobs?: { status: string | null; deadline: string | null } | null;
 };
 
 type Application = {
@@ -123,7 +125,7 @@ const Dashboard = () => {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      supabase.from("jobs").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("jobs").select("*, external_jobs(status, deadline)").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("applications").select("*, jobs(title, company, deadline, match_score)").eq("user_id", user.id),
       supabase.from("calendar_events").select("*").eq("user_id", user.id),
       supabase.from("goals").select("*").eq("user_id", user.id).neq("status", "archived").order("sort_order"),
@@ -179,6 +181,8 @@ const Dashboard = () => {
   }, [user]);
 
   const today = useMemo(() => new Date(), []);
+  const todayKey = useMemo(() => todayDateString(today), [today]);
+  const visibleJobs = useMemo(() => jobs.filter((job) => isVisiblePipelineJob(job, todayKey)), [jobs, todayKey]);
   const tomorrow = useMemo(() => addDays(today, 1), [today]);
   const weekStart = useMemo(() => startOfWeek(today, { weekStartsOn: 1 }), [today]);
   const weekEnd = useMemo(() => endOfWeek(today, { weekStartsOn: 1 }), [today]);
@@ -198,7 +202,7 @@ const Dashboard = () => {
 
   // ============= Top 5 MUST APPLY =============
   const mustApply = useMemo(() => {
-    return jobs
+    return visibleJobs
       .filter((j) => !drafted.has(j.id) && !["archived", "rejected"].includes(j.status))
       .sort((a, b) => {
         const scoreA = a.match_score ?? 0;
@@ -210,12 +214,12 @@ const Dashboard = () => {
         return urgencyB - urgencyA;
       })
       .slice(0, 5);
-  }, [jobs, drafted, today]);
+  }, [visibleJobs, drafted, today]);
 
   const mustApplyIds = useMemo(() => new Set(mustApply.map((j) => j.id)), [mustApply]);
   const newRecent = useMemo(() => {
     const sevenDaysAgo = addDays(today, -7);
-    return jobs
+    return visibleJobs
       .filter(
         (j) =>
           !mustApplyIds.has(j.id) &&
@@ -225,13 +229,13 @@ const Dashboard = () => {
       )
       .sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0))
       .slice(0, 8);
-  }, [jobs, mustApplyIds, drafted, today]);
+  }, [visibleJobs, mustApplyIds, drafted, today]);
 
   // ============= Smart agenda =============
   const agenda = useMemo(() => {
     const items: AgendaItem[] = [];
 
-    jobs.forEach((j) => {
+    visibleJobs.forEach((j) => {
       if (!j.deadline) return;
       if (["archived", "rejected"].includes(j.status)) return;
       const d = parseISO(j.deadline);
@@ -289,7 +293,7 @@ const Dashboard = () => {
     });
 
     return items.sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [jobs, apps, events, goals, today, weekStart]);
+  }, [visibleJobs, apps, events, goals, today, weekStart]);
 
   const agendaGroups = useMemo(() => {
     const todayItems = agenda.filter((i) => isSameDay(i.date, today));
@@ -308,7 +312,7 @@ const Dashboard = () => {
   const urgent = useMemo(() => {
     const out: UrgentItem[] = [];
 
-    jobs.forEach((j) => {
+    visibleJobs.forEach((j) => {
       if (!j.deadline || drafted.has(j.id)) return;
       if (["archived", "rejected"].includes(j.status)) return;
       const d = parseISO(j.deadline);
@@ -354,7 +358,7 @@ const Dashboard = () => {
       });
     });
 
-    jobs.forEach((j) => {
+    visibleJobs.forEach((j) => {
       if (drafted.has(j.id)) return;
       if (["archived", "rejected"].includes(j.status)) return;
       if ((j.match_score ?? 0) < 80) return;
@@ -371,12 +375,12 @@ const Dashboard = () => {
     });
 
     return out.slice(0, 12);
-  }, [jobs, apps, events, drafted, today, tomorrow]);
+  }, [visibleJobs, apps, events, drafted, today, tomorrow]);
 
   const coach = useMemo(
     () =>
       buildDailyCoach({
-        jobs,
+        jobs: visibleJobs,
         applications: apps,
         events,
         goals,
@@ -385,14 +389,14 @@ const Dashboard = () => {
         sourceHealth,
         now: today,
       }),
-    [jobs, apps, events, goals, profile, hasCv, sourceHealth, today]
+    [visibleJobs, apps, events, goals, profile, hasCv, sourceHealth, today]
   );
 
   if (loading) {
     return <div className="p-10 text-sm text-muted-foreground">Laster…</div>;
   }
 
-  const newMatchCount = jobs.filter((j) => j.status === "discovered" && (j.match_score ?? 0) >= 70).length;
+  const newMatchCount = visibleJobs.filter((j) => j.status === "discovered" && (j.match_score ?? 0) >= 70).length;
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-10 space-y-8">
@@ -522,7 +526,7 @@ const Dashboard = () => {
                 <div className="text-sm font-semibold">Bla gjennom jobber</div>
                 <div className="text-xs text-muted-foreground">
                   {(() => {
-                    const queueCount = jobs.filter(
+                    const queueCount = visibleJobs.filter(
                       (j) => !drafted.has(j.id) && ["discovered", "considering"].includes(j.status)
                     ).length;
                     return queueCount > 0

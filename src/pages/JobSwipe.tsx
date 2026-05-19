@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { isVisiblePipelineJob, todayDateString } from "@/lib/staleJobs";
 
 type Job = any;
 type Decision = "uninterested" | "interested" | "very_interested";
@@ -65,14 +66,15 @@ const JobSwipe = () => {
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    let q = supabase.from("jobs").select("*").eq("user_id", user.id);
+    const today = todayDateString();
+    let q = supabase.from("jobs").select("*, external_jobs(status, deadline)").eq("user_id", user.id);
     if (!includeReviewed) {
       q = q.eq("interest_level", "none" as any).eq("status", "discovered" as any);
     } else {
       q = q.in("status", ["discovered", "considering"] as any);
     }
     const { data } = await q.order("match_score", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false });
-    setQueue(data ?? []);
+    setQueue(((data ?? []) as any[]).filter((job) => isVisiblePipelineJob(job, today)));
     setHistory([]);
     setLoading(false);
   }, [includeReviewed, user]);

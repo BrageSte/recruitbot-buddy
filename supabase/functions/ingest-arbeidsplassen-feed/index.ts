@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, json, normalizeDeadline, stripHtml } from "../_shared/full-match.ts";
+import { cleanupStaleJobs } from "../_shared/stale-jobs.ts";
 
 const FEED_BASE = "https://pam-stilling-feed.nav.no";
 
@@ -278,6 +279,7 @@ serve(async (req) => {
       : completed
       ? null
       : "Ingest pauset før feeden var ferdig; fortsetter fra cursor neste runde.";
+    const cleanup = await cleanupStaleJobs(admin);
 
     await admin.from("source_ingest_state").upsert(
       {
@@ -290,12 +292,20 @@ serve(async (req) => {
         last_feed_url: lastFeedUrl,
         last_status: lastStatus,
         last_error: lastError,
-        last_run_stats: { ...stats, completed, cursorUrl: completed ? null : feedUrl },
+        last_run_stats: { ...stats, completed, cursorUrl: completed ? null : feedUrl, cleanup },
       },
       { onConflict: "provider" },
     );
 
-    return json({ ok: true, provider: "arbeidsplassen", ...stats, completed, cursorUrl: completed ? null : feedUrl, lastModifiedAt: completed ? newestModified : state?.last_modified_at ?? null });
+    return json({
+      ok: true,
+      provider: "arbeidsplassen",
+      ...stats,
+      cleanup,
+      completed,
+      cursorUrl: completed ? null : feedUrl,
+      lastModifiedAt: completed ? newestModified : state?.last_modified_at ?? null,
+    });
   } catch (e) {
     const message = (e as Error).message;
     await admin.from("source_ingest_state").upsert(
